@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from 'react';
-import { tsToDate, formatDateLong, calcFechaCosecha } from '../lib/cedulas-helpers';
+import { tsToDate, formatDateLong, calcFechaCosecha, deriveCambiosLineas } from '../lib/cedulas-helpers';
 
 // ── CedulaDocumento ──────────────────────────────────────────────────────────
 // El papel blanco con el documento auditable de la cédula que se renderiza
@@ -14,10 +14,13 @@ import { tsToDate, formatDateLong, calcFechaCosecha } from '../lib/cedulas-helpe
 // para que el handleShare/handlePrint del padre pueda capturar el papel sin
 // el fondo gris del wrapper.
 //
-// Bonus de dedup con CedulaViewer.jsx pendiente para PR siguiente — los
-// datos llegan en shapes distintos (preview computa on-the-fly, viewer
-// consume snap_* del backend), unificación requiere normalizar a un solo
-// shape de input y se hace mejor en un cambio dedicado.
+// Dedup con CedulaViewer.jsx (punto #2 audit UX/UI): el viewer ya no tiene
+// su propio papel duplicado — adapta su `cedula` con campos `snap_*` a la
+// misma shape que el preview pasa, y al renderizar este componente
+// proporciona `snapOverrides` para forzar los valores históricos exactos
+// (fechaCosecha, totalPlantas, totalBoones, periodoCarenciaMax,
+// periodoReingresoMax) en lugar de re-derivarlos desde el catálogo actual.
+// El preview no pasa overrides y mantiene su path de cálculo on-the-fly.
 const CedulaDocumento = forwardRef(function CedulaDocumento({
   config,
   previewTask,
@@ -33,6 +36,11 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
   previewCalAplicador,
   previewCalTractor,
   getProductoCatalog,
+  // Valores snap del backend (set al lock-in de la cédula). Se usan en el
+  // viewer del historial para que el papel refleje EXACTO lo que se aplicó,
+  // aunque el catálogo o config hayan cambiado desde entonces. Cualquier
+  // campo undefined cae al cálculo on-the-fly.
+  snapOverrides = null,
 }, ref) {
   // Periodo de carencia (días, max sobre todos los productos planificados) y
   // periodo de reingreso (horas, idem). Antes eran dos IIFE inline que
@@ -42,20 +50,28 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
   // el orquestador (useCallback sobre productosById), los memos son
   // virtualmente gratis a partir de la 2da render. Punto #23 audit.
   const periodoCarencia = useMemo(() => {
+    if (snapOverrides?.periodoCarenciaMax != null) {
+      const n = Number(snapOverrides.periodoCarenciaMax);
+      return n > 0 ? `${n} días` : '—';
+    }
     const max = previewProductos.reduce((m, p) => {
       const dias = Number(getProductoCatalog(p.productoId)?.periodoACosecha) || 0;
       return Math.max(m, dias);
     }, 0);
     return max > 0 ? `${max} días` : '—';
-  }, [previewProductos, getProductoCatalog]);
+  }, [previewProductos, getProductoCatalog, snapOverrides?.periodoCarenciaMax]);
 
   const periodoReingreso = useMemo(() => {
+    if (snapOverrides?.periodoReingresoMax != null) {
+      const n = Number(snapOverrides.periodoReingresoMax);
+      return n > 0 ? `${n} h` : '—';
+    }
     const max = previewProductos.reduce((m, p) => {
       const horas = Number(getProductoCatalog(p.productoId)?.periodoReingreso) || 0;
       return Math.max(m, horas);
     }, 0);
     return max > 0 ? `${max} h` : '—';
-  }, [previewProductos, getProductoCatalog]);
+  }, [previewProductos, getProductoCatalog, snapOverrides?.periodoReingresoMax]);
 
   return (
     <div className="ca-doc-wrap">
@@ -105,7 +121,9 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
             </div>
             <div className="ca-dato">
               <span className="ca-dato-label">F. Prog. Cosecha:</span>
-              <span className="ca-dato-value">{formatDateLong(calcFechaCosecha(previewSource, config))}</span>
+              <span className="ca-dato-value">
+                {formatDateLong(snapOverrides?.fechaCosecha ?? calcFechaCosecha(previewSource, config))}
+              </span>
             </div>
             <div className="ca-dato">
               <span className="ca-dato-label">F. Creación de Grupo:</span>
@@ -153,7 +171,10 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
               <span className="ca-dato-label">Total Plantas:</span>
               <span className="ca-dato-value">
                 {(() => {
-                  const total = previewBloques.reduce((s, b) => s + (Number(b.plantas) || 0), 0);
+                  const override = snapOverrides?.totalPlantas;
+                  const total = override != null
+                    ? Number(override) || 0
+                    : previewBloques.reduce((s, b) => s + (Number(b.plantas) || 0), 0);
                   return total > 0 ? total.toLocaleString('es-ES') : '—';
                 })()}
               </span>
@@ -177,6 +198,9 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
               </span>
               <span className="ca-dato-value">
                 {(() => {
+                  if (snapOverrides?.totalBoones != null) {
+                    return Number(snapOverrides.totalBoones).toFixed(2);
+                  }
                   const volumen = parseFloat(previewCal?.volumen);
                   const litros  = parseFloat(previewCalAplicador?.capacidad);
                   const area    = pvTotalHa > 0 ? pvTotalHa : parseFloat(previewTask.loteHectareas ?? 0);
@@ -304,52 +328,14 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
         {(() => {
           const ced = activeCedula;
           if (!ced) return null;
-          const originales = Array.isArray(ced.productosOriginales) ? ced.productosOriginales : [];
-          const aplicados  = Array.isArray(ced.productosAplicados)  ? ced.productosAplicados  : [];
           const hay = ced.huboCambios || ced.observacionesMezcla || ced.observacionesAplicacion;
           if (!hay) return null;
-          // Derive change lines: substitutions, dose adjustments, added and removed products
-          const cambiosLineas = [];
-          if (ced.huboCambios && originales.length > 0) {
-            const origById = {};
-            originales.forEach(o => { if (o?.productoId) origById[o.productoId] = o; });
-            const aplicadosByOrig = {};
-            aplicados.forEach(a => {
-              if (a?.productoOriginalId) aplicadosByOrig[a.productoOriginalId] = a;
-            });
-            const touchedOriginalIds = new Set();
-            aplicados.forEach(a => {
-              if (!a) return;
-              const origRef = a.productoOriginalId
-                ? origById[a.productoOriginalId]
-                : origById[a.productoId];
-              if (origRef) touchedOriginalIds.add(origRef.productoId);
-              if (a.productoOriginalId && a.productoOriginalId !== a.productoId) {
-                const orig = origById[a.productoOriginalId];
-                const motivo = a.motivoCambio === 'ajuste_dosis' ? 'Ajuste de dosis'
-                             : a.motivoCambio === 'otro'        ? 'Otro'
-                             : 'Sustitución';
-                cambiosLineas.push(
-                  `${orig?.nombreComercial || orig?.productoId || '—'} (${orig?.cantidadPorHa ?? '—'} ${orig?.unidad || ''}/Ha) sustituido por ${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) — ${motivo}`
-                );
-              } else if (origRef && parseFloat(origRef.cantidadPorHa) !== parseFloat(a.cantidadPorHa)) {
-                cambiosLineas.push(
-                  `${a.nombreComercial || a.productoId}: dosis ajustada de ${origRef.cantidadPorHa ?? '—'} a ${a.cantidadPorHa ?? '—'} ${a.unidad || origRef.unidad || ''}/Ha — Ajuste de dosis`
-                );
-              } else if (!origRef) {
-                cambiosLineas.push(
-                  `${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) añadido respecto al programa original`
-                );
-              }
-            });
-            originales.forEach(o => {
-              if (!touchedOriginalIds.has(o.productoId) && !aplicadosByOrig[o.productoId]) {
-                cambiosLineas.push(
-                  `${o.nombreComercial || o.productoId} (${o.cantidadPorHa ?? '—'} ${o.unidad || ''}/Ha) retirado respecto al programa original`
-                );
-              }
-            });
-          }
+          const cambiosLineas = ced.huboCambios
+            ? deriveCambiosLineas({
+                originales: ced.productosOriginales,
+                aplicados:  ced.productosAplicados,
+              })
+            : [];
           return (
             <div className="ca-doc-observaciones">
               {ced.huboCambios && cambiosLineas.length > 0 && (
@@ -439,17 +425,22 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
           </div>
         </div>
 
-        {/* ── Firmas finales ── */}
+        {/* ── Firmas finales ──
+            Encargado de Finca / Bodega: priorizar el dato persistido en la
+            cédula (capturado en AplicadaModal / MezclaListaModal). Antes
+            mostraba siempre config.administrador / mezclaListaNombre, lo
+            que perdía el audit trail si en una cédula aplicada el encargado
+            firmante era distinto al admin actual de finca. */}
         <div className="ca-doc-sig-row ca-doc-sig-final">
           <div className="ca-sig-block">
             <div className="ca-sig-line ca-sig-line--prefilled">
-              {config.administrador || null}
+              {activeCedula?.encargadoFinca || config.administrador || null}
             </div>
             <div className="ca-sig-label">Encargado de Finca</div>
           </div>
           <div className="ca-sig-block">
             <div className="ca-sig-line ca-sig-line--prefilled">
-              {activeCedula?.mezclaListaNombre || null}
+              {activeCedula?.encargadoBodega || activeCedula?.mezclaListaNombre || null}
             </div>
             <div className="ca-sig-label">Encargado de Bodega</div>
           </div>

@@ -1,33 +1,67 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import { useToast } from '../../../contexts/ToastContext';
+import { translateApiError } from '../../../lib/errorMessages';
+import { tsToDate } from '../lib/cedulas-helpers';
+import CedulaDocumento from '../components/CedulaDocumento';
+import CedulaFlowAction from '../components/CedulaFlowAction';
+import MezclaListaModal from '../components/MezclaListaModal';
+import AplicadaModal from '../components/AplicadaModal';
 import '../styles/cedulas.css';
 import '../styles/cedula-viewer.css';
 
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', {
-    day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC',
-  });
-};
-
-const fmtApplied = (iso) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
+// ── StatusBadge ──────────────────────────────────────────────────────────────
+// Badge "estado de la cédula" para el meta del header. Antes el viewer
+// hardcodeaba "Aplicada" en verde — el rótulo mentía cuando el viewer se
+// llegaba por deep-link sobre una cédula pendiente / en tránsito / anulada,
+// engañando al regente en una decisión regulatoria. Punto #1 audit.
+function StatusBadge({ status }) {
+  switch (status) {
+    case 'aplicada_en_campo':
+      return <span className="aur-badge aur-badge--green"><FiCheckCircle size={11} /> Aplicada</span>;
+    case 'en_transito':
+      return <span className="aur-badge aur-badge--blue">En Tránsito</span>;
+    case 'pendiente':
+      return <span className="aur-badge aur-badge--yellow">Pendiente</span>;
+    case 'anulada':
+      return <span className="aur-badge aur-badge--magenta">Anulada</span>;
+    default:
+      return null;
+  }
+}
 
 export default function CedulaViewer() {
   const { id } = useParams();
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
+  const { currentUser } = useUser();
+  const toast = useToast();
   const docRef = useRef(null);
 
   const [cedula, setCedula]   = useState(null);
   const [config, setConfig]   = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [error,   setError]   = useState(null);
+
+  // Catálogos lazy para las acciones del flujo (MezclaLista / Aplicada en
+  // Campo). Solo se cargan si el status de la cédula permite alguna acción —
+  // un viewer de cédula ya aplicada o anulada no necesita /api/productos ni
+  // /api/users ni /api/lotes. Punto #5 audit.
+  const [actionProductos, setActionProductos] = useState([]);
+  const [actionUsers,     setActionUsers]     = useState([]);
+  const [actionLotes,     setActionLotes]     = useState([]);
+
+  // Modales del flujo + Set de acciones en vuelo. El Set se mantiene por
+  // consistencia con CedulaFlowAction (que ya espera un Set indexado por
+  // cedulaId), aunque acá solo hay una cédula activa.
+  const [mezclaModal,   setMezclaModal]   = useState(null);
+  const [aplicadaModal, setAplicadaModal] = useState(null);
+  const [actionLoading, setActionLoading] = useState(() => new Set());
+  const addLoading    = (i) => setActionLoading(prev => { const n = new Set(prev); n.add(i); return n; });
+  const removeLoading = (i) => setActionLoading(prev => { if (!prev.has(i)) return prev; const n = new Set(prev); n.delete(i); return n; });
 
   useEffect(() => {
     const load = async () => {
@@ -37,7 +71,7 @@ export default function CedulaViewer() {
           apiFetch('/api/config'),
         ]);
         if (!cRes.ok) { setError('Cédula no encontrada o sin acceso.'); return; }
-        const [c, cf] = await Promise.all([cRes.json(), cfRes.json()]);
+        const [c, cf] = await Promise.all([cRes.json(), cfRes.json().catch(() => ({}))]);
         setCedula(c);
         setConfig(cf || {});
       } catch {
@@ -47,8 +81,197 @@ export default function CedulaViewer() {
       }
     };
     load();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lazy load de productos/users/lotes — solo si el status habilita alguna
+  // acción que vaya a abrir un modal. Cualquier 4xx degrada silenciosamente
+  // (los modales manejan arrays vacíos como "sin opciones para autocompletar").
+  useEffect(() => {
+    if (!cedula) return;
+    const needs = cedula.status === 'pendiente' || cedula.status === 'en_transito';
+    if (!needs) return;
+    let cancelled = false;
+    const safe = (url) => apiFetch(url)
+      .then(r => r.ok ? r.json() : [])
+      .catch(() => []);
+    Promise.all([
+      safe('/api/productos'),
+      safe('/api/users/lite'),
+      safe('/api/lotes'),
+    ]).then(([prods, users, lotes]) => {
+      if (cancelled) return;
+      setActionProductos(Array.isArray(prods) ? prods : []);
+      setActionUsers(Array.isArray(users)    ? users  : []);
+      setActionLotes(Array.isArray(lotes)    ? lotes  : []);
+    });
+    return () => { cancelled = true; };
+  }, [cedula?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Adapter cedula → props CedulaDocumento ────────────────────────────────
+  // El cuerpo del documento (~360 LOC) ahora vive en CedulaDocumento. El
+  // viewer adapta la cédula del backend (snap_* fields) a la shape que el
+  // componente consume desde el preview, y pasa `snapOverrides` para que el
+  // papel impreso refleje los valores históricos exactos en lugar de
+  // re-derivarlos desde el catálogo / config actual (la receta original ya
+  // quedó congelada al lock-in). Punto #2 audit.
+  const docProps = useMemo(() => {
+    if (!cedula) return null;
+    const productosSource = (Array.isArray(cedula.snap_productos) && cedula.snap_productos.length > 0)
+      ? cedula.snap_productos
+      : (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0)
+        ? cedula.productosAplicados
+        : (Array.isArray(cedula.productosOriginales) ? cedula.productosOriginales : []);
+
+    // Catálogo sintético: el viewer no carga /api/productos para la vista
+    // (solo si hay acciones disponibles, ver lazy useEffect arriba), pero
+    // snap_productos ya trae id/nombre/ingrediente/períodos/unidad
+    // inlineados. Devolvemos esa info en la shape que CedulaDocumento espera
+    // (catalogo.periodoACosecha == snap.periodoCarencia, mismo dato distinto
+    // naming entre dominios).
+    const byProductoId = new Map(
+      productosSource.filter(p => p?.productoId).map(p => [p.productoId, p])
+    );
+    const getProductoCatalog = (productoId) => {
+      const p = byProductoId.get(productoId);
+      if (!p) return null;
+      return {
+        idProducto:        p.idProducto,
+        nombreComercial:   p.nombreComercial,
+        ingredienteActivo: p.ingredienteActivo,
+        periodoACosecha:   p.periodoCarencia,
+        periodoReingreso:  p.periodoReingreso,
+        unidad:            p.unidad,
+      };
+    };
+
+    // Calibración: el backend resuelve `calibracion` + `calibracionAplicador`
+    // + `calibracionTractor` por lookup de snap_calibracionId. Pero el
+    // volumen / litros del momento de aplicación pueden diferir si la
+    // calibración fue editada desde entonces — preferimos los snap_*.
+    const baseCal = cedula.calibracion || null;
+    const previewCal = baseCal ? {
+      ...baseCal,
+      volumen: cedula.snap_volumenPorHa ?? baseCal.volumen,
+      nombre:  cedula.snap_calibracionNombre || baseCal.nombre,
+    } : (cedula.snap_calibracionNombre ? { nombre: cedula.snap_calibracionNombre } : null);
+    const previewCalAplicador = cedula.calibracionAplicador ? {
+      ...cedula.calibracionAplicador,
+      capacidad: cedula.snap_litrosAplicador ?? cedula.calibracionAplicador.capacidad,
+    } : (cedula.snap_litrosAplicador != null ? { capacidad: cedula.snap_litrosAplicador } : null);
+
+    const areaHa = parseFloat(cedula.snap_areaHa) || 0;
+
+    return {
+      config,
+      previewTask: {
+        activityName:  cedula.snap_activityName || 'Cédula de aplicación',
+        dueDate:       cedula.snap_dueDate,
+        isDraft:       false,
+        loteName:      cedula.snap_sourceName || null,
+        loteHectareas: areaHa,
+        activity:      { productos: productosSource, calibracionId: cedula.snap_calibracionId },
+      },
+      activeCedula:  cedula,
+      previewSource: {
+        fechaCreacion: cedula.snap_fechaCreacionGrupo,
+        cosecha:       cedula.snap_cosecha,
+        etapa:         cedula.snap_etapa,
+        paqueteId:     null,
+      },
+      previewPkg:                null,
+      previewPackageName:        cedula.snap_paqueteTecnico || null,
+      previewTecnicoResponsable: cedula.supAplicaciones || null,
+      previewProductos:          productosSource,
+      previewBloques:            Array.isArray(cedula.snap_bloques) ? cedula.snap_bloques : [],
+      pvTotalHa:                 areaHa,
+      previewCal,
+      previewCalAplicador,
+      previewCalTractor: cedula.calibracionTractor || null,
+      getProductoCatalog,
+      snapOverrides: {
+        // tsToDate cae a null si snap_fechaCosecha no existe → formatDateLong
+        // devuelve '—', mismo comportamiento que el render original.
+        fechaCosecha:        tsToDate(cedula.snap_fechaCosecha),
+        totalPlantas:        cedula.snap_totalPlantas        ?? undefined,
+        totalBoones:         cedula.snap_totalBoones         ?? undefined,
+        periodoCarenciaMax:  cedula.snap_periodoCarenciaMax  ?? undefined,
+        periodoReingresoMax: cedula.snap_periodoReingresoMax ?? undefined,
+      },
+    };
+  }, [cedula, config]);
+
+  // ── Action handlers ──────────────────────────────────────────────────────
+  const handleMezclaLista = (cedulaId) => {
+    setMezclaModal({ cedulaId });
+  };
+
+  const submitMezclaLista = async (cedulaId, payload) => {
+    addLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/mezcla-lista`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Re-throw para que el modal muestre el error inline en vez de cerrarse.
+        throw new Error(translateApiError(data, 'Error al actualizar la cédula.'));
+      }
+      setCedula(prev => prev ? {
+        ...prev,
+        status:             'en_transito',
+        mezclaListaAt:      data.mezclaListaAt || new Date().toISOString(),
+        mezclaListaNombre:  data.mezclaListaNombre ?? payload.nombre ?? prev.mezclaListaNombre ?? null,
+        ...(data.productosAplicados            ? { productosAplicados:    data.productosAplicados }    : {}),
+        ...(data.huboCambios          !== undefined ? { huboCambios:          data.huboCambios }          : {}),
+        ...(data.observacionesMezcla  !== undefined ? { observacionesMezcla:  data.observacionesMezcla }  : {}),
+        ...(data.modificadaEnMezclaAt          ? { modificadaEnMezclaAt:  data.modificadaEnMezclaAt }  : {}),
+        ...(data.modificadaEnMezclaPor         ? { modificadaEnMezclaPor: data.modificadaEnMezclaPor } : {}),
+      } : prev);
+      setMezclaModal(null);
+    } finally {
+      removeLoading(cedulaId);
+    }
+  };
+
+  const handleAplicada = (cedulaId) => {
+    setAplicadaModal({
+      cedulaId,
+      metodoAplicacion: cedula?.metodoAplicacion       || cedula?.calibracion?.metodo || '',
+      encargadoFinca:   config?.administrador           || '',
+      encargadoBodega:  cedula?.mezclaListaNombre       || '',
+      supAplicaciones:  cedula?.supAplicaciones         || '',
+    });
+  };
+
+  const submitAplicada = async (cedulaId, data) => {
+    setAplicadaModal(null);
+    addLoading(cedulaId);
+    try {
+      const res = await apiFetch(`/api/cedulas/${cedulaId}/aplicada`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(translateApiError(err, 'Error al registrar la aplicación.'));
+        return;
+      }
+      setCedula(prev => prev ? {
+        ...prev,
+        status:     'aplicada_en_campo',
+        aplicadaAt: new Date().toISOString(),
+        ...data,
+      } : prev);
+      toast.success('Aplicación registrada.');
+    } finally {
+      removeLoading(cedulaId);
+    }
+  };
+
+  // ── PDF share (sin cambios funcionales — sigue siendo el mismo flujo) ────
   const handleShare = async () => {
     if (!docRef.current || !cedula) return;
     try {
@@ -100,21 +323,6 @@ export default function CedulaViewer() {
     </div>
   );
 
-  const cal          = cedula.calibracion        || null;
-  const calAplicador = cedula.calibracionAplicador || null;
-  const calTractor   = cedula.calibracionTractor   || null;
-  // Prefer snap_productos (which in new cedulas is already copied from
-  // productosAplicados in the PUT /aplicada endpoint). For cedulas that haven't
-  // gone through that flow yet (e.g. early viewing), fall back to
-  // productosAplicados o productosOriginales.
-  const productos    = (Array.isArray(cedula.snap_productos) && cedula.snap_productos.length > 0)
-    ? cedula.snap_productos
-    : (Array.isArray(cedula.productosAplicados) && cedula.productosAplicados.length > 0)
-      ? cedula.productosAplicados
-      : (Array.isArray(cedula.productosOriginales) ? cedula.productosOriginales : []);
-  const bloques      = cedula.snap_bloques   || [];
-  const areaHa       = parseFloat(cedula.snap_areaHa) || 0;
-
   return (
     <div className="cedula-viewer">
 
@@ -131,12 +339,24 @@ export default function CedulaViewer() {
           <h2 className="cv-toolbar-title">{cedula.snap_activityName || 'Cédula de aplicación'}</h2>
           <div className="cv-toolbar-meta">
             <span className="cv-toolbar-consecutivo">{cedula.consecutivo}</span>
-            <span className="aur-badge aur-badge--green">
-              <FiCheckCircle size={11} /> Aplicada
-            </span>
+            <StatusBadge status={cedula.status} />
           </div>
         </div>
         <div className="cv-toolbar-actions">
+          {/* CedulaFlowAction comparte la chrome de acciones con el preview
+              modal del listing. Para aplicada / anulada no rendea nada acá
+              (el StatusBadge ya comunica el estado terminal); para
+              pendiente / en_transito muestra el botón de avanzar el flujo
+              respetando el rol del usuario. Punto #5 audit. */}
+          {cedula.status !== 'aplicada_en_campo' && cedula.status !== 'anulada' && (
+            <CedulaFlowAction
+              cedula={cedula}
+              actionLoading={actionLoading}
+              currentUser={currentUser}
+              onMezclaLista={handleMezclaLista}
+              onAplicada={handleAplicada}
+            />
+          )}
           <button type="button" className="aur-chip" onClick={handleShare}>
             <FiShare2 size={12} /> Compartir
           </button>
@@ -146,371 +366,31 @@ export default function CedulaViewer() {
         </div>
       </header>
 
-      {/* ── Documento ── */}
-      <div className="ca-doc-wrap">
-        <div className="ca-document" ref={docRef}>
+      {/* ── Documento (delegado a CedulaDocumento — punto #2 audit) ── */}
+      {docProps && <CedulaDocumento ref={docRef} {...docProps} />}
 
-          {/* Encabezado */}
-          <div className="ca-doc-header">
-            <div className="ca-doc-brand">
-              {config.logoUrl
-                ? <img src={config.logoUrl} alt="Logo" className="ca-doc-logo-img" />
-                : <div className="ca-doc-logo">AU</div>
-              }
-              <div className="ca-doc-brand-info">
-                <div className="ca-doc-brand-name">{config.nombreEmpresa || 'Finca Aurora'}</div>
-                {config.identificacion && <div className="ca-doc-brand-sub">Cédula: {config.identificacion}</div>}
-                {config.whatsapp      && <div className="ca-doc-brand-sub">Tel: {config.whatsapp}</div>}
-                {config.correo        && <div className="ca-doc-brand-sub">{config.correo}</div>}
-                {config.direccion     && <div className="ca-doc-brand-sub">{config.direccion}</div>}
-              </div>
-            </div>
-            <div className="ca-doc-title-block">
-              <div className="ca-doc-title">CÉDULA DE APLICACIÓN DE AGROQUÍMICOS</div>
-              <div className="ca-doc-subtitle">Aplicación: {cedula.snap_activityName || '—'}</div>
-              <div className="ca-doc-consecutivo">{cedula.consecutivo}</div>
-            </div>
-          </div>
-
-          <hr className="ca-doc-divider" />
-
-          {/* Datos generales */}
-          <div className="ca-section-title ca-section-title--split">
-            <span>Datos Generales</span>
-            {cedula.snap_calibracionNombre && (
-              <span className="ca-section-cal-name">Calibración: {cedula.snap_calibracionNombre}</span>
-            )}
-          </div>
-          <div className="ca-datos-grid">
-
-            {/* Columna 1 */}
-            <div className="ca-dato ca-dato-col">
-              <div className="ca-dato">
-                <span className="ca-dato-label">F. Prog. Aplicación:</span>
-                <span className="ca-dato-value">{fmtDate(cedula.snap_dueDate)}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">F. Prog. Cosecha:</span>
-                <span className="ca-dato-value">{fmtDate(cedula.snap_fechaCosecha)}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">F. Creación de Grupo:</span>
-                <span className="ca-dato-value">{fmtDate(cedula.snap_fechaCreacionGrupo)}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Periodo de Carencia:</span>
-                <span className="ca-dato-value">
-                  {cedula.snap_periodoCarenciaMax > 0 ? `${cedula.snap_periodoCarenciaMax} días` : '—'}
-                </span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Periodo de Reingreso:</span>
-                <span className="ca-dato-value">
-                  {cedula.snap_periodoReingresoMax > 0 ? `${cedula.snap_periodoReingresoMax} h` : '—'}
-                </span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Método de Apl.:</span>
-                <span className="ca-dato-value">{cedula.metodoAplicacion || cal?.metodo || '—'}</span>
-              </div>
-              {cedula.snap_paqueteTecnico && (
-                <div className="ca-dato">
-                  <span className="ca-dato-label">Paq. Téc.:</span>
-                  <span className="ca-dato-value">{cedula.snap_paqueteTecnico}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Columna 2 */}
-            <div className="ca-dato ca-dato-col">
-              <div className="ca-dato">
-                <span className="ca-dato-label">Grupo:</span>
-                <span className="ca-dato-value">{cedula.snap_sourceName || '—'}</span>
-              </div>
-              {(cedula.snap_cosecha || cedula.snap_etapa) && (
-                <div className="ca-dato">
-                  <span className="ca-dato-label">Etapa:</span>
-                  <span className="ca-dato-value">
-                    {[cedula.snap_cosecha, cedula.snap_etapa].filter(Boolean).join(' / ')}
-                  </span>
-                </div>
-              )}
-              <div className="ca-dato">
-                <span className="ca-dato-label">Área (ha):</span>
-                <span className="ca-dato-value">{areaHa > 0 ? areaHa.toFixed(2) : '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Total Plantas:</span>
-                <span className="ca-dato-value">
-                  {cedula.snap_totalPlantas ? Number(cedula.snap_totalPlantas).toLocaleString('es-ES') : '—'}
-                </span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Volumen (Lt/Ha):</span>
-                <span className="ca-dato-value">{cedula.snap_volumenPorHa ?? cal?.volumen ?? '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Litros aplicador:</span>
-                <span className="ca-dato-value">{cedula.snap_litrosAplicador ?? calAplicador?.capacidad ?? '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span
-                  className="ca-dato-label"
-                  title="Cantidad estimada de tanques (boom) necesarios para cubrir el área programada."
-                >
-                  Total tanques (boom):
-                </span>
-                <span className="ca-dato-value">
-                  {cedula.snap_totalBoones != null ? Number(cedula.snap_totalBoones).toFixed(2) : '—'}
-                </span>
-              </div>
-            </div>
-
-            {/* Columna 3: Calibración */}
-            <div className="ca-dato ca-dato-col">
-              <div className="ca-dato">
-                <span className="ca-dato-label">Tractor:</span>
-                <span className="ca-dato-value">{calTractor?.codigo || cal?.tractorNombre || '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Aplicador:</span>
-                <span className="ca-dato-value">{calAplicador?.codigo || cal?.aplicadorNombre || '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">RPM Recomendada:</span>
-                <span className="ca-dato-value">{cal?.rpmRecomendado || '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Marcha Rec.:</span>
-                <span className="ca-dato-value">{cal?.marchaRecomendada || '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Tipo Boq.:</span>
-                <span className="ca-dato-value">{cal?.tipoBoquilla || '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Presión Recomendada:</span>
-                <span className="ca-dato-value">{cal?.presionRecomendada || '—'}</span>
-              </div>
-              <div className="ca-dato">
-                <span className="ca-dato-label">Km/H Recomendados:</span>
-                <span className="ca-dato-value">{cal?.velocidadKmH || '—'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bloques */}
-          {bloques.length > 0 && (
-            <div className="ca-bloques-summary">
-              {Object.entries(
-                bloques.reduce((acc, b) => {
-                  const lote = b.loteNombre || '—';
-                  if (!acc[lote]) acc[lote] = [];
-                  acc[lote].push(b.bloque || '—');
-                  return acc;
-                }, {})
-              ).map(([lote, bs]) => (
-                <div key={lote} className="ca-bloques-summary-row">
-                  <span className="ca-bloques-label">Lote:</span>
-                  <span className="ca-bloques-value">{lote}</span>
-                  <span className="ca-bloques-label">Bloques:</span>
-                  <span className="ca-bloques-value">
-                    {[...bs].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).join(', ')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Productos */}
-          {productos.length === 0 ? (
-            <p className="ca-empty-products">Sin productos registrados.</p>
-          ) : (
-            <table className="ca-doc-table">
-              <thead>
-                <tr>
-                  <th>Id</th>
-                  <th>Nombre Comercial — Ing. Activo</th>
-                  <th className="ca-col-num">Per. Carencia</th>
-                  <th className="ca-col-num">Per. Reing.</th>
-                  <th className="ca-col-num">Cant./Ha</th>
-                  <th className="ca-col-num">Boom</th>
-                  <th className="ca-col-num">Fracción</th>
-                  <th>Unidad</th>
-                  <th className="ca-col-num">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productos.map((prod, i) => {
-                  const nombreFull = [prod.nombreComercial, prod.ingredienteActivo].filter(Boolean).join(' — ') || '—';
-                  return (
-                    <tr key={prod.productoId || i}>
-                      <td>{prod.idProducto || '—'}</td>
-                      <td>{nombreFull}</td>
-                      <td className="ca-col-num">{prod.periodoCarencia ?? '—'}</td>
-                      <td className="ca-col-num">{prod.periodoReingreso ?? '—'}</td>
-                      <td className="ca-col-num">{prod.cantidadPorHa ?? '—'}</td>
-                      <td className="ca-col-num">{prod.cantBoom ?? '—'}</td>
-                      <td className="ca-col-num">{prod.cantFraccion ?? '—'}</td>
-                      <td>{prod.unidad || '—'}</td>
-                      <td className="ca-col-num"><strong>{prod.total ?? '—'}</strong></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-
-          {/* Bloque de observaciones / ajustes (solo si hay datos) */}
-          {(() => {
-            const originales = Array.isArray(cedula.productosOriginales) ? cedula.productosOriginales : [];
-            const aplicados  = Array.isArray(cedula.productosAplicados)  ? cedula.productosAplicados
-                              : (Array.isArray(cedula.snap_productos) ? cedula.snap_productos : []);
-            const hay = cedula.huboCambios || cedula.observacionesMezcla || cedula.observacionesAplicacion;
-            if (!hay) return null;
-            const cambiosLineas = [];
-            if (cedula.huboCambios && originales.length > 0) {
-              const origById = {};
-              originales.forEach(o => { if (o?.productoId) origById[o.productoId] = o; });
-              const aplicadosByOrig = {};
-              aplicados.forEach(a => {
-                if (a?.productoOriginalId) aplicadosByOrig[a.productoOriginalId] = a;
-              });
-              const touchedOriginalIds = new Set();
-              aplicados.forEach(a => {
-                if (!a) return;
-                const origRef = a.productoOriginalId
-                  ? origById[a.productoOriginalId]
-                  : origById[a.productoId];
-                if (origRef) touchedOriginalIds.add(origRef.productoId);
-                if (a.productoOriginalId && a.productoOriginalId !== a.productoId) {
-                  const orig = origById[a.productoOriginalId];
-                  const motivo = a.motivoCambio === 'ajuste_dosis' ? 'Ajuste de dosis'
-                               : a.motivoCambio === 'otro'        ? 'Otro'
-                               : 'Sustitución';
-                  cambiosLineas.push(
-                    `${orig?.nombreComercial || orig?.productoId || '—'} (${orig?.cantidadPorHa ?? '—'} ${orig?.unidad || ''}/Ha) sustituido por ${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) — ${motivo}`
-                  );
-                } else if (origRef && parseFloat(origRef.cantidadPorHa) !== parseFloat(a.cantidadPorHa)) {
-                  cambiosLineas.push(
-                    `${a.nombreComercial || a.productoId}: dosis ajustada de ${origRef.cantidadPorHa ?? '—'} a ${a.cantidadPorHa ?? '—'} ${a.unidad || origRef.unidad || ''}/Ha — Ajuste de dosis`
-                  );
-                } else if (!origRef) {
-                  cambiosLineas.push(
-                    `${a.nombreComercial || a.productoId} (${a.cantidadPorHa ?? '—'} ${a.unidad || ''}/Ha) añadido respecto al programa original`
-                  );
-                }
-              });
-              originales.forEach(o => {
-                if (!touchedOriginalIds.has(o.productoId) && !aplicadosByOrig[o.productoId]) {
-                  cambiosLineas.push(
-                    `${o.nombreComercial || o.productoId} (${o.cantidadPorHa ?? '—'} ${o.unidad || ''}/Ha) retirado respecto al programa original`
-                  );
-                }
-              });
-            }
-            return (
-              <div className="ca-doc-observaciones">
-                {cedula.huboCambios && cambiosLineas.length > 0 && (
-                  <div>
-                    <strong>Ajustes respecto al programa original:</strong>
-                    <ul>
-                      {cambiosLineas.map((ln, i) => <li key={i}>{ln}</li>)}
-                    </ul>
-                  </div>
-                )}
-                {cedula.observacionesMezcla && (
-                  <p><strong>Observaciones de mezcla:</strong> {cedula.observacionesMezcla}</p>
-                )}
-                {cedula.observacionesAplicacion && (
-                  <p><strong>Observaciones de aplicación:</strong> {cedula.observacionesAplicacion}</p>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Nota de seguridad */}
-          <div className="ca-doc-safety-note">
-            No olvide usar el Equipo de Protección Personal durante la aplicación y de asegurarse del buen estado del mismo. No fume ni ingiera alimentos durante la aplicación. Recuerde no contaminar fuentes de agua con productos o envases vacíos.
-          </div>
-
-          {/* Sobrante + Condiciones */}
-          <div className="ca-campo-data-row">
-            <div className="ca-campo-item">
-              <span className="ca-campo-label">Sobrante:</span>
-              <span className="ca-campo-value">
-                {cedula.sobrante === true ? 'Sí' : cedula.sobrante === false ? 'No' : '___'}
-              </span>
-            </div>
-            {cedula.sobrante && (
-              <div className="ca-campo-item">
-                <span className="ca-campo-label">Depositado en:</span>
-                <span className="ca-campo-value">{cedula.sobranteLoteNombre || '___________'}</span>
-              </div>
-            )}
-          </div>
-          <div className="ca-campo-data-row">
-            <div className="ca-campo-item">
-              <span className="ca-campo-label">Condiciones del tiempo:</span>
-              <span className="ca-campo-value">{cedula.condicionesTiempo || '___________'}</span>
-            </div>
-            <div className="ca-campo-item">
-              <span className="ca-campo-label">Temperatura:</span>
-              <span className="ca-campo-value">
-                {cedula.temperatura != null ? `${cedula.temperatura}°C` : '___'}
-              </span>
-            </div>
-            <div className="ca-campo-item">
-              <span className="ca-campo-label">% Humedad Relativa:</span>
-              <span className="ca-campo-value">
-                {cedula.humedadRelativa != null ? `${cedula.humedadRelativa}%` : '___'}
-              </span>
-            </div>
-          </div>
-
-          {/* Firma operarios */}
-          <div className="ca-doc-sig-row">
-            <div className="ca-sig-block">
-              <div className="ca-sig-line ca-sig-line--prefilled">{fmtApplied(cedula.aplicadaAt)}</div>
-              <div className="ca-sig-label">Fecha de Aplicación</div>
-            </div>
-            <div className="ca-sig-block">
-              <div className="ca-sig-line ca-sig-line--prefilled">
-                {(cedula.horaInicio || cedula.horaFinal)
-                  ? [cedula.horaInicio || '___', cedula.horaFinal || '___'].join(' / ')
-                  : null}
-              </div>
-              <div className="ca-sig-label">Hora Inicial / Hora Final</div>
-            </div>
-            <div className="ca-sig-block">
-              <div className="ca-sig-line ca-sig-line--prefilled">{cedula.operario || null}</div>
-              <div className="ca-sig-label">Operario</div>
-            </div>
-          </div>
-
-          {/* Firmas responsables */}
-          <div className="ca-doc-sig-row ca-doc-sig-final">
-            <div className="ca-sig-block">
-              <div className="ca-sig-line ca-sig-line--prefilled">{cedula.encargadoFinca || null}</div>
-              <div className="ca-sig-label">Encargado de Finca</div>
-            </div>
-            <div className="ca-sig-block">
-              <div className="ca-sig-line ca-sig-line--prefilled">
-                {cedula.encargadoBodega || cedula.mezclaListaNombre || null}
-              </div>
-              <div className="ca-sig-label">Encargado de Bodega</div>
-            </div>
-            <div className="ca-sig-block">
-              <div className="ca-sig-line ca-sig-line--prefilled">{cedula.supAplicaciones || null}</div>
-              <div className="ca-sig-label">Sup. Aplicaciones / Regente</div>
-            </div>
-          </div>
-
-          <div className="ca-doc-footer">
-            Documento generado por Sistema Aurora · {new Date().toLocaleDateString('es-ES')}
-          </div>
-        </div>
-      </div>
+      {/* ── Modales del flujo (montados solo cuando se abren) ── */}
+      {mezclaModal && (
+        <MezclaListaModal
+          mode="mezcla-lista"
+          cedula={cedula}
+          task={null}
+          productos={actionProductos}
+          currentUser={currentUser}
+          onClose={() => setMezclaModal(null)}
+          onConfirm={(payload) => submitMezclaLista(mezclaModal.cedulaId, payload)}
+        />
+      )}
+      {aplicadaModal && (
+        <AplicadaModal
+          lotes={actionLotes}
+          users={actionUsers}
+          currentUser={currentUser}
+          prefill={aplicadaModal}
+          onClose={() => setAplicadaModal(null)}
+          onConfirm={(data) => submitAplicada(aplicadaModal.cedulaId, data)}
+        />
+      )}
     </div>
   );
 }
