@@ -1,52 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX, FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
-import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
-import { useApiFetch } from '../../../hooks/useApiFetch';
-import { useUser } from '../../../contexts/UserContext';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX, FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import { useBulkImport } from '../hooks/useBulkImport';
+import {
+  downloadTemplate, fetchJsonSafe, toDateStr, timestampToDateStr,
+  normalizeTipo, normalizeRol, normalizeCategoriaProv, normalizeTipoPago,
+} from '../lib/bulkImport';
 import '../styles/initial-setup.css';
-
-// ── Import guardrails ────────────────────────────────────────────────────────
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
-const MAX_ROWS       = 5000;
-
-// Lee y parsea un archivo Excel con validaciones. Devuelve filas o lanza Error con msg legible.
-async function readExcelRows(file) {
-  if (!file) throw new Error('No se seleccionó archivo.');
-  if (file.size > MAX_FILE_BYTES) throw new Error(`Archivo demasiado grande (máx. ${MAX_FILE_BYTES / 1024 / 1024} MB).`);
-  const workbook = XLSX.read(await file.arrayBuffer());
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) throw new Error('El archivo no contiene hojas.');
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
-  if (rows.length > MAX_ROWS) throw new Error(`Demasiadas filas (máx. ${MAX_ROWS}).`);
-  return rows;
-}
-
-// ── Normalización de tipo de producto ────────────────────────────────────────
-const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
-const normalizeTipo = (val) => {
-  const s = String(val || '').trim();
-  return TIPOS_PRODUCTO.find(t => t.toLowerCase() === s.toLowerCase()) ?? s;
-};
-
-// ── Normalización rol de usuario ─────────────────────────────────────────────
-const ROLES_VALIDOS = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
-const normalizeRol = (val) => {
-  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  return ROLES_VALIDOS.find(r => r === s) ?? 'trabajador';
-};
-
-// ── Normalización proveedor ───────────────────────────────────────────────────
-const CATEGORIAS_PROV = ['agroquimicos', 'fertilizantes', 'maquinaria', 'servicios', 'combustible', 'semillas', 'otros'];
-const normalizeCategoriaProv = (val) => {
-  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  return CATEGORIAS_PROV.find(c => c === s) ?? '';
-};
-const normalizeTipoPago = (val) => {
-  const s = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  return s === 'credito' ? 'credito' : 'contado';
-};
 
 // ── Definición de entidades ───────────────────────────────────────────────────
 const ENTIDADES = [
@@ -189,10 +149,9 @@ const ENTIDADES = [
       email:    String(row['Email']           || '').trim(),
       telefono: String(row['Teléfono']        || '').trim(),
       rol:      normalizeRol(row['Rol']),
-      // The "Usuarios del Sistema" bulk template represents login-capable
-      // users by construction. The backend requires at least one of
-      // (tieneAcceso, empleadoPlanilla) to be true on create, so we
-      // declare the facet explicitly here.
+      // La plantilla "Usuarios del Sistema" representa cuentas con acceso por
+      // construcción. El backend exige al menos uno de (tieneAcceso,
+      // empleadoPlanilla) al crear, así que declaramos la faceta acá.
       tieneAcceso: true,
     }),
     isValid: (r) => !!(r.nombre && r.email),
@@ -302,6 +261,28 @@ const ENTIDADES = [
   },
 ];
 
+// ── Helper de resultado para loops simples (entidad genérica y empleados) ─────
+// Convierte los contadores del commit en el shape { didWrite, msg, warn } /
+// { error, msg } que espera useBulkImport.
+function summarizeResult({ creados = 0, actualizados = 0, omitidos = 0, errores = 0, skipped = [], extraWarn = [], aborted = false }) {
+  const didWrite = creados + actualizados > 0;
+  const parts = [
+    creados      > 0 && `${creados} creado(s)`,
+    actualizados > 0 && `${actualizados} actualizado(s)`,
+    omitidos     > 0 && `${omitidos} ya existían (omitidos)`,
+    errores      > 0 && `${errores} con error`,
+  ].filter(Boolean).join(' · ');
+  const advert = [
+    skipped.length > 0 && `${skipped.length} fila(s) saltada(s)`,
+    ...extraWarn,
+    aborted && 'cancelado',
+  ].filter(Boolean).join(' · ');
+  if (!didWrite && (errores > 0 || aborted)) {
+    return { error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' };
+  }
+  return { didWrite, msg: parts || 'Sin cambios nuevos.', warn: advert || null };
+}
+
 // ── Subcomponentes presentacionales reutilizables ────────────────────────────
 
 function CardHeader({ icon: Icon, title, count, countLabel, counts, stale, link, linkTitle }) {
@@ -402,7 +383,9 @@ function ImportButtons({ onDownload, onImportClick, importing, fileInputRef, onF
   );
 }
 
-// Tres estados visuales y semánticos distintos:
+// El feedback vive en un banner DENTRO del card (no en el toast global de la
+// app) a propósito: el resultado pertenece a una entidad concreta y un toast
+// flotante perdería ese contexto. Tres estados visuales y semánticos:
 //   error → danger + alerta asertiva (interrumpe al lector de pantalla)
 //   warn  → amarillo + triángulo cuando se escribió algo PERO hubo
 //           saltadas/errores/cancelación; evita el banner verde mentiroso
@@ -453,219 +436,104 @@ function NavPrompt({ entityName, targetPath, onConfirm, onDismiss }) {
   );
 }
 
-// ── Tarjeta por entidad ───────────────────────────────────────────────────────
-function EntidadCard({ entidad }) {
-  const apiFetch = useApiFetch();
+// Chrome compartido de las 3 tarjetas: header (lo arma cada card por sus counts
+// distintos) + descripción + botones + banner de resultado + NavPrompt + modal
+// de preview. Todo el estado lo maneja el hook useBulkImport.
+function BulkImportCard({ bulk, header, descripcion, onDownload, entityName, navEntityName, navTarget }) {
   const navigate = useNavigate();
-  const { activeFincaId } = useUser();
-  const storageKey = `aurora_initsetup_count_${activeFincaId}_${entidad.key}`;
-  const [count, setCount] = useState(null);
-  const [countStale, setCountStale] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [committing, setCommitting] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [preview, setPreview] = useState(null); // { validas: [...], skipped: [...] }
-  const [importResult, setImportResult] = useState(null);
-  const [showNavPrompt, setShowNavPrompt] = useState(false);
-  const fileInputRef = useRef(null);
-  const abortRef = useRef(null);
-
-  // Refresh directo (sin fetchJsonSafe) para distinguir "no se pudo refrescar"
-  // de "colección vacía" y no dejar un conteo viejo aparentando ser fresco.
-  const refreshCount = async () => {
-    try {
-      const res = await apiFetch(entidad.endpoint);
-      if (!res.ok) { setCountStale(true); return; }
-      const data = await res.json();
-      if (!Array.isArray(data)) { setCountStale(true); return; }
-      setCount(data.length);
-      setCountStale(false);
-      localStorage.setItem(storageKey, String(data.length));
-    } catch { setCountStale(true); }
-  };
-
-  // Al montar y al cambiar de finca: muestro el cacheado de ESA finca al
-  // instante y luego refresco. La key incluye fincaId, así que el conteo no
-  // se filtra entre fincas.
-  useEffect(() => {
-    const v = localStorage.getItem(storageKey);
-    setCount(v !== null ? Number(v) : null);
-    setCountStale(false);
-    refreshCount();
-  }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([entidad.excelHeaders, entidad.sampleRow]);
-    ws['!cols'] = entidad.excelHeaders.map(() => ({ wch: 22 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, entidad.sheetName);
-    XLSX.writeFile(wb, entidad.fileName);
-  };
-
-  // Fase 1: leer y parsear el archivo, separar válidas de saltadas (con razón)
-  // y abrir el preview. No escribe nada todavía.
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setParsing(true);
-    setImportResult(null);
-    setShowNavPrompt(false);
-    try {
-      const rows = await readExcelRows(file);
-      const validas = [];
-      const skipped = [];
-      rows.forEach((row, idx) => {
-        const parsed = entidad.parseRow(row);
-        if (entidad.isValid(parsed)) validas.push(parsed);
-        else skipped.push(`Fila ${idx + 2}: falta ${entidad.requeridoLabel}`);
-      });
-      if (!validas.length) {
-        setImportResult({
-          error: true,
-          msg: skipped.length
-            ? `Ninguna fila válida. ${skipped.slice(0, 3).join(' · ')}`
-            : 'El archivo no contiene filas de datos.',
-        });
-        return;
-      }
-      setPreview({ validas, skipped });
-    } catch (err) {
-      setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
-    } finally {
-      setParsing(false);
-      e.target.value = '';
-    }
-  };
-
-  // Fase 2: confirmado el preview, escribe con progreso y cancelación.
-  const commitImport = async () => {
-    if (!preview) return;
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setCommitting(true);
-    let items = preview.validas;
-    setProgress({ done: 0, total: items.length });
-    try {
-      if (entidad.prepareItems) items = await entidad.prepareItems(items, apiFetch);
-    } catch { /* prepareItems es best-effort; seguimos con lo que haya */ }
-
-    let creados = 0, actualizados = 0, omitidos = 0, errores = 0;
-    for (let i = 0; i < items.length; i++) {
-      if (ctrl.signal.aborted) break;
-      try {
-        const res = await apiFetch(entidad.endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(items[i]),
-          signal: ctrl.signal,
-        });
-        if (res.status === 409) omitidos++;          // ya existe (p.ej. email de usuario)
-        else if (!res.ok) errores++;
-        else { const data = await res.json(); data.merged ? actualizados++ : creados++; }
-      } catch {
-        if (ctrl.signal.aborted) break;
-        errores++;
-      }
-      setProgress({ done: i + 1, total: items.length });
-    }
-
-    const aborted = ctrl.signal.aborted;
-    const didWrite = creados + actualizados > 0;
-    const parts = [
-      creados      > 0 && `${creados} creado(s)`,
-      actualizados > 0 && `${actualizados} actualizado(s)`,
-      omitidos     > 0 && `${omitidos} ya existían (omitidos)`,
-      errores      > 0 && `${errores} con error`,
-    ].filter(Boolean).join(' · ');
-    const advert = [
-      preview.skipped.length > 0 && `${preview.skipped.length} fila(s) saltada(s)`,
-      aborted && 'cancelado',
-    ].filter(Boolean).join(' · ');
-
-    if (!didWrite && (errores > 0 || aborted)) {
-      setImportResult({ error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' });
-    } else {
-      setImportResult({ ok: true, msg: parts || 'Sin cambios nuevos.', warn: advert || null });
-      setShowNavPrompt(didWrite);
-      if (didWrite) refreshCount();
-    }
-
-    abortRef.current = null;
-    setCommitting(false);
-    setPreview(null);
-  };
-
   return (
     <div className="ci-card">
-      <CardHeader icon={entidad.icon} title={entidad.nombre} count={count} countLabel={entidad.countLabel} stale={countStale} link={entidad.adminPath} />
-      <p className="ci-card-desc">{entidad.descripcion}</p>
+      {header}
+      <p className="ci-card-desc">{descripcion}</p>
       <ImportButtons
-        onDownload={handleDownloadTemplate}
-        onImportClick={() => fileInputRef.current?.click()}
-        importing={parsing || committing}
-        fileInputRef={fileInputRef}
-        onFileChange={handleFileChange}
+        onDownload={onDownload}
+        onImportClick={bulk.onImportClick}
+        importing={bulk.parsing || bulk.committing}
+        fileInputRef={bulk.fileInputRef}
+        onFileChange={bulk.onFileChange}
       />
-      <ImportResultBanner result={importResult} />
-      {showNavPrompt && (
+      <ImportResultBanner result={bulk.importResult} />
+      {bulk.showNavPrompt && (
         <NavPrompt
-          entityName={entidad.nombre}
-          targetPath={entidad.adminPath}
-          onConfirm={() => navigate(entidad.adminPath)}
-          onDismiss={() => setShowNavPrompt(false)}
+          entityName={navEntityName}
+          targetPath={navTarget}
+          onConfirm={() => navigate(navTarget)}
+          onDismiss={bulk.dismissNav}
         />
       )}
-      {preview && (
+      {bulk.preview && (
         <ImportPreviewModal
-          entityName={entidad.nombre}
-          validCount={preview.validas.length}
-          skipped={preview.skipped}
-          committing={committing}
-          progress={progress}
-          onConfirm={commitImport}
-          onCancel={() => setPreview(null)}
-          onAbort={() => abortRef.current?.abort()}
+          entityName={entityName}
+          validCount={bulk.preview.validCount}
+          skipped={bulk.preview.skipped}
+          committing={bulk.committing}
+          progress={bulk.progress}
+          onConfirm={bulk.confirmImport}
+          onCancel={bulk.cancelPreview}
+          onAbort={bulk.abortCommit}
         />
       )}
     </div>
   );
 }
 
-// ── Helper: Date → YYYY-MM-DD seguro ante RangeError de .toISOString() ───────
-function dateToIsoDay(d) {
-  if (!(d instanceof Date) || isNaN(d)) return null;
-  try { return d.toISOString().slice(0, 10); } catch { return null; }
-}
+// ── Tarjeta por entidad (CRUD simple sobre un único endpoint) ─────────────────
+function EntidadCard({ entidad }) {
+  const bulk = useBulkImport({
+    countStorageKey: entidad.key,
+    loadCount: async (apiFetch) => {
+      const data = await fetchJsonSafe(apiFetch, entidad.endpoint, null);
+      return Array.isArray(data) ? data.length : null;
+    },
+    parse: (rows) => {
+      const payload = [];
+      const skipped = [];
+      rows.forEach((row, idx) => {
+        const parsed = entidad.parseRow(row);
+        if (entidad.isValid(parsed)) payload.push(parsed);
+        else skipped.push(`Fila ${idx + 2}: falta ${entidad.requeridoLabel}`);
+      });
+      return { payload, skipped };
+    },
+    commit: async ({ payload, skipped, apiFetch, signal, setProgress }) => {
+      let items = payload;
+      try {
+        if (entidad.prepareItems) items = await entidad.prepareItems(items, apiFetch);
+      } catch { /* prepareItems es best-effort; seguimos con lo que haya */ }
+      let creados = 0, actualizados = 0, omitidos = 0, errores = 0;
+      for (let i = 0; i < items.length; i++) {
+        if (signal.aborted) break;
+        try {
+          const res = await apiFetch(entidad.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(items[i]),
+            signal,
+          });
+          if (res.status === 409) omitidos++;          // ya existe (p.ej. email de usuario)
+          else if (!res.ok) errores++;
+          else { const data = await res.json(); data.merged ? actualizados++ : creados++; }
+        } catch {
+          if (signal.aborted) break;
+          errores++;
+        }
+        setProgress({ done: i + 1, total: items.length });
+      }
+      return summarizeResult({ creados, actualizados, omitidos, errores, skipped, aborted: signal.aborted });
+    },
+  });
 
-// ── Helper: Firestore Timestamp JSON → YYYY-MM-DD ─────────────────────────────
-function timestampToDateStr(ts) {
-  if (!ts) return null;
-  if (typeof ts === 'string') return ts.slice(0, 10);
-  const secs = ts.seconds ?? ts._seconds;
-  return secs != null ? dateToIsoDay(new Date(secs * 1000)) : null;
-}
-
-// ── Helper: cualquier valor de fecha de Excel → YYYY-MM-DD o null ─────────────
-// xlsx puede devolver: JS Date, número serial Excel, o string
-function toDateStr(val) {
-  if (val == null || val === '') return null;
-  if (val instanceof Date) return dateToIsoDay(val);
-  if (typeof val === 'number') {
-    // Número serial Excel: 1 = 1 ene 1900; ajuste de los 25569 días al epoch Unix
-    return dateToIsoDay(new Date((val - 25569) * 86400 * 1000));
-  }
-  const s = String(val).trim();
-  if (!s) return null;
-  return dateToIsoDay(new Date(s));
-}
-
-// ── Helper: fetch JSON tolerante (cualquier fallo → fallback) ────────────────
-async function fetchJsonSafe(apiFetch, path, fallback) {
-  try {
-    const res = await apiFetch(path);
-    if (!res.ok) return fallback;
-    return await res.json();
-  } catch { return fallback; }
+  return (
+    <BulkImportCard
+      bulk={bulk}
+      header={<CardHeader icon={entidad.icon} title={entidad.nombre} count={bulk.count} countLabel={entidad.countLabel} stale={bulk.countStale} link={entidad.adminPath} />}
+      descripcion={entidad.descripcion}
+      onDownload={() => downloadTemplate({ headers: entidad.excelHeaders, sampleRow: entidad.sampleRow, sheetName: entidad.sheetName, fileName: entidad.fileName })}
+      entityName={entidad.nombre}
+      navEntityName={entidad.nombre}
+      navTarget={entidad.adminPath}
+    />
+  );
 }
 
 // ── Plantilla Lotes + Grupos + Bloques ────────────────────────────────────────
@@ -684,71 +552,17 @@ const LGB_SAMPLE = [
 ];
 
 function LotesGruposCard() {
-  const apiFetch = useApiFetch();
-  const navigate = useNavigate();
-  const { activeFincaId } = useUser();
-  const loteKey = `aurora_initsetup_count_${activeFincaId}_lotes`;
-  const grupoKey = `aurora_initsetup_count_${activeFincaId}_grupos`;
-  const [loteCount, setLoteCount] = useState(null);
-  const [grupoCount, setGrupoCount] = useState(null);
-  const [countStale, setCountStale] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [committing, setCommitting] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [preview, setPreview] = useState(null); // { parsed, filasSaltadas }
-  const [importResult, setImportResult] = useState(null);
-  const [showNavPrompt, setShowNavPrompt] = useState(false);
-  const fileInputRef = useRef(null);
-  const abortRef = useRef(null);
-
-  const refreshCounts = async () => {
-    try {
-      const [lotesRes, gruposRes] = await Promise.all([apiFetch('/api/lotes'), apiFetch('/api/grupos')]);
-      let stale = false;
-      if (lotesRes.ok) {
-        const lotes = await lotesRes.json();
-        if (Array.isArray(lotes)) { setLoteCount(lotes.length); localStorage.setItem(loteKey, String(lotes.length)); }
-        else stale = true;
-      } else stale = true;
-      if (gruposRes.ok) {
-        const grupos = await gruposRes.json();
-        if (Array.isArray(grupos)) { setGrupoCount(grupos.length); localStorage.setItem(grupoKey, String(grupos.length)); }
-        else stale = true;
-      } else stale = true;
-      setCountStale(stale);
-    } catch { setCountStale(true); }
-  };
-
-  useEffect(() => {
-    const l = localStorage.getItem(loteKey);
-    const g = localStorage.getItem(grupoKey);
-    setLoteCount(l !== null ? Number(l) : null);
-    setGrupoCount(g !== null ? Number(g) : null);
-    setCountStale(false);
-    refreshCounts();
-  }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([LGB_HEADERS, LGB_SAMPLE]);
-    ws['!cols'] = LGB_HEADERS.map(() => ({ wch: 18 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Lotes-Grupos-Bloques');
-    XLSX.writeFile(wb, 'plantilla_lotes_grupos_bloques.xlsx');
-  };
-
-  // Fase 1: parsear y separar filas válidas de saltadas; abrir preview.
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setParsing(true);
-    setImportResult(null);
-    setShowNavPrompt(false);
-    try {
-      const rows = await readExcelRows(file);
-      if (!rows.length) {
-        setImportResult({ error: true, msg: 'El archivo no contiene filas de datos.' });
-        return;
-      }
+  const bulk = useBulkImport({
+    countStorageKey: 'lotes-grupos',
+    loadCount: async (apiFetch) => {
+      const [lotes, grupos] = await Promise.all([
+        fetchJsonSafe(apiFetch, '/api/lotes', null),
+        fetchJsonSafe(apiFetch, '/api/grupos', null),
+      ]);
+      if (!Array.isArray(lotes) || !Array.isArray(grupos)) return null;
+      return { lotes: lotes.length, grupos: grupos.length };
+    },
+    parse: (rows) => {
       const today = new Date().toISOString().slice(0, 10);
       const filasSaltadas = [];
       const parsed = rows.map((row, idx) => {
@@ -782,49 +596,29 @@ function LotesGruposCard() {
         if (razon) { filasSaltadas.push(`Fila ${r._fila}: ${razon}`); return false; }
         return true;
       });
-
-      if (!parsed.length) {
-        setImportResult({ error: true, msg: `Ninguna fila válida. ${filasSaltadas.slice(0, 3).join(' · ')}` });
-        return;
+      return { payload: parsed, skipped: filasSaltadas };
+    },
+    // Crea materiales → lotes → siembras → grupos con progreso y cancelación.
+    // Los bloques se deduplican por (loteId, bloque) contra los existentes y
+    // dentro del propio archivo, para que re-subir la planilla no duplique siembras.
+    commit: async ({ payload: parsed, skipped: filasSaltadas, apiFetch, signal, setProgress }) => {
+      const uniqueMateriales = new Map();
+      for (const r of parsed) {
+        if (r.materialNombre && !uniqueMateriales.has(r.materialNombre))
+          uniqueMateriales.set(r.materialNombre, { variedad: r.variedad, rangoPesos: r.rangoPesos });
       }
-      setPreview({ parsed, filasSaltadas });
-    } catch (err) {
-      setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
-    } finally {
-      setParsing(false);
-      e.target.value = '';
-    }
-  };
+      const uniqueLotes = new Map();
+      for (const r of parsed) {
+        if (!uniqueLotes.has(r.codigoLote))
+          uniqueLotes.set(r.codigoLote, { nombreLote: r.nombreLote, fechaCreacion: r.fechaCreacionLote });
+      }
+      const distinctGrupos = new Set(parsed.map(r => r.nombreGrupo)).size;
+      const totalOps = uniqueMateriales.size + uniqueLotes.size + parsed.length + distinctGrupos;
+      let done = 0;
+      const tick = () => { done++; setProgress({ done, total: totalOps }); };
+      setProgress({ done: 0, total: totalOps });
 
-  // Fase 2: confirmado el preview, crea materiales → lotes → siembras → grupos
-  // con progreso y cancelación. Los bloques se deduplican por (loteId, bloque)
-  // contra los existentes y dentro del propio archivo, para que re-subir la
-  // planilla no duplique siembras.
-  const commitImport = async () => {
-    if (!preview) return;
-    const { parsed, filasSaltadas } = preview;
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setCommitting(true);
-
-    const uniqueMateriales = new Map();
-    for (const r of parsed) {
-      if (r.materialNombre && !uniqueMateriales.has(r.materialNombre))
-        uniqueMateriales.set(r.materialNombre, { variedad: r.variedad, rangoPesos: r.rangoPesos });
-    }
-    const uniqueLotes = new Map();
-    for (const r of parsed) {
-      if (!uniqueLotes.has(r.codigoLote))
-        uniqueLotes.set(r.codigoLote, { nombreLote: r.nombreLote, fechaCreacion: r.fechaCreacionLote });
-    }
-    const distinctGrupos = new Set(parsed.map(r => r.nombreGrupo)).size;
-    const totalOps = uniqueMateriales.size + uniqueLotes.size + parsed.length + distinctGrupos;
-    let done = 0;
-    const tick = () => { done++; setProgress({ done, total: totalOps }); };
-    setProgress({ done: 0, total: totalOps });
-
-    try {
-      // ── Phase 0: Materiales de siembra ─────────────────────────────────────
+      // ── Phase 0: Materiales de siembra ───────────────────────────────────────
       const existingMateriales = await fetchJsonSafe(apiFetch, '/api/materiales-siembra', []);
       const materialMap = {};
       for (const m of existingMateriales) {
@@ -832,19 +626,19 @@ function LotesGruposCard() {
       }
       let materialesCreados = 0;
       for (const [nombre, { variedad, rangoPesos }] of uniqueMateriales) {
-        if (ctrl.signal.aborted) break;
+        if (signal.aborted) break;
         if (materialMap[nombre]) { tick(); continue; }
         try {
           const res = await apiFetch('/api/materiales-siembra', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, variedad, rangoPesos }), signal: ctrl.signal,
+            body: JSON.stringify({ nombre, variedad, rangoPesos }), signal,
           });
           if (res.ok) { materialMap[nombre] = { id: (await res.json()).id }; materialesCreados++; }
         } catch { /* non-blocking */ }
         tick();
       }
 
-      // ── Phase 1: Lotes ──────────────────────────────────────────────────────
+      // ── Phase 1: Lotes ────────────────────────────────────────────────────────
       const existingLotes = await fetchJsonSafe(apiFetch, '/api/lotes', []);
       const loteMap = {};
       for (const l of existingLotes) {
@@ -852,20 +646,20 @@ function LotesGruposCard() {
       }
       let lotesCreados = 0, lotesExistentes = 0, lotesError = 0;
       for (const [codigoLote, { nombreLote, fechaCreacion }] of uniqueLotes) {
-        if (ctrl.signal.aborted) break;
+        if (signal.aborted) break;
         if (loteMap[codigoLote]) { lotesExistentes++; tick(); continue; }
         try {
           const res = await apiFetch('/api/lotes', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion }), signal: ctrl.signal,
+            body: JSON.stringify({ codigoLote, nombreLote, fechaCreacion }), signal,
           });
           if (!res.ok) lotesError++;
           else { loteMap[codigoLote] = (await res.json()).id; lotesCreados++; }
-        } catch { if (!ctrl.signal.aborted) lotesError++; }
+        } catch { if (!signal.aborted) lotesError++; }
         tick();
       }
 
-      // ── Phase 2: Siembras (bloques), deduplicadas por (loteId, bloque) ──────
+      // ── Phase 2: Siembras (bloques), deduplicadas por (loteId, bloque) ────────
       const existingSiembras = await fetchJsonSafe(apiFetch, '/api/siembras', []);
       const siembraKeyToId = {}; // `${loteId}|${bloque}` → id (existentes + creadas en este import)
       for (const s of (Array.isArray(existingSiembras) ? existingSiembras : [])) {
@@ -880,7 +674,7 @@ function LotesGruposCard() {
         grupoQueue[r.nombreGrupo].siembraIds.push(siembraId);
       };
       for (const r of parsed) {
-        if (ctrl.signal.aborted) break;
+        if (signal.aborted) break;
         const loteId = loteMap[r.codigoLote];
         if (!loteId) { siembrasError++; tick(); continue; }
         // Bloque con nombre: deduplica. Bloque vacío: siempre crea (preserva
@@ -910,7 +704,7 @@ function LotesGruposCard() {
           };
           const res = await apiFetch('/api/siembras', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload), signal: ctrl.signal,
+            body: JSON.stringify(payload), signal,
           });
           if (!res.ok) siembrasError++;
           else {
@@ -919,11 +713,11 @@ function LotesGruposCard() {
             pushToGrupo(r, data.id);
             siembrasCreadas++;
           }
-        } catch { if (!ctrl.signal.aborted) siembrasError++; }
+        } catch { if (!signal.aborted) siembrasError++; }
         tick();
       }
 
-      // ── Phase 3: Grupos ─────────────────────────────────────────────────────
+      // ── Phase 3: Grupos ───────────────────────────────────────────────────────
       const existingGrupos = await fetchJsonSafe(apiFetch, '/api/grupos', []);
       const grupoMap = {};
       for (const g of existingGrupos) {
@@ -931,7 +725,7 @@ function LotesGruposCard() {
       }
       let gruposCreados = 0, gruposActualizados = 0, gruposError = 0;
       for (const [nombreGrupo, { fechaCreacion, cosecha, etapa, siembraIds }] of Object.entries(grupoQueue)) {
-        if (ctrl.signal.aborted) break;
+        if (signal.aborted) break;
         if (!siembraIds.length) { tick(); continue; }
         try {
           if (grupoMap[nombreGrupo]) {
@@ -947,21 +741,21 @@ function LotesGruposCard() {
                 fechaCreacion: existingFecha,
                 paqueteId: existing.paqueteId || '',
                 bloques: newBloques,
-              }), signal: ctrl.signal,
+              }), signal,
             });
             if (!res.ok) gruposError++; else gruposActualizados++;
           } else {
             const res = await apiFetch('/api/grupos', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ nombreGrupo, cosecha, etapa, fechaCreacion, bloques: siembraIds }), signal: ctrl.signal,
+              body: JSON.stringify({ nombreGrupo, cosecha, etapa, fechaCreacion, bloques: siembraIds }), signal,
             });
             if (!res.ok) gruposError++; else gruposCreados++;
           }
-        } catch { if (!ctrl.signal.aborted) gruposError++; }
+        } catch { if (!signal.aborted) gruposError++; }
         tick();
       }
 
-      const aborted = ctrl.signal.aborted;
+      const aborted = signal.aborted;
       const totalErrors = lotesError + siembrasError + gruposError;
       const totalCreados = lotesCreados + siembrasCreadas + gruposCreados + gruposActualizados;
 
@@ -982,67 +776,38 @@ function LotesGruposCard() {
       ].filter(Boolean);
 
       if (totalCreados === 0 && (totalErrors > 0 || aborted)) {
-        setImportResult({ error: true, msg: `No se creó ningún registro. ${advertencias.join(' · ')}` });
-      } else {
-        const msgOk = partesExito ? `Creados: ${partesExito}` : 'Sin cambios nuevos.';
-        setImportResult({ ok: true, msg: msgOk, warn: advertencias.length ? advertencias.join(' · ') : null });
-        setShowNavPrompt(totalCreados > 0);
-        if (totalCreados > 0) refreshCounts();
+        return { error: true, msg: `No se creó ningún registro. ${advertencias.join(' · ')}` };
       }
-    } catch (err) {
-      setImportResult({ error: true, msg: err?.message || 'Error inesperado al procesar el archivo.' });
-    } finally {
-      abortRef.current = null;
-      setCommitting(false);
-      setPreview(null);
-    }
-  };
+      return {
+        didWrite: totalCreados > 0,
+        msg: partesExito ? `Creados: ${partesExito}` : 'Sin cambios nuevos.',
+        warn: advertencias.length ? advertencias.join(' · ') : null,
+      };
+    },
+  });
 
   return (
-    <div className="ci-card">
-      <CardHeader
-        icon={FiLayers}
-        title="Lotes, Grupos y Bloques"
-        counts={[
-          { value: loteCount, label: 'lotes' },
-          { value: grupoCount, label: 'grupos' },
-        ]}
-        stale={countStale}
-        link="/lotes"
-        linkTitle="Ir a Gestión de Lotes"
-      />
-      <p className="ci-card-desc">
-        Carga combinada: lotes, grupos de producción y bloques de siembra. Un grupo se crea una sola vez aunque aparezca en varios renglones.
-      </p>
-      <ImportButtons
-        onDownload={handleDownloadTemplate}
-        onImportClick={() => fileInputRef.current?.click()}
-        importing={parsing || committing}
-        fileInputRef={fileInputRef}
-        onFileChange={handleFileChange}
-      />
-      <ImportResultBanner result={importResult} />
-      {showNavPrompt && (
-        <NavPrompt
-          entityName="Gestión de Lotes"
-          targetPath="/lotes"
-          onConfirm={() => navigate('/lotes')}
-          onDismiss={() => setShowNavPrompt(false)}
+    <BulkImportCard
+      bulk={bulk}
+      header={
+        <CardHeader
+          icon={FiLayers}
+          title="Lotes, Grupos y Bloques"
+          counts={[
+            { value: bulk.count?.lotes ?? null, label: 'lotes' },
+            { value: bulk.count?.grupos ?? null, label: 'grupos' },
+          ]}
+          stale={bulk.countStale}
+          link="/lotes"
+          linkTitle="Ir a Gestión de Lotes"
         />
-      )}
-      {preview && (
-        <ImportPreviewModal
-          entityName="Lotes, Grupos y Bloques"
-          validCount={preview.parsed.length}
-          skipped={preview.filasSaltadas}
-          committing={committing}
-          progress={progress}
-          onConfirm={commitImport}
-          onCancel={() => setPreview(null)}
-          onAbort={() => abortRef.current?.abort()}
-        />
-      )}
-    </div>
+      }
+      descripcion="Carga combinada: lotes, grupos de producción y bloques de siembra. Un grupo se crea una sola vez aunque aparezca en varios renglones."
+      onDownload={() => downloadTemplate({ headers: LGB_HEADERS, sampleRow: LGB_SAMPLE, sheetName: 'Lotes-Grupos-Bloques', fileName: 'plantilla_lotes_grupos_bloques.xlsx', colWidth: 18 })}
+      entityName="Lotes, Grupos y Bloques"
+      navEntityName="Gestión de Lotes"
+      navTarget="/lotes"
+    />
   );
 }
 
@@ -1059,59 +824,14 @@ const EMP_SAMPLE = [
 ];
 
 function EmpleadosCard() {
-  const apiFetch = useApiFetch();
-  const navigate = useNavigate();
-  const { activeFincaId } = useUser();
-  const storageKey = `aurora_initsetup_count_${activeFincaId}_empleados`;
-  const [count, setCount] = useState(null);
-  const [countStale, setCountStale] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [committing, setCommitting] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [preview, setPreview] = useState(null); // { parsed: [...], skipped: [...] }
-  const [importResult, setImportResult] = useState(null);
-  const [showNavPrompt, setShowNavPrompt] = useState(false);
-  const fileInputRef = useRef(null);
-  const abortRef = useRef(null);
-
-  const refreshCount = async () => {
-    try {
-      const res = await apiFetch('/api/users');
-      if (!res.ok) { setCountStale(true); return; }
-      const data = await res.json();
-      if (!Array.isArray(data)) { setCountStale(true); return; }
-      const newCount = data.filter(u => u.empleadoPlanilla).length;
-      setCount(newCount);
-      setCountStale(false);
-      localStorage.setItem(storageKey, String(newCount));
-    } catch { setCountStale(true); }
-  };
-
-  useEffect(() => {
-    const v = localStorage.getItem(storageKey);
-    setCount(v !== null ? Number(v) : null);
-    setCountStale(false);
-    refreshCount();
-  }, [activeFincaId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.aoa_to_sheet([EMP_HEADERS, EMP_SAMPLE]);
-    ws['!cols'] = EMP_HEADERS.map(() => ({ wch: 22 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Empleados');
-    XLSX.writeFile(wb, 'plantilla_empleados.xlsx');
-  };
-
-  // Fase 1: parsear, separar válidas de saltadas y abrir preview.
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setParsing(true);
-    setImportResult(null);
-    setShowNavPrompt(false);
-    try {
-      const rows = await readExcelRows(file);
-      const parsed = [];
+  const bulk = useBulkImport({
+    countStorageKey: 'empleados',
+    loadCount: async (apiFetch) => {
+      const data = await fetchJsonSafe(apiFetch, '/api/users', null);
+      return Array.isArray(data) ? data.filter(u => u.empleadoPlanilla).length : null;
+    },
+    parse: (rows) => {
+      const payload = [];
       const skipped = [];
       rows.forEach((row, idx) => {
         const r = {
@@ -1131,137 +851,73 @@ function EmpleadosCard() {
           telefonoEmergencia:  String(row['Teléfono Emergencia']   || '').trim(),
           notas:               String(row['Notas']                 || '').trim(),
         };
-        if (r.nombre && r.email) parsed.push(r);
+        if (r.nombre && r.email) payload.push(r);
         else skipped.push(`Fila ${idx + 2}: falta Nombre Completo y/o Email`);
       });
-
-      if (!parsed.length) {
-        setImportResult({
-          error: true,
-          msg: skipped.length ? `Ninguna fila válida. ${skipped.slice(0, 3).join(' · ')}` : 'El archivo no contiene filas de datos.',
-        });
-        return;
+      return { payload, skipped };
+    },
+    // Crea usuario + ficha laboral. El PUT de la ficha se verifica: si falla, el
+    // usuario queda creado pero se cuenta como ficha incompleta (antes el error
+    // se tragaba en silencio).
+    commit: async ({ payload, skipped, apiFetch, signal, setProgress }) => {
+      let creados = 0, actualizados = 0, omitidos = 0, errores = 0, fichasIncompletas = 0;
+      for (let i = 0; i < payload.length; i++) {
+        if (signal.aborted) break;
+        const { cedula, puesto, departamento, fechaIngreso, tipoContrato, salarioBase,
+                precioHora, direccion, contactoEmergencia, telefonoEmergencia, notas, ...userData } = payload[i];
+        // El template de planilla representa personas con acceso al sistema por
+        // construcción, así que declaramos tieneAcceso=true para que el backend
+        // no las oculte de UserManagement (default-to-false).
+        const tieneAcceso = true;
+        try {
+          const res = await apiFetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...userData, empleadoPlanilla: true, tieneAcceso }),
+            signal,
+          });
+          if (res.status === 409) { omitidos++; setProgress({ done: i + 1, total: payload.length }); continue; }
+          if (!res.ok) { errores++; setProgress({ done: i + 1, total: payload.length }); continue; }
+          const { id, merged } = await res.json();
+          merged ? actualizados++ : creados++;
+          const fres = await apiFetch(`/api/hr/fichas/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedula, puesto, departamento, fechaIngreso, tipoContrato,
+                                   salarioBase, precioHora, direccion, contactoEmergencia,
+                                   telefonoEmergencia, notas }),
+            signal,
+          }).catch(() => null);
+          if (!fres || !fres.ok) fichasIncompletas++;
+        } catch {
+          if (signal.aborted) break;
+          errores++;
+        }
+        setProgress({ done: i + 1, total: payload.length });
       }
-      setPreview({ parsed, skipped });
-    } catch (err) {
-      setImportResult({ error: true, msg: err?.message || 'No se pudo leer el archivo. Usá la plantilla.' });
-    } finally {
-      setParsing(false);
-      e.target.value = '';
-    }
-  };
-
-  // Fase 2: crea usuario + ficha laboral con progreso y cancelación. El PUT de
-  // la ficha se verifica: si falla, el usuario queda creado pero se cuenta como
-  // ficha incompleta (antes el error se tragaba en silencio).
-  const commitImport = async () => {
-    if (!preview) return;
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setCommitting(true);
-    const parsed = preview.parsed;
-    setProgress({ done: 0, total: parsed.length });
-
-    let creados = 0, actualizados = 0, omitidos = 0, errores = 0, fichasIncompletas = 0;
-    for (let i = 0; i < parsed.length; i++) {
-      if (ctrl.signal.aborted) break;
-      const { cedula, puesto, departamento, fechaIngreso, tipoContrato, salarioBase,
-              precioHora, direccion, contactoEmergencia, telefonoEmergencia, notas, ...userData } = parsed[i];
-      // El template de planilla representa personas con acceso al sistema por
-      // construcción, así que declaramos tieneAcceso=true para que el backend
-      // no las oculte de UserManagement (default-to-false).
-      const tieneAcceso = true;
-      try {
-        const res = await apiFetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...userData, empleadoPlanilla: true, tieneAcceso }),
-          signal: ctrl.signal,
-        });
-        if (res.status === 409) { omitidos++; setProgress({ done: i + 1, total: parsed.length }); continue; }
-        if (!res.ok) { errores++; setProgress({ done: i + 1, total: parsed.length }); continue; }
-        const { id, merged } = await res.json();
-        merged ? actualizados++ : creados++;
-        const fres = await apiFetch(`/api/hr/fichas/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cedula, puesto, departamento, fechaIngreso, tipoContrato,
-                                 salarioBase, precioHora, direccion, contactoEmergencia,
-                                 telefonoEmergencia, notas }),
-          signal: ctrl.signal,
-        }).catch(() => null);
-        if (!fres || !fres.ok) fichasIncompletas++;
-      } catch {
-        if (ctrl.signal.aborted) break;
-        errores++;
-      }
-      setProgress({ done: i + 1, total: parsed.length });
-    }
-
-    const aborted = ctrl.signal.aborted;
-    const didWrite = creados + actualizados > 0;
-    const parts = [
-      creados      > 0 && `${creados} creado(s)`,
-      actualizados > 0 && `${actualizados} actualizado(s)`,
-      omitidos     > 0 && `${omitidos} ya existían (omitidos)`,
-      errores      > 0 && `${errores} con error`,
-    ].filter(Boolean).join(' · ');
-    const advert = [
-      preview.skipped.length > 0 && `${preview.skipped.length} fila(s) saltada(s)`,
-      fichasIncompletas > 0 && `${fichasIncompletas} ficha(s) sin completar`,
-      aborted && 'cancelado',
-    ].filter(Boolean).join(' · ');
-
-    if (!didWrite && (errores > 0 || aborted)) {
-      setImportResult({ error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' });
-    } else {
-      setImportResult({ ok: true, msg: parts || 'Sin cambios nuevos.', warn: advert || null });
-      setShowNavPrompt(didWrite);
-      if (didWrite) refreshCount();
-    }
-
-    abortRef.current = null;
-    setCommitting(false);
-    setPreview(null);
-  };
+      return summarizeResult({
+        creados, actualizados, omitidos, errores, skipped,
+        extraWarn: fichasIncompletas > 0 ? [`${fichasIncompletas} ficha(s) sin completar`] : [],
+        aborted: signal.aborted,
+      });
+    },
+  });
 
   return (
-    <div className="ci-card">
-      <CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={count} countLabel="empleados" stale={countStale} link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />
-      <p className="ci-card-desc">
-        Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso.
-      </p>
-      <ImportButtons
-        onDownload={handleDownloadTemplate}
-        onImportClick={() => fileInputRef.current?.click()}
-        importing={parsing || committing}
-        fileInputRef={fileInputRef}
-        onFileChange={handleFileChange}
-      />
-      <ImportResultBanner result={importResult} />
-      {showNavPrompt && (
-        <NavPrompt
-          entityName="Ficha del Trabajador"
-          targetPath="/hr/ficha"
-          onConfirm={() => navigate('/hr/ficha')}
-          onDismiss={() => setShowNavPrompt(false)}
-        />
-      )}
-      {preview && (
-        <ImportPreviewModal
-          entityName="Empleados (Planilla)"
-          validCount={preview.parsed.length}
-          skipped={preview.skipped}
-          committing={committing}
-          progress={progress}
-          onConfirm={commitImport}
-          onCancel={() => setPreview(null)}
-          onAbort={() => abortRef.current?.abort()}
-        />
-      )}
-    </div>
+    <BulkImportCard
+      bulk={bulk}
+      header={<CardHeader icon={FiUserPlus} title="Empleados (Planilla)" count={bulk.count} countLabel="empleados" stale={bulk.countStale} link="/hr/ficha" linkTitle="Ir a Ficha del Trabajador" />}
+      descripcion="Carga masiva de empleados en planilla. Crea el usuario y su ficha laboral (puesto, salario, fecha de ingreso) en un solo paso."
+      onDownload={() => downloadTemplate({ headers: EMP_HEADERS, sampleRow: EMP_SAMPLE, sheetName: 'Empleados', fileName: 'plantilla_empleados.xlsx' })}
+      entityName="Empleados (Planilla)"
+      navEntityName="Ficha del Trabajador"
+      navTarget="/hr/ficha"
+    />
   );
 }
+
+// Tarjetas con flujo propio (multi-endpoint), fuera del catálogo ENTIDADES.
+const EXTRA_CARDS = [LotesGruposCard, EmpleadosCard];
 
 // ── Página principal ──────────────────────────────────────────────────────────
 function InitialSetup() {
@@ -1288,14 +944,13 @@ function InitialSetup() {
       <section className="aur-section">
         <div className="aur-section-header">
           <h3>Entidades</h3>
-          <span className="aur-section-count">{ENTIDADES.length + 2}</span>
+          <span className="aur-section-count">{ENTIDADES.length + EXTRA_CARDS.length}</span>
         </div>
         <div className="ci-grid">
           {ENTIDADES.map(entidad => (
             <EntidadCard key={entidad.key} entidad={entidad} />
           ))}
-          <LotesGruposCard />
-          <EmpleadosCard />
+          {EXTRA_CARDS.map((Card, i) => <Card key={i} />)}
         </div>
       </section>
     </div>
