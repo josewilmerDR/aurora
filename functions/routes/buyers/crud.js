@@ -21,8 +21,19 @@ async function createBuyer(req, res) {
     const { error, data } = buildBuyerDoc(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
+    // Upsert por taxId: re-subir la planilla de compradores actualiza en vez de
+    // duplicar (mismo contrato que proveedores/machinery/productos). Sólo
+    // deduplica cuando hay taxId; un comprador sin cédula/RUC siempre se crea.
+    if (data.taxId) {
+      const existingId = await repo.findIdByTaxId(req.fincaId, data.taxId);
+      if (existingId) {
+        await repo.update(existingId, data);
+        return res.status(200).json({ id: existingId, merged: true });
+      }
+    }
+
     const id = await repo.create(req.fincaId, data);
-    res.status(201).json({ id });
+    res.status(201).json({ id, merged: false });
   } catch (error) {
     console.error('[BUYERS] create failed:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create buyer.', 500);

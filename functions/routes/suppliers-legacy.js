@@ -93,12 +93,27 @@ router.post('/api/proveedores', authenticate, async (req, res) => {
   try {
     const { error, data } = buildProveedorDoc(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
+    // Upsert por RUC: re-subir la planilla de proveedores actualiza en vez de
+    // duplicar (mismo contrato que machinery/productos). Sólo deduplica cuando
+    // hay RUC; un proveedor sin RUC siempre se crea. Equality+equality no
+    // requiere índice compuesto (zigzag merge join).
+    if (data.ruc) {
+      const existing = await db.collection('proveedores')
+        .where('fincaId', '==', req.fincaId)
+        .where('ruc', '==', data.ruc)
+        .limit(1).get();
+      if (!existing.empty) {
+        const doc = existing.docs[0];
+        await doc.ref.update({ ...data, actualizadoEn: FieldValue.serverTimestamp() });
+        return res.status(200).json({ id: doc.id, merged: true });
+      }
+    }
     const doc = await db.collection('proveedores').add({
       ...data,
       fincaId: req.fincaId,
       creadoEn: FieldValue.serverTimestamp(),
     });
-    res.status(201).json({ id: doc.id });
+    res.status(201).json({ id: doc.id, merged: false });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create proveedor.', 500);
   }

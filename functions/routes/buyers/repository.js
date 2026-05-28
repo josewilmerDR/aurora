@@ -17,6 +17,14 @@ async function listByFinca(fincaId) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+async function findIdByTaxId(fincaId, taxId) {
+  const snap = await db.collection(COLLECTION)
+    .where('fincaId', '==', fincaId)
+    .where('taxId', '==', taxId)
+    .limit(1).get();
+  return snap.empty ? null : snap.docs[0].id;
+}
+
 async function create(fincaId, data) {
   const doc = await db.collection(COLLECTION).add({
     ...data,
@@ -36,6 +44,7 @@ async function remove(id) {
 
 module.exports = {
   listByFinca,
+  findIdByTaxId,
   create,
   update,
   remove,
