@@ -164,4 +164,15 @@
   .ci-grid {
     grid-template-columns: 1fr;
   }
+  /* Hit-area táctil ≥44px: los botones de import son --sm (~33px) y el link
+     externo es icon-btn--sm (26px), por debajo del mínimo para el dedo. En
+     mobile los agrandamos sin tocar las primitivas globales. */
+  .ci-import-row .aur-btn-pill {
+    min-height: 44px;
+    flex: 1 1 auto;
+  }
+  .ci-card-link.aur-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
+import { FiTool, FiDroplet, FiList, FiLayers, FiHash, FiTruck, FiUsers, FiUserPlus, FiShoppingCart, FiDownload, FiUpload, FiExternalLink, FiSettings, FiArrowRight, FiX, FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -304,12 +304,15 @@ const ENTIDADES = [
 
 // ── Subcomponentes presentacionales reutilizables ────────────────────────────
 
-function CardHeader({ icon: Icon, title, count, countLabel, counts, stale, link, linkTitle = 'Ir a gestión completa' }) {
+function CardHeader({ icon: Icon, title, count, countLabel, counts, stale, link, linkTitle }) {
   // Cuando el refresh del conteo falló, el badge se atenúa y avisa por title
   // que muestra el último valor conocido en vez de aparentar dato fresco.
   const staleProps = stale
     ? { className: 'aur-badge aur-badge--green ci-card-count ci-card-count--stale', title: 'No se pudo actualizar el conteo; mostrando el último valor conocido.' }
     : { className: 'aur-badge aur-badge--green ci-card-count' };
+  // aria-label/title descriptivo: un ícono de flecha pelado no comunica destino
+  // a sí solo. Si el card no pasa un linkTitle propio, lo derivamos del título.
+  const linkLabel = linkTitle || `Ir a la gestión completa de ${title}`;
   return (
     <div className="ci-card-header">
       <span className="ci-card-icon"><Icon size={18} /></span>
@@ -327,7 +330,7 @@ function CardHeader({ icon: Icon, title, count, countLabel, counts, stale, link,
           )
       }
       {link && (
-        <Link to={link} className="aur-icon-btn aur-icon-btn--sm" title={linkTitle} aria-label={linkTitle}>
+        <Link to={link} className="aur-icon-btn aur-icon-btn--sm ci-card-link" title={linkLabel} aria-label={linkLabel}>
           <FiExternalLink size={13} />
         </Link>
       )}
@@ -399,18 +402,32 @@ function ImportButtons({ onDownload, onImportClick, importing, fileInputRef, onF
   );
 }
 
+// Tres estados visuales y semánticos distintos:
+//   error → danger + alerta asertiva (interrumpe al lector de pantalla)
+//   warn  → amarillo + triángulo cuando se escribió algo PERO hubo
+//           saltadas/errores/cancelación; evita el banner verde mentiroso
+//   ok    → verde + check sólo cuando salió todo limpio
+// role/aria-live hacen que el resultado se anuncie sin depender de lo visual.
 function ImportResultBanner({ result }) {
   if (!result) return null;
   if (result.error) {
     return (
-      <div className="aur-banner aur-banner--danger">
+      <div className="aur-banner aur-banner--danger" role="alert" aria-live="assertive">
         <FiAlertCircle size={14} />
-        <span>{result.msg || 'No se pudo leer el archivo. Usa la plantilla.'}</span>
+        <span>{result.msg || 'No se pudo leer el archivo. Usá la plantilla.'}</span>
+      </div>
+    );
+  }
+  if (result.warn) {
+    return (
+      <div className="aur-banner aur-banner--warn" role="status" aria-live="polite">
+        <FiAlertTriangle size={14} />
+        <span>{result.msg ? `${result.msg} — ` : ''}{result.warn}</span>
       </div>
     );
   }
   return (
-    <div className="aur-banner aur-banner--info">
+    <div className="aur-banner aur-banner--info" role="status" aria-live="polite">
       <FiCheckCircle size={14} />
       <span>{result.msg}</span>
     </div>
@@ -419,7 +436,7 @@ function ImportResultBanner({ result }) {
 
 function NavPrompt({ entityName, targetPath, onConfirm, onDismiss }) {
   return (
-    <div className="aur-banner aur-banner--info">
+    <div className="aur-banner aur-banner--info" role="status" aria-live="polite">
       <FiArrowRight size={14} />
       <div className="ci-nav-prompt-body">
         <span>¿Ir a <strong>{entityName}</strong> para revisar los datos?</span>
@@ -568,7 +585,7 @@ function EntidadCard({ entidad }) {
     if (!didWrite && (errores > 0 || aborted)) {
       setImportResult({ error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' });
     } else {
-      setImportResult({ ok: true, msg: (parts || 'Sin cambios nuevos.') + (advert ? ` ⚠ ${advert}` : '') });
+      setImportResult({ ok: true, msg: parts || 'Sin cambios nuevos.', warn: advert || null });
       setShowNavPrompt(didWrite);
       if (didWrite) refreshCount();
     }
@@ -968,8 +985,7 @@ function LotesGruposCard() {
         setImportResult({ error: true, msg: `No se creó ningún registro. ${advertencias.join(' · ')}` });
       } else {
         const msgOk = partesExito ? `Creados: ${partesExito}` : 'Sin cambios nuevos.';
-        const msgWarn = advertencias.length ? ` ⚠ ${advertencias.join(' · ')}` : '';
-        setImportResult({ ok: true, msg: msgOk + msgWarn });
+        setImportResult({ ok: true, msg: msgOk, warn: advertencias.length ? advertencias.join(' · ') : null });
         setShowNavPrompt(totalCreados > 0);
         if (totalCreados > 0) refreshCounts();
       }
@@ -1199,7 +1215,7 @@ function EmpleadosCard() {
     if (!didWrite && (errores > 0 || aborted)) {
       setImportResult({ error: true, msg: [parts, advert].filter(Boolean).join(' · ') || 'No se creó ningún registro.' });
     } else {
-      setImportResult({ ok: true, msg: (parts || 'Sin cambios nuevos.') + (advert ? ` ⚠ ${advert}` : '') });
+      setImportResult({ ok: true, msg: parts || 'Sin cambios nuevos.', warn: advert || null });
       setShowNavPrompt(didWrite);
       if (didWrite) refreshCount();
     }
