@@ -9,10 +9,23 @@
                          por severidad. No usamos aur-row porque su grilla
                          label-control rígida no encaja con un row tipo-feed
                          compuesto por chip + tiempo + acción + actor + target.
+     · audit-event--critical / .aur-badge en critical: peso + tint más fuerte
+                         para que la severidad máxima salte sobre warning/info
+                         en una lista densa (el magenta solo en --critical
+                         queda inequívoco después de sacarlo del target).
      · audit-meta-*    — grid <dl> auto-fill que aparece dentro del body
                          expandido del evento.
      · audit-event-ids — strip de IDs monospace al pie del body.
-     · audit-empty     — wrapping interno de aur-sheet--empty (icono + text).
+     · audit-empty     — estado vacío (icono + text) dentro de la sección.
+     · audit-error     — panel de error persistente (forbidden / fallo de
+                         carga) con CTA reintentar. Reemplaza al toast efímero:
+                         un fallo no debe quedar disfrazado de "no hay eventos".
+     · audit-list-wrap — wrapper relativo de la lista; en .is-refetching atenúa
+                         la lista vieja y muestra un spinner de esquina mientras
+                         se recarga, en vez de remontar toda la página.
+     · audit-severity-summary — fila de chips clickables con conteo por
+                         severidad sobre los eventos cargados; sirve de triage
+                         rápido y atajo de filtro en una página de seguridad.
      · audit-spin      — clase que dispara el keyframe global aur-spin sobre
                          el icono del botón refresh (no necesita keyframe
                          propio: la animación ya vive en aurora.css).
@@ -22,7 +35,7 @@
   animation: aur-spin 0.8s linear infinite;
 }
 
-/* ── Empty state (interior de aur-sheet--empty) ──────────────────────────── */
+/* ── Empty state (interior de la sección Eventos) ────────────────────────── */
 .audit-empty {
   display: flex;
   flex-direction: column;
@@ -30,6 +43,7 @@
   gap: 10px;
   text-align: center;
   color: var(--aur-text-3);
+  padding: 24px 16px;
 }
 .audit-empty p {
   margin: 0;
@@ -37,7 +51,7 @@
   color: var(--aur-text-2);
 }
 .audit-empty-hint {
-  max-width: 360px;
+  max-width: 420px;
   font-size: var(--aur-fs-footnote);
   color: var(--aur-text-3);
   line-height: 1.5;
@@ -52,6 +66,63 @@
   color: var(--aur-text-3);
 }
 
+/* ── Panel de error persistente (forbidden / fallo de carga) ─────────────── */
+.audit-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--aur-danger);
+}
+.audit-error p {
+  margin: 0;
+  font-size: var(--aur-fs-body);
+  color: var(--aur-text-2);
+}
+.audit-error-hint {
+  max-width: 420px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  line-height: 1.5;
+}
+.audit-error .aur-btn-pill {
+  margin-top: 4px;
+}
+
+/* ── Chips de resumen por severidad (triage rápido) ──────────────────────── */
+/* Vive al lado del count de la sección Eventos. Cada chip es un botón que
+   setea filterSeverity == su severidad; el chip activo se realza. Da una
+   mirada al estado global del log (¿hay críticos?) sin filtrar a mano. */
+.audit-severity-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.audit-severity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--aur-r-pill);
+  border: 1px solid transparent;
+  background: var(--aur-badge-gray-bg);
+  color: var(--aur-badge-gray-fg);
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.12s ease, opacity 0.12s ease;
+}
+.audit-severity-chip:hover { border-color: var(--aur-divider-2); }
+.audit-severity-chip--info     { background: var(--aur-badge-blue-bg);    color: var(--aur-badge-blue-fg); }
+.audit-severity-chip--warning  { background: var(--aur-badge-yellow-bg);  color: var(--aur-badge-yellow-fg); }
+.audit-severity-chip--critical { background: var(--aur-badge-magenta-bg); color: var(--aur-badge-magenta-fg); }
+.audit-severity-chip.is-active { border-color: currentColor; }
+.audit-severity-chip[disabled] { opacity: 0.45; cursor: not-allowed; }
+
 /* ── Lista de eventos ────────────────────────────────────────────────────── */
 .audit-event-list {
   list-style: none;
@@ -60,6 +131,29 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Refetch sin remontar: atenuamos la lista vieja y bloqueamos clicks mientras
+   llega la nueva respuesta, con un spinner de esquina como señal de actividad.
+   Así cambiar un filtro no hace parpadear toda la página ni roba el foco. */
+.audit-list-wrap {
+  position: relative;
+}
+.audit-list-wrap.is-refetching .audit-event-list {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.audit-refetch-spinner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--aur-divider-2);
+  border-top-color: var(--aur-accent);
+  border-radius: 50%;
+  animation: aur-spin 0.8s linear infinite;
 }
 
 /* Tarjeta-fila de evento. No se reusa aur-row porque el patrón aquí es un
@@ -76,12 +170,32 @@
 .audit-event:hover {
   border-color: var(--aur-divider-2);
 }
+.audit-event.is-anchor {
+  /* Glow sutil al evento al que apuntó ?event=<id> — facilita ubicarlo
+     cuando el link se abre con scroll automático. Decae con animación.    */
+  animation: audit-anchor-pulse 1.6s var(--aur-ease) 1;
+  border-color: var(--aur-accent);
+}
+@keyframes audit-anchor-pulse {
+  0%   { box-shadow: 0 0 0 3px var(--aur-accent-tint-2); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
 
 /* Stripe lateral tonal por severidad. Las primitivas no exponen left-border
    tonal — slim necesario para reflejar la severidad del evento entero. */
 .audit-event--info     { border-left-color: var(--aur-badge-blue-fg); }
 .audit-event--warning  { border-left-color: var(--aur-badge-yellow-fg); }
-.audit-event--critical { border-left-color: var(--aur-badge-magenta-fg); }
+.audit-event--critical { border-left-color: var(--aur-danger); }
+
+/* Crítico se refuerza: badge con tint sólido (0.22 vs 0.14 default), peso 700
+   e inset ring del color de danger. Sin esto, "crítico" se lee igual que el
+   resto de los magenta sutiles. Solo críticos llevan magenta ahora (saqué el
+   magenta del target). */
+.audit-event--critical .aur-badge.aur-badge--magenta {
+  background: var(--aur-danger-tint-2);
+  box-shadow: inset 0 0 0 1px rgba(204, 51, 255, 0.4);
+  font-weight: 700;
+}
 
 .audit-event-header {
   width: 100%;
@@ -104,7 +218,7 @@
   align-items: center;
   gap: 5px;
   color: var(--aur-text-2);
-  font-size: 12px;
+  font-size: var(--aur-fs-footnote);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -127,17 +241,21 @@
   min-width: 0;
 }
 
+/* Rol del actor. Antes era accent green con opacity 0.75 (mal contraste
+   a 11px). Pasamos al token text-2 sin opacidad reducida — el rol no es info
+   de marca, no necesita color del acento; lo lee como metadata neutro. */
 .audit-event-role {
-  color: var(--aur-accent);
-  opacity: 0.75;
-  font-size: 11px;
+  color: var(--aur-text-2);
+  font-size: var(--aur-fs-caption);
 }
 
+/* Target. Antes pintaba en magenta (visualmente competía con la severidad
+   crítica que también es magenta). Ahora es mono neutral en text-3 — la
+   distinción ya la da la fuente monoespaciada. */
 .audit-event-target {
-  color: var(--aur-badge-magenta-fg);
-  opacity: 0.85;
-  font-size: 11px;
-  font-family: 'Menlo', 'Consolas', monospace;
+  color: var(--aur-text-3);
+  font-size: var(--aur-fs-caption);
+  font-family: var(--aur-font-mono);
   white-space: nowrap;
 }
 
@@ -145,6 +263,54 @@
   color: var(--aur-text-3);
   display: inline-flex;
   align-items: center;
+}
+
+/* ── Resumen forense en línea (audit-event-summary) ──────────────────────── */
+/* Sale debajo del header del evento, siempre visible (sin expandir). Pinta
+   en una línea el "qué cambió" derivado del metadata por auditSummary.js.
+   :empty oculta el strip si el renderer no encontró ningún campo útil. */
+.audit-event-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 14px 10px 14px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  border-top: 1px dashed var(--aur-divider);
+}
+.audit-event-summary:empty {
+  display: none;
+}
+.audit-event-subject {
+  font-weight: 600;
+  color: var(--aur-text);
+}
+.audit-event-note {
+  font-style: italic;
+  color: var(--aur-text-3);
+}
+.audit-event-flag {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aur-badge-yellow-fg);
+  opacity: 0.9;
+}
+.audit-event-diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.audit-diff-from {
+  color: var(--aur-text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--aur-divider-2);
+}
+.audit-diff-to {
+  color: var(--aur-text);
+  font-weight: 500;
 }
 
 /* ── Body expandido ──────────────────────────────────────────────────────── */
@@ -182,10 +348,10 @@
 .audit-meta-item dd pre {
   margin: 0;
   padding: 6px 8px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--aur-bg-code);
   border-radius: 4px;
   font-size: 12px;
-  font-family: 'Menlo', 'Consolas', monospace;
+  font-family: var(--aur-font-mono);
   color: var(--aur-text);
   max-height: 200px;
   overflow: auto;
@@ -210,27 +376,38 @@
 }
 
 .audit-event-ids code {
-  font-family: 'Menlo', 'Consolas', monospace;
-  background: rgba(0, 0, 0, 0.25);
+  font-family: var(--aur-font-mono);
+  background: var(--aur-bg-code);
   padding: 1px 5px;
   border-radius: 3px;
   font-size: 11px;
   color: var(--aur-text);
 }
 
-.audit-limit-hint {
-  text-align: center;
-  color: var(--aur-text-3);
-  font-size: var(--aur-fs-footnote);
-  margin: 12px 0 0;
+/* Botón "Cargar más" — paginación por cursor. Aparece bajo la lista cuando
+   la última respuesta llenó la página (asumimos que hay más eventos hacia
+   atrás). El loadingMore propio del botón evita confundirlo con un refetch
+   total y permite seguir leyendo los eventos ya cargados mientras llega. */
+.audit-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 4px;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
+/* 768px = breakpoint del design system (aurora.css usa 768 para apilar las
+   .aur-row y para el sheet-header). Antes esta página rompía en 900px, lo
+   que dejaba un intervalo 768-900 con el evento ya en modo móvil pero los
+   filtros aún en desktop — inconsistencia visual entre las dos secciones. */
+@media (max-width: 768px) {
   .audit-event-header {
     grid-template-columns: auto 1fr auto;
     grid-template-rows: auto auto;
     gap: 6px 10px;
+    /* Hit-area mobile: subimos a 44px (mínimo Apple/Material) para que tocar
+       la fila sin errar el evento de al lado sea cómodo en táctil. */
+    min-height: 44px;
+    padding: 12px 14px;
   }
   .audit-event-header > .aur-badge { grid-row: 1 / span 2; }
   .audit-event-time    { grid-column: 2; grid-row: 1; }
