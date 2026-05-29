@@ -1,19 +1,17 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    UNIDADES DE MEDIDA — slim modifiers sobre primitivas aurora.
 
-   La página vive ahora sobre aur-sheet + aur-sheet-header + aur-section +
-   aur-list/aur-row(--multiline) + aur-input/aur-textarea/aur-select +
-   aur-input--num + aur-combo* (LaborCombobox) + aur-form-actions +
-   aur-icon-btn(--danger) + AuroraConfirmModal (delete).
+   La página vive sobre aur-sheet + aur-sheet-header + aur-section +
+   aur-list/aur-row(--multiline) + aur-input/aur-select + aur-input--num +
+   aur-combo* (LaborCombobox compartido) + aur-table-toolbar + aur-form-actions +
+   aur-icon-btn(--danger) + AuroraConfirmModal (delete/merge/rename/discard) +
+   EmptyState (vacío, error de carga y sin-resultados).
 
    Aquí sólo queda:
      · um-required           — asterisco magenta del label "Nombre *".
-     · um-empty / um-empty-line — placeholders dentro de aur-sheet--empty
-                                 y dentro de la sección de lista cuando se
-                                 abre el form sin items.
-     · um-labor-combo        — alias bag para el LaborCombobox (no agrega
-                                 propiedades; queda como hook de tema por si
-                                 en el futuro queremos override del width).
+     · um-section-hint       — microcopy bajo el header de sección.
+     · um-field-warn         — warning inline (conversión a medias).
+     · um-toolbar / um-search* — buscador con icono lupa embebido.
      · um-list / um-item / um-item-main / um-item-title / um-item-meta /
        um-meta-* / um-item-actions — lista iOS-style para registros con
                                  metadata composition (nombre + descripción
@@ -21,6 +19,8 @@
                                  No usamos aur-row porque su grilla rígida
                                  label/control no encaja con un row tipo
                                  ficha multi-meta.
+     · um-item--just-saved   — pulse breve sobre la fila recién creada/editada.
+     · um-merge-*            — diff side-by-side dentro del modal de colisión.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .um-required {
@@ -28,32 +28,50 @@
   margin-left: 2px;
 }
 
-/* ── Empty / no-results inline ───────────────────────────────────────────── */
-.um-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
+/* ── Hint debajo del header de sección (contexto de para qué sirve) ───────── */
+.um-section-hint {
+  margin: -2px 0 10px;
+  padding: 0 2px;
+  font-size: var(--aur-fs-caption);
   color: var(--aur-text-3);
-}
-.um-empty p {
-  margin: 0;
-  font-size: var(--aur-fs-body);
-  color: var(--aur-text-2);
+  line-height: 1.45;
 }
 
-.um-empty-line {
-  margin: 0;
-  padding: 24px 4px;
-  text-align: center;
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-3);
+/* ── Warning inline (conversión a medias) ────────────────────────────────── */
+.um-field-warn {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 2px 0;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-warn);
+  line-height: 1.4;
+}
+.um-field-warn svg {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-/* ── LaborCombobox: alias del aur-combo (placeholder) ───────────────────── */
-.um-labor-combo {
-  display: block;
+/* ── Buscador (icono lupa embebido; aur-input no expone slot de prefijo) ──── */
+.um-toolbar {
+  padding: 0 2px 14px;
+}
+.um-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 320px;
+  min-width: 200px;
+}
+.um-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--aur-text-3);
+  pointer-events: none;
+}
+.um-search {
+  padding-left: 34px;
 }
 
 /* ── Lista de unidades (ficha tipo iOS feed) ─────────────────────────────── */
@@ -77,6 +95,23 @@
 }
 .um-item:last-child { border-bottom: none; }
 .um-item:hover { background: var(--aur-bg-hover); }
+
+/* Pulse breve sobre la fila recién creada/editada para que el ojo la reencuentre
+   tras cerrar el form (la lista se reordena alfabéticamente). */
+@keyframes um-row-pulse {
+  0%   { background: var(--aur-accent-tint); }
+  60%  { background: var(--aur-accent-tint); }
+  100% { background: transparent; }
+}
+.um-item--just-saved {
+  animation: um-row-pulse 2.4s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .um-item--just-saved {
+    animation: none;
+    background: var(--aur-accent-tint);
+  }
+}
 
 .um-item-main {
   flex: 1;
@@ -123,10 +158,78 @@
   flex-shrink: 0;
 }
 
+/* ── Merge diff (modal de colisión de nombre en alta) ────────────────────── */
+/* Side-by-side "Actual vs Nuevo" para que el usuario vea qué se sobrescribe
+   antes de confirmar el upsert por nombre. Hermano de .lab-merge-* en
+   features/admin/labor-list.css. */
+.um-merge-diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 6px 0 4px;
+}
+.um-merge-col {
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.um-merge-col--new {
+  border-color: var(--aur-accent);
+  box-shadow: 0 0 0 1px var(--aur-accent-tint) inset;
+}
+.um-merge-col-title {
+  font-size: var(--aur-fs-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aur-text-3);
+  font-weight: 600;
+}
+.um-merge-col--new .um-merge-col-title {
+  color: var(--aur-accent);
+}
+.um-merge-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text);
+  word-break: break-word;
+}
+.um-merge-label {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+}
+
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .um-item {
     padding: 12px 14px;
     gap: 8px;
+  }
+  .um-merge-diff {
+    grid-template-columns: 1fr;
+  }
+  /* Buscador full-width */
+  .um-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .um-search-wrap {
+    max-width: none;
+    width: 100%;
+  }
+  /* Hit area ≥40px en móvil: los icon-btn de fila se agrandan y el gap entre
+     Editar / Eliminar sube para que el dedo no apunte al botón equivocado. */
+  .um-item-actions {
+    gap: 10px;
+  }
+  .um-item-actions .aur-icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
   }
 }
