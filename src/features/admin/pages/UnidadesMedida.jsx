@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { FiPlus, FiEdit, FiTrash2, FiX, FiCheck, FiPackage, FiSearch, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -517,6 +518,8 @@ function UnidadesMedida() {
             <h2 className="aur-sheet-title">Unidades de medida</h2>
             <p className="aur-sheet-subtitle">
               Unidades utilizadas en actividades de campo, dosis de productos y conversiones.
+              Cada unidad puede asociarse a una{' '}
+              <Link to="/admin/labores" className="aur-link">labor</Link>.
             </p>
           </div>
           {!showForm && !loadError && (
@@ -674,7 +677,7 @@ function UnidadesMedida() {
 
         <section className="aur-section">
           {loading ? (
-            <div className="aur-page-loading" />
+            <div className="aur-page-loading" role="status" aria-label="Cargando unidades de medida" />
           ) : loadError ? (
             <EmptyState
               icon={FiAlertTriangle}
