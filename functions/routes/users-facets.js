@@ -13,6 +13,8 @@ const { db, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
+const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
 const {
   ROLES_VALIDOS, EMAIL_RE, LIMITS,
   cleanRestrictedTo, parseFechaSalida,
@@ -22,26 +24,26 @@ const router = Router();
 
 function requireAdmin(req, res, next) {
   if (!hasMinRoleBE(req.userRole, 'administrador')) {
-    return res.status(403).json({ message: 'Solo administradores pueden gestionar usuarios.' });
+    return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only administrators can manage users.', 403);
   }
   next();
 }
 
 // POST /api/users/:id/grant-access  { rol, restrictedTo? }
-router.post('/api/users/:id/grant-access', authenticate, requireAdmin, async (req, res) => {
+router.post('/api/users/:id/grant-access', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const current = ownership.doc.data();
 
     const rol = req.body?.rol;
     if (!rol || rol === 'ninguno' || !ROLES_VALIDOS.includes(rol)) {
-      return res.status(400).json({ message: 'Rol inválido. Debe ser distinto de "ninguno".' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid role. Must be other than "ninguno".', 400);
     }
     const email = (current.email || '').trim().toLowerCase();
     if (!email || !EMAIL_RE.test(email)) {
-      return res.status(400).json({ message: 'La persona no tiene un email válido. Actualízalo antes de darle acceso.' });
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Person has no valid email. Update it before granting access.', 400);
     }
 
     const restrictedTo = cleanRestrictedTo(req.body?.restrictedTo) || [];
@@ -66,21 +68,21 @@ router.post('/api/users/:id/grant-access', authenticate, requireAdmin, async (re
 
     res.status(200).json({ id, tieneAcceso: true, rol, restrictedTo });
   } catch (error) {
-    console.error('[users:grant-access]', error);
-    res.status(500).json({ message: 'Error al otorgar acceso.' });
+    console.error('[users:grant-access]', error.message);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to grant access.', 500);
   }
 });
 
 // POST /api/users/:id/revoke-access
-router.post('/api/users/:id/revoke-access', authenticate, requireAdmin, async (req, res) => {
+router.post('/api/users/:id/revoke-access', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const current = ownership.doc.data();
     const targetEmail = (current.email || '').toLowerCase();
     if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
-      return res.status(403).json({ message: 'No puedes revocarte el acceso al sistema a ti mismo.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You cannot revoke your own system access.', 403);
     }
 
     // Idempotent: already revoked → return ok without rewriting the doc or
@@ -122,17 +124,17 @@ router.post('/api/users/:id/revoke-access', authenticate, requireAdmin, async (r
 
     res.status(200).json({ id, tieneAcceso: false });
   } catch (error) {
-    console.error('[users:revoke-access]', error);
-    res.status(500).json({ message: 'Error al revocar acceso.' });
+    console.error('[users:revoke-access]', error.message);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to revoke access.', 500);
   }
 });
 
 // POST /api/users/:id/grant-planilla
-router.post('/api/users/:id/grant-planilla', authenticate, requireAdmin, async (req, res) => {
+router.post('/api/users/:id/grant-planilla', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const current = ownership.doc.data();
     const wasRehire = current.tuvoEmpleo === true;
 
@@ -161,21 +163,21 @@ router.post('/api/users/:id/grant-planilla', authenticate, requireAdmin, async (
 
     res.status(200).json({ id, empleadoPlanilla: true, rehire: wasRehire });
   } catch (error) {
-    console.error('[users:grant-planilla]', error);
-    res.status(500).json({ message: 'Error al asignar planilla.' });
+    console.error('[users:grant-planilla]', error.message);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to assign payroll.', 500);
   }
 });
 
 // POST /api/users/:id/revoke-planilla  { motivo?, fecha? }
-router.post('/api/users/:id/revoke-planilla', authenticate, requireAdmin, async (req, res) => {
+router.post('/api/users/:id/revoke-planilla', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
-    if (!ownership.ok) return res.status(ownership.status).json({ message: ownership.message });
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const current = ownership.doc.data();
     const targetEmail = (current.email || '').toLowerCase();
     if (req.userEmail && targetEmail === req.userEmail.toLowerCase()) {
-      return res.status(403).json({ message: 'No puedes rescindir tu propio contrato.' });
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'You cannot rescind your own contract.', 403);
     }
 
     if (current.empleadoPlanilla !== true) {
@@ -212,8 +214,8 @@ router.post('/api/users/:id/revoke-planilla', authenticate, requireAdmin, async 
 
     res.status(200).json({ id, empleadoPlanilla: false });
   } catch (error) {
-    console.error('[users:revoke-planilla]', error);
-    res.status(500).json({ message: 'Error al rescindir contrato.' });
+    console.error('[users:revoke-planilla]', error.message);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to rescind contract.', 500);
   }
 });
 
