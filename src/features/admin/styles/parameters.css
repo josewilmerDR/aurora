@@ -8,6 +8,8 @@
 
      · param-kpi-placeholder — texto en gris dentro del row del KPI
                                (placeholder hasta que existan KPIs reales).
+     · param-section-note    — aur-banner--info entre el header de la sección y
+                               la lista; sólo aporta el margen inferior.
      · param-row-value / -num / -unit — composición valor + unidad cuando NO
                                estamos en editMode; tabular-nums + alineado
                                a la derecha para matching visual con el input.
@@ -18,6 +20,11 @@
                                del wrap, el strikethrough del valor anterior y
                                el peso/color del nuevo valor.
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Nota informativa de sección (aur-banner--info) ──────────────────────── */
+.param-section-note {
+  margin-bottom: 12px;
+}
 
 /* ── KPI placeholder ─────────────────────────────────────────────────────── */
 .param-kpi-placeholder {
