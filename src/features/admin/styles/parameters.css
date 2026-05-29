@@ -17,6 +17,11 @@
                                aur-table cubre la base; slim afina el padding
                                del wrap, el strikethrough del valor anterior y
                                el peso/color del nuevo valor.
+     · param-row--saved     — flash transitorio de las filas recién guardadas.
+
+   NOTA: el padding horizontal de los slots del modal (gate/diff-wrap) replica el
+   de .aur-modal-body en aurora.css (22px desktop / 18px ≤560px). No hay token
+   compartido para ese valor; si cambia allá, ajustar acá.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Nota informativa de sección (aur-banner--info) ──────────────────────── */
@@ -71,4 +76,26 @@
    nowrap para el par valor+unidad sin partirse en dos líneas. */
 .param-diff-new {
   white-space: nowrap;
+}
+
+/* ── Highlight transitorio de filas recién guardadas ─────────────────────── */
+.param-row--saved {
+  animation: param-row-flash 2.5s ease-out;
+}
+@keyframes param-row-flash {
+  0%   { background: var(--aur-accent-tint); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .param-row--saved { animation: none; }
+}
+
+/* Padding de los slots del modal alineado a .aur-modal-body en mobile (≤560px,
+   donde aurora.css baja de 22px a 18px). Ver nota del header. */
+@media (max-width: 560px) {
+  .param-modal-gate,
+  .param-diff-wrap {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
 }
