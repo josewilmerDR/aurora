@@ -149,7 +149,7 @@ router.post('/api/users', authenticate, requireAdmin, rateLimit('users_write', '
   }
 });
 
-router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
+router.put('/api/users/:id', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
@@ -312,7 +312,7 @@ router.put('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-router.delete('/api/users/:id', authenticate, requireAdmin, async (req, res) => {
+router.delete('/api/users/:id', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('users', id, req.fincaId);
