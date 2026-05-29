@@ -1,7 +1,7 @@
 import { FiX, FiCheckCircle, FiPlusCircle, FiEye, FiEdit2, FiMap, FiPackage, FiDroplet } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { hasMinRole } from '../../../contexts/UserContext';
-import { formatShortDate, isOverdue, isManualTask, formatHectareas } from '../lib/cedulas-helpers';
+import { formatShortDate, isOverdue, isManualTask, formatHectareas, getCedulaStatusMeta } from '../lib/cedulas-helpers';
 
 // ── CedulaCard ───────────────────────────────────────────────────────────────
 // Card del listing principal para una task con UNA cédula (o ninguna todavía).
@@ -114,15 +114,13 @@ export default function CedulaCard({
               mostrábamos ambos: en pendiente+pendiente repetía el badge
               amarillo, y en pendiente+en_transito dejaba al usuario
               adivinando cuál mandaba. Vencida queda como pill paralelo,
-              no sustituye al estado. Punto #14 audit. */}
-          {cedula
-            ? (cedula.status === 'en_transito'
-                ? <span className="aur-badge aur-badge--blue">En Tránsito</span>
-                : cedula.status === 'aplicada_en_campo'
-                  ? <span className="aur-badge aur-badge--green">Aplicada</span>
-                  : <span className="aur-badge aur-badge--yellow">Pendiente</span>)
-            : <span className="aur-badge aur-badge--yellow">Pendiente</span>
-          }
+              no sustituye al estado. Punto #14 audit.
+              Status meta desde getCedulaStatusMeta — single source of
+              truth compartido con CedulaSplitCard, Viewer e Historial. */}
+          {(() => {
+            const sb = getCedulaStatusMeta(cedula?.status || 'pendiente');
+            return <span className={`aur-badge ${sb.badgeClass}`}>{sb.label}</span>;
+          })()}
           {overdue && <span className="aur-badge aur-badge--magenta">Vencida</span>}
           <span className="ca-cedula-due">{formatShortDate(task.dueDate)}</span>
         </div>

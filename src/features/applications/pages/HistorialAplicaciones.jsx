@@ -9,7 +9,7 @@ import AuroraDataTable from '../../../components/AuroraDataTable';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import FilterButton from '../../../components/ui/FilterButton';
 import FiltroPeriodoModal from '../components/FiltroPeriodoModal';
-import { formatShortDate as fmt } from '../lib/cedulas-helpers';
+import { formatShortDate as fmt, getCedulaStatusMeta } from '../lib/cedulas-helpers';
 import '../styles/historial.css';
 
 const DATE_FIELDS = [
@@ -20,17 +20,9 @@ const DATE_FIELDS = [
   { value: 'editadaAt',                label: 'Fecha Edición' },
 ];
 
-const STATUS_LABEL = {
-  pendiente:         'Pendiente',
-  en_transito:       'En Tránsito',
-  aplicada_en_campo: 'Aplicada',
-};
-
-const STATUS_CLASS = {
-  pendiente:         'aur-badge--yellow',
-  en_transito:       'aur-badge--blue',
-  aplicada_en_campo: 'aur-badge--green',
-};
+// Status label + badge class viven en cedulas-helpers (CEDULA_STATUS_META)
+// como single source of truth — antes acá teníamos dos mapping locales que
+// divergían silenciosamente de los de CedulaCard / CedulaSplitCard / Viewer.
 
 const CAMBIO_BADGE_CLASS = {
   'Sustitución':     'aur-badge--blue',
@@ -135,8 +127,11 @@ const ALL_COLUMNS = [
   },
   {
     key: 'status', label: 'Estado', type: 'text',
-    accessor: (r) => STATUS_LABEL[r.status] || r.status || '',
-    render: (row) => <span className={`aur-badge ${STATUS_CLASS[row.status] || ''}`}>{STATUS_LABEL[row.status] || row.status}</span>,
+    accessor: (r) => getCedulaStatusMeta(r.status).label,
+    render: (row) => {
+      const sb = getCedulaStatusMeta(row.status);
+      return <span className={`aur-badge ${sb.badgeClass}`}>{sb.label}</span>;
+    },
   },
   {
     key: 'snap_activityName', label: 'Aplicación', type: 'text',
@@ -799,11 +794,11 @@ function HistorialAplicaciones() {
               sentido el input). Filtra por consecutivo, actividad, grupo,
               lote, bloques, producto, operario. Punto #8 audit. */}
           {cedulas.length > 0 && (
-            <div className="ha-list-search">
+            <div className="aur-list-search">
               <FiSearch size={13} aria-hidden="true" />
               <input
                 type="search"
-                className="ha-list-search-input"
+                className="aur-list-search-input"
                 placeholder="Buscar por consecutivo, actividad, lote, grupo, producto u operario…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
@@ -812,7 +807,7 @@ function HistorialAplicaciones() {
               {searchQuery && (
                 <button
                   type="button"
-                  className="ha-list-search-clear"
+                  className="aur-list-search-clear"
                   onClick={() => setSearchQuery('')}
                   aria-label="Limpiar búsqueda"
                 >

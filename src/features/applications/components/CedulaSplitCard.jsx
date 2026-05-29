@@ -1,18 +1,7 @@
 import { FiX, FiCheckCircle, FiEye, FiEdit2, FiMap, FiPackage, FiDroplet } from 'react-icons/fi';
 import { FaTractor } from 'react-icons/fa';
 import { hasMinRole } from '../../../contexts/UserContext';
-import { formatShortDate, isOverdue, isManualTask, formatHectareas } from '../lib/cedulas-helpers';
-
-// Mapping del status de cédula a clase de badge + label. Local porque solo
-// la usa el split-card: la single-card en CedulaCard.jsx muestra el status
-// como dos badges separados (pendiente/en_transito) en el header, no como
-// pill resumido en una fila.
-const STATUS_BADGE = {
-  aplicada_en_campo: { cls: 'aur-badge--green',  label: 'Aplicada' },
-  en_transito:       { cls: 'aur-badge--blue',   label: 'En Tránsito' },
-  pendiente:         { cls: 'aur-badge--yellow', label: 'Pendiente' },
-};
-const statusBadge = (status) => STATUS_BADGE[status] || STATUS_BADGE.pendiente;
+import { formatShortDate, isOverdue, isManualTask, formatHectareas, getCedulaStatusMeta } from '../lib/cedulas-helpers';
 
 // ── CedulaSplitCard ──────────────────────────────────────────────────────────
 // Card del listing principal para una task con MÚLTIPLES cédulas (una por
@@ -100,7 +89,7 @@ export default function CedulaSplitCard({
         {cedulas.map(c => {
           const isLdg     = actionLoading.has(c.id);
           const canAnular = c.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
-          const sb        = statusBadge(c.status);
+          const sb        = getCedulaStatusMeta(c.status);
           // Sub-row clickable → abre preview de esa cédula. closest('button,a')
           // evita conflicto con los controles internos sin stopPropagation.
           // El <article> contenedor NO es clickable porque agrupa N cédulas.
@@ -129,7 +118,7 @@ export default function CedulaSplitCard({
               <div className="ca-split-info">
                 <span className="ca-split-lote">{c.splitLoteNombre || '—'}</span>
                 <span className="ca-cedula-consecutivo">{c.consecutivo}</span>
-                <span className={`aur-badge ${sb.cls}`}>{sb.label}</span>
+                <span className={`aur-badge ${sb.badgeClass}`}>{sb.label}</span>
               </div>
               <div className="ca-split-actions">
                 {c.status === 'pendiente' && hasMinRole(currentUser?.rol, 'encargado') && (

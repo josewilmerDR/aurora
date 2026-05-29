@@ -132,13 +132,38 @@ export const isOverdue = (task) => {
 /** Tarea creada manualmente por el usuario (fuera del paquete) → type 'MANUAL'. */
 export const isManualTask = (task) => task?.type === 'MANUAL';
 
-/** Mapping legible del status de cédula. Hoy sólo usado para futuras
- *  extracciones de cards/badges (CedulaCard fase 5 del refactor). */
-export const CEDULA_STATUS_LABEL = {
-  pendiente:         'Pendiente',
-  en_transito:       'En Tránsito',
-  aplicada_en_campo: 'Aplicada',
+// ─────────────────────────────────────────────────────────────────────────────
+// CEDULA_STATUS_META
+//
+// Single source of truth para el rendering del status de una cédula: label
+// legible + clase de badge. Consumido por CedulaCard, CedulaSplitCard,
+// CedulaViewer (StatusBadge) e HistorialAplicaciones — antes cada uno
+// hardcodeaba su propio mapping y agregar un estado nuevo ('en_revision',
+// 'anulada' en sitios donde faltaba) requería tocar 4 archivos sin que el
+// linter avisara.
+//
+// `anulada` solo se renderiza desde el viewer (las cards del listing filtran
+// las anuladas upstream y el historial filtra a 'aplicada_en_campo'), pero
+// vive acá para que el día que se exponga "ver anuladas" en otra vista, el
+// label/color ya esté definido.
+// ─────────────────────────────────────────────────────────────────────────────
+export const CEDULA_STATUS_META = {
+  pendiente:         { label: 'Pendiente',   badgeClass: 'aur-badge--yellow' },
+  en_transito:       { label: 'En Tránsito', badgeClass: 'aur-badge--blue' },
+  aplicada_en_campo: { label: 'Aplicada',    badgeClass: 'aur-badge--green' },
+  anulada:           { label: 'Anulada',     badgeClass: 'aur-badge--magenta' },
 };
+
+/** Mapping legible del status de cédula (compat — preferir CEDULA_STATUS_META). */
+export const CEDULA_STATUS_LABEL = Object.fromEntries(
+  Object.entries(CEDULA_STATUS_META).map(([k, v]) => [k, v.label])
+);
+
+/** Devuelve el meta de un status. Fail-safe a 'pendiente' para statuses
+ *  desconocidos — nunca renderiza badge en blanco si llega 'en_revision'
+ *  desde una migración futura. */
+export const getCedulaStatusMeta = (status) =>
+  CEDULA_STATUS_META[status] || CEDULA_STATUS_META.pendiente;
 
 /** Opciones del select de condiciones del tiempo en AplicadaModal. */
 export const CONDICIONES_TIEMPO = [

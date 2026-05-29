@@ -20,51 +20,7 @@
    Vive arriba del .aur-section-header para que esté siempre visible (no detrás
    de un modal como FiltroPeriodoModal). Mirror del patrón .pkg-list-search
    que usa PackageManagement. */
-.ca-list-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  margin-bottom: 12px;
-  background: rgba(230, 242, 255, 0.04);
-  border: 1px solid var(--aur-divider, var(--aurora-border));
-  border-radius: 6px;
-  color: var(--aur-text-3, #6b819b);
-}
-.ca-list-search:focus-within {
-  border-color: var(--aurora-green);
-}
-.ca-list-search-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  outline: none;
-  padding: 0;
-  /* Anula la "X" nativa de Safari/Chrome para no duplicar nuestro botón */
-  -webkit-appearance: none;
-  appearance: none;
-}
-.ca-list-search-input::-webkit-search-cancel-button { display: none; }
-.ca-list-search-input::placeholder {
-  color: var(--aur-text-3, #6b819b);
-}
-.ca-list-search-clear {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--aur-text-3, #6b819b);
-  display: inline-flex;
-  align-items: center;
-  padding: 2px;
-  border-radius: 3px;
-}
-.ca-list-search-clear:hover {
-  color: var(--aurora-light);
-  background: rgba(230, 242, 255, 0.08);
-}
+/* Base del search vive como primitiva .aur-list-search en aurora.css. */
 
 /* En mobile la página fuerza una fila única: cap los chips secundarios
    (Filtro/Historial) a 20% para que "Nueva cédula" (pill) tome el resto.

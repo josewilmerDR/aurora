@@ -2172,3 +2172,66 @@ html[data-theme="light"] .aur-modal-actions {
   background: var(--aur-divider);
   margin: 3px 4px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   .aur-list-search — input de búsqueda inline sobre una lista
+   ─────────────────────────────────────────────────────────────────────────────
+   Primitiva compartida. Antes esto vivía copy-pasted como `.ca-list-search`,
+   `.ha-list-search` y `.pkg-list-search` con ~45 líneas idénticas cada uno
+   (140 LOC duplicados). Cualquier ajuste a border-radius / focus color /
+   placeholder color requería tocar 3 archivos sin garantía de quedar iguales.
+
+   Anatomía esperada:
+     <label className="aur-list-search">
+       <FiSearch size={14} />
+       <input className="aur-list-search-input" type="search" />
+       <button className="aur-list-search-clear"><FiX /></button>
+     </label>
+
+   El margin-bottom queda al consumer (varía entre 10 y 12px).
+   ───────────────────────────────────────────────────────────────────────────── */
+.aur-list-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aur-divider, var(--aurora-border));
+  border-radius: 6px;
+  color: var(--aur-text-3);
+}
+.aur-list-search:focus-within {
+  border-color: var(--aurora-green);
+}
+.aur-list-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  outline: none;
+  padding: 0;
+  /* Anula la "X" nativa de Safari/Chrome para no duplicar nuestro botón */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.aur-list-search-input::-webkit-search-cancel-button { display: none; }
+.aur-list-search-input::placeholder {
+  color: var(--aur-text-3);
+}
+.aur-list-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aur-text-3);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 3px;
+}
+.aur-list-search-clear:hover {
+  color: var(--aurora-light);
+  background: rgba(230, 242, 255, 0.08);
+}
