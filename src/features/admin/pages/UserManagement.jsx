@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/user-management.css';
-import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone, FiLock, FiBriefcase, FiExternalLink, FiClock } from 'react-icons/fi';
-import { ROLE_LABELS } from '../../../contexts/UserContext';
-import { MODULES } from '../../../components/Sidebar';
-import Toast from '../../../components/Toast';
+import { FiEdit, FiTrash2, FiUserPlus, FiChevronRight, FiArrowLeft, FiMail, FiPhone, FiLock, FiBriefcase, FiExternalLink, FiClock, FiSearch, FiX, FiAlertTriangle } from 'react-icons/fi';
+import { ROLE_LABELS, hasMinRole } from '../../../contexts/UserContext';
+import { MODULES, roleCanAccessModule } from '../../../components/Sidebar';
+import { useToast } from '../../../contexts/ToastContext';
 import PageHeader from '../../../components/PageHeader';
+import EmptyState from '../../../components/ui/EmptyState';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import UserDeleteWithEmploymentModal from '../components/UserDeleteWithEmploymentModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -13,6 +14,7 @@ import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { useUser } from '../../../contexts/UserContext';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { translateApiError } from '../../../lib/errorMessages';
+import { getInitials, firstName } from '../../../lib/names';
 
 const DRAFT_KEY = 'aurora_user_mgmt_draft';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', restrictedTo: [] };
@@ -20,6 +22,9 @@ const LIMITS = { nombre: 80, email: 120, telefono: 20 };
 const VALID_ROLES = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[\d\s+\-()]+$/;
+
+// i18n-safe: quita acentos y baja a lowercase para que "José" matchee "jose".
+const normalize = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function validate(form) {
   const errors = {};
@@ -46,30 +51,28 @@ const ROLE_BADGE_VARIANT = {
   administrador: 'aur-badge--blue',
 };
 
-const getInitials = (nombre) => {
-  if (!nombre) return '?';
-  const parts = nombre.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
-
-const firstName = (nombre) => {
-  if (!nombre || typeof nombre !== 'string') return '';
-  return nombre.trim().split(/\s+/)[0] || '';
-};
-
 function UserManagement() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
-  const { firebaseUser } = useUser();
+  const { firebaseUser, currentUser } = useUser();
+
+  // ¿La fila es el propio usuario logueado? Match por email (único por finca y
+  // siempre presente) para evitar que un admin se elimine o se baje el rol a sí
+  // mismo y quede sin acceso.
+  const isSelf = (user) =>
+    !!firebaseUser?.email && !!user?.email &&
+    firebaseUser.email.toLowerCase() === user.email.toLowerCase();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [view, setView] = useState('hub'); // 'hub' | 'form'
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [flashId, setFlashId] = useState(null);
   // confirmDelete now distinguishes two modes: the simple AuroraConfirmModal
   // (for a pure user with no HR history) or the dual-action modal that lets
   // the admin also rescind the employment contract.
@@ -78,13 +81,40 @@ function UserManagement() {
   const [grantingPlanilla, setGrantingPlanilla] = useState(false);
   const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
   const carouselRef = useRef(null);
-  const showToast = (message, type = 'success') => setToast({ message, type });
+
+  // Toast global (cola con aria-live). `opts` permite, p.ej., subir la duración
+  // de la confirmación de una acción destructiva para que no se evapore.
+  const pushToast = useToast();
+  const showToast = (message, type = 'success', opts) => pushToast(message, { type, ...opts });
 
   // The page lists *system users*. People who exist only as payroll employees
   // (tieneAcceso === false) belong to the HR ficha screen and are intentionally
   // hidden here. The filter is forgiving with undefined to keep a transitional
   // safety net for any doc that pre-dates the migration.
-  const visibleUsers = users.filter(u => u.tieneAcceso !== false);
+  const accessibleUsers = useMemo(
+    () => users.filter(u => u.tieneAcceso !== false),
+    [users],
+  );
+
+  // visibleUsers = accessibleUsers + filtro de búsqueda (nombre, email o rol).
+  // accessibleUsers.length distingue "no hay usuarios" de "la búsqueda no
+  // matcheó nada" en los empty states de abajo.
+  const visibleUsers = useMemo(() => {
+    const q = normalize(search.trim());
+    if (!q) return accessibleUsers;
+    return accessibleUsers.filter(u =>
+      normalize(u.nombre).includes(q) ||
+      normalize(u.email).includes(q) ||
+      normalize(ROLE_LABELS[u.rol] || '').includes(q)
+    );
+  }, [accessibleUsers, search]);
+
+  // Cantidad de módulos que el rol actualmente elegido en el form sí alcanza.
+  // Denominador del contador "X/Y" de la sección "Acceso por módulo".
+  const reachableCount = useMemo(
+    () => MODULES.filter(m => roleCanAccessModule(m, formData.rol)).length,
+    [formData.rol],
+  );
 
   // Auto-scroll active bubble into view on mobile
   useEffect(() => {
@@ -93,8 +123,33 @@ function UserManagement() {
     active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [selectedUser]);
 
-  const fetchUsers = () =>
-    apiFetch('/api/users').then(res => res.json()).then(setUsers).catch(console.error).finally(() => setLoading(false));
+  // Highlight transitorio de la fila recién guardada: en desktop la lista
+  // convive con el panel, lejos del toast, así que un flash señala qué cambió.
+  useEffect(() => {
+    if (!flashId) return;
+    const t = setTimeout(() => setFlashId(null), 1500);
+    return () => clearTimeout(t);
+  }, [flashId]);
+
+  // Devuelve la lista cargada (o null si falló) para que los callers que
+  // necesitan el array recién traído —p.ej. handleSubmit, para reseleccionar
+  // el usuario guardado— lo reusen sin duplicar el fetch.
+  const fetchUsers = () => {
+    setError(false);
+    return apiFetch('/api/users')
+      .then(res => {
+        if (!res.ok) throw new Error('No se pudo cargar la lista de usuarios.');
+        return res.json();
+      })
+      .then(data => { setUsers(data); return data; })
+      .catch(() => { setError(true); return null; })
+      .finally(() => setLoading(false));
+  };
+
+  // Toggle de selección compartido por la lista derecha y el carrusel móvil:
+  // clic en el usuario activo lo deselecciona; clic en otro lo selecciona.
+  const toggleSelectUser = (user) =>
+    selectedUser?.id === user.id ? setSelectedUser(null) : handleSelectUser(user);
 
   const clearDraft = () => {
     localStorage.removeItem(DRAFT_KEY);
@@ -122,6 +177,7 @@ function UserManagement() {
       });
       setView('form');
       setIsEditing(false);
+      setDraftRestored(true);
     } catch { clearDraft(); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -137,9 +193,28 @@ function UserManagement() {
     }
   }, [formData, view, isEditing]);
 
+  // Scroll del contenedor scrolleable de la app (la página vive dentro de
+  // .content-area, no del window). Un solo target para que abrir el form y
+  // seleccionar un usuario se comporten igual.
+  const scrollToTop = () => {
+    const area = document.querySelector('.content-area');
+    (area || window).scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      // Al cambiar el rol, podan las restricciones a módulos que el nuevo rol
+      // ya no alcanza: dejar ids muertos confundiría y se enviarían al backend.
+      if (name === 'rol') {
+        const restrictedTo = prev.restrictedTo.filter(id => {
+          const mod = MODULES.find(m => m.id === id);
+          return mod && roleCanAccessModule(mod, value);
+        });
+        return { ...prev, rol: value, restrictedTo };
+      }
+      return { ...prev, [name]: value };
+    });
     clearField(name);
   };
 
@@ -157,26 +232,28 @@ function UserManagement() {
     clearDraft();
     setFormData(EMPTY_FORM);
     setIsEditing(false);
+    setDraftRestored(false);
     setView('hub');
   };
 
   const handleNew = () => {
     setFormData(EMPTY_FORM);
     setIsEditing(false);
+    setDraftRestored(false);
     setSelectedUser(null);
     setView('form');
-    window.scrollTo(0, 0);
+    scrollToTop();
   };
 
   const handleSelectUser = (user) => {
     setSelectedUser(user);
     setView('hub');
-    if (window.innerWidth <= 768)
-      document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.innerWidth <= 768) scrollToTop();
   };
 
   const handleEdit = (user) => {
     setIsEditing(true);
+    setDraftRestored(false);
     setFormData({
       id: user.id,
       nombre: user.nombre,
@@ -188,7 +265,7 @@ function UserManagement() {
         : [],
     });
     setView('form');
-    window.scrollTo(0, 0);
+    scrollToTop();
   };
 
   // Helper: invoke an API endpoint and surface the backend error message in
@@ -247,10 +324,14 @@ function UserManagement() {
       setSelectedUser(null);
       setConfirmDelete(null);
       fetchUsers();
+      // Acción destructiva de doble efecto: duración extendida para que el
+      // admin alcance a leer qué pasó antes de que el toast se cierre.
       showToast(
         rescindirContrato
           ? 'Acceso revocado y contrato rescindido.'
-          : 'Acceso al sistema revocado.'
+          : 'Acceso al sistema revocado.',
+        'success',
+        { duration: 7000 },
       );
     } catch (err) {
       showToast(err.message || 'Error al procesar la acción.', 'error');
@@ -282,6 +363,12 @@ function UserManagement() {
     e.preventDefault();
     if (submitting) return;
     if (!validateAll(formData)) return;
+    // No dejar que el admin se baje su propio rol y pierda acceso a esta
+    // pantalla. hasMinRole(nuevo, actual)===false ⇒ el nuevo rol es inferior.
+    if (isEditing && isSelf(formData) && currentUser?.rol && !hasMinRole(formData.rol, currentUser.rol)) {
+      showToast('No podés reducir tu propio rol.', 'error');
+      return;
+    }
     setSubmitting(true);
     const url = isEditing ? `/api/users/${formData.id}` : '/api/users';
     const method = isEditing ? 'PUT' : 'POST';
@@ -304,13 +391,12 @@ function UserManagement() {
       }
       const saved = await res.json();
       const savedId = isEditing ? formData.id : saved.id;
-      const listRes = await apiFetch('/api/users');
-      const newUsers = listRes.ok ? await listRes.json() : [];
-      setUsers(newUsers);
-      if (savedId) {
+      const newUsers = await fetchUsers();
+      if (savedId && newUsers) {
         const found = newUsers.find(u => u.id === savedId);
         if (found) setSelectedUser(found);
       }
+      if (savedId) setFlashId(savedId);
       resetForm();
       showToast(isEditing ? 'Usuario actualizado correctamente' : 'Usuario guardado correctamente');
     } catch (err) {
@@ -324,6 +410,10 @@ function UserManagement() {
   // mode flag lets us render two different modals in the JSX section below
   // without leaking the branching into the trigger sites.
   const openDeleteFlow = (user) => {
+    if (isSelf(user)) {
+      showToast('No podés eliminar tu propio usuario.', 'error');
+      return;
+    }
     const hasEmploymentHistory = user.empleadoPlanilla === true || user.tuvoEmpleo === true;
     setConfirmDelete({
       user,
@@ -354,10 +444,11 @@ function UserManagement() {
     const isEmpleado = selectedUser.empleadoPlanilla === true;
     const wasEmpleado = !isEmpleado && selectedUser.tuvoEmpleo === true;
     const fechaSalida = formatFechaSalida(selectedUser.fechaSalidaPlanilla);
+    const selfSelected = isSelf(selectedUser);
     return (
       <div className="lote-hub">
         <button className="lote-hub-back" onClick={() => setSelectedUser(null)}>
-          <FiArrowLeft size={13} /> Todos los usuarios
+          <FiArrowLeft size={13} aria-hidden="true" /> Todos los usuarios
         </button>
         <div className="hub-header">
           <div className="hub-title-block">
@@ -372,29 +463,32 @@ function UserManagement() {
               onClick={() => handleEdit(selectedUser)}
               className="aur-icon-btn"
               title="Editar"
+              aria-label={`Editar usuario ${selectedUser.nombre}`}
             >
-              <FiEdit size={16} />
+              <FiEdit size={16} aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => openDeleteFlow(selectedUser)}
               className="aur-icon-btn aur-icon-btn--danger"
-              title="Eliminar"
+              title={selfSelected ? 'No podés eliminar tu propio usuario' : 'Eliminar'}
+              aria-label={selfSelected ? 'No podés eliminar tu propio usuario' : `Eliminar usuario ${selectedUser.nombre}`}
+              disabled={selfSelected}
             >
-              <FiTrash2 size={16} />
+              <FiTrash2 size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
         <div className="hub-info-pills">
-          <span className="hub-pill"><FiMail size={13} />{selectedUser.email}</span>
+          <span className="hub-pill"><FiMail size={13} aria-hidden="true" />{selectedUser.email}</span>
           {selectedUser.telefono && (
-            <span className="hub-pill"><FiPhone size={13} />{selectedUser.telefono}</span>
+            <span className="hub-pill"><FiPhone size={13} aria-hidden="true" />{selectedUser.telefono}</span>
           )}
         </div>
         {restrictedLabels.length > 0 && (
           <div className="hub-info-pills">
             <span className="aur-badge aur-badge--blue" title="Acceso restringido a estos módulos">
-              <FiLock size={11} />Solo: {restrictedLabels.join(', ')}
+              <FiLock size={11} aria-hidden="true" />Solo: {restrictedLabels.join(', ')}
             </span>
           </div>
         )}
@@ -406,14 +500,14 @@ function UserManagement() {
           {isEmpleado && (
             <div className="usr-employment-row">
               <span className="aur-badge aur-badge--green">
-                <FiBriefcase size={11} /> Empleado en planilla
+                <FiBriefcase size={11} aria-hidden="true" /> Empleado en planilla
               </span>
               <button
                 type="button"
                 className="aur-btn-text usr-employment-link"
                 onClick={() => navigate('/hr/ficha', { state: { selectUserId: selectedUser.id } })}
               >
-                Ver ficha laboral <FiExternalLink size={12} />
+                Ver ficha laboral <FiExternalLink size={12} aria-hidden="true" />
               </button>
             </div>
           )}
@@ -423,7 +517,7 @@ function UserManagement() {
                 className="aur-badge aur-badge--gray"
                 title={fechaSalida ? `Contrato rescindido el ${fechaSalida}` : 'Contrato rescindido'}
               >
-                <FiClock size={11} /> Ex-empleado
+                <FiClock size={11} aria-hidden="true" /> Ex-empleado
                 {fechaSalida && <> · {fechaSalida}</>}
               </span>
             </div>
@@ -439,7 +533,7 @@ function UserManagement() {
                 onClick={() => handleMarkAsEmployee(selectedUser)}
                 disabled={grantingPlanilla}
               >
-                <FiBriefcase size={12} />
+                <FiBriefcase size={12} aria-hidden="true" />
                 {grantingPlanilla ? 'Marcando…' : 'Marcar también como empleado'}
               </button>
             </div>
@@ -451,8 +545,6 @@ function UserManagement() {
 
   return (
     <div className={`lote-page${selectedUser && view === 'hub' ? ' lote-page--selected' : ''}`}>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       {confirmDelete?.mode === 'simple' && (
         <AuroraConfirmModal
           danger
@@ -476,7 +568,7 @@ function UserManagement() {
       )}
 
       {/* --- SPINNER DE CARGA --- */}
-      {loading && <div className="aur-page-loading" />}
+      {loading && <div className="aur-page-loading" role="status" aria-label="Cargando usuarios" />}
 
       {/* --- CABECERA DE PÁGINA --- */}
       {!loading && view !== 'form' && (
@@ -490,12 +582,32 @@ function UserManagement() {
         />
       )}
 
+      {/* --- ESTADO DE ERROR DE CARGA --- */}
+      {!loading && error && accessibleUsers.length === 0 && view !== 'form' && (
+        <EmptyState
+          icon={FiAlertTriangle}
+          title="No se pudo cargar la lista de usuarios."
+          subtitle="Probablemente hay un problema de conexión. Probá reintentar."
+          action={(
+            <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={fetchUsers}>
+              Reintentar
+            </button>
+          )}
+        />
+      )}
+
       {/* --- ESTADO VACÍO --- */}
-      {!loading && visibleUsers.length === 0 && view !== 'form' && (
-        <div className="empty-state">
-          <FiUserPlus size={36} />
-          <p>No hay usuarios registrados.</p>
-        </div>
+      {!loading && !error && accessibleUsers.length === 0 && view !== 'form' && (
+        <EmptyState
+          icon={FiUserPlus}
+          title="No hay usuarios registrados."
+          subtitle="Creá el primero para darle acceso al sistema."
+          action={(
+            <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
+              <FiUserPlus size={14} /> Crear primer usuario
+            </button>
+          )}
+        />
       )}
 
       {/* --- CARRUSEL MÓVIL --- */}
@@ -505,21 +617,23 @@ function UserManagement() {
             <button
               key={user.id}
               className={`lote-bubble${selectedUser?.id === user.id ? ' lote-bubble--active' : ''}`}
-              onClick={() => selectedUser?.id === user.id ? setSelectedUser(null) : handleSelectUser(user)}
+              onClick={() => toggleSelectUser(user)}
+              aria-label={user.nombre}
+              aria-current={selectedUser?.id === user.id ? 'true' : undefined}
             >
-              <span className="lote-bubble-avatar">{getInitials(user.nombre)}</span>
+              <span className="lote-bubble-avatar" aria-hidden="true">{getInitials(user.nombre)}</span>
               <span className="lote-bubble-label">{firstName(user.nombre)}</span>
             </button>
           ))}
-          <button className="lote-bubble lote-bubble--add" onClick={handleNew}>
-            <span className="lote-bubble-avatar lote-bubble-avatar--add">+</span>
+          <button className="lote-bubble lote-bubble--add" onClick={handleNew} aria-label="Crear nuevo usuario">
+            <span className="lote-bubble-avatar lote-bubble-avatar--add" aria-hidden="true">+</span>
             <span className="lote-bubble-label">Nuevo</span>
           </button>
         </div>
       )}
 
       {/* --- LAYOUT PRINCIPAL --- */}
-      {!loading && (visibleUsers.length > 0 || view === 'form') && (
+      {!loading && (accessibleUsers.length > 0 || view === 'form') && (
         <div className="lote-management-layout">
 
           {/* Izquierda: formulario o hub de detalle */}
@@ -530,6 +644,15 @@ function UserManagement() {
                   <h1 className="aur-sheet-title">{isEditing ? 'Editando Usuario' : 'Nuevo Usuario'}</h1>
                 </div>
               </header>
+
+              {!isEditing && draftRestored && (
+                <div className="usr-draft-banner" role="status">
+                  <span>Recuperamos un borrador sin guardar.</span>
+                  <button type="button" className="aur-btn-text" onClick={resetForm}>
+                    Descartar
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit}>
                 <section className="aur-section">
@@ -547,6 +670,7 @@ function UserManagement() {
                         onChange={handleInputChange}
                         onBlur={() => blurField('nombre', formData)}
                         maxLength={LIMITS.nombre}
+                        autoComplete="off"
                         required
                       />
                       {fieldErrors.nombre && <span className="aur-field-error">{fieldErrors.nombre}</span>}
@@ -562,12 +686,13 @@ function UserManagement() {
                         onChange={handleInputChange}
                         onBlur={() => blurField('email', formData)}
                         maxLength={LIMITS.email}
+                        autoComplete="off"
                         required
                       />
                       {fieldErrors.email && <span className="aur-field-error">{fieldErrors.email}</span>}
                     </div>
                     <div className="aur-row aur-row--multiline">
-                      <label className="aur-row-label" htmlFor="usr-telefono">Teléfono</label>
+                      <label className="aur-row-label" htmlFor="usr-telefono">Teléfono (opcional)</label>
                       <input
                         id="usr-telefono"
                         className={inputClass('telefono')}
@@ -577,19 +702,22 @@ function UserManagement() {
                         onChange={handleInputChange}
                         onBlur={() => blurField('telefono', formData)}
                         maxLength={LIMITS.telefono}
-                        required
+                        autoComplete="off"
                       />
                       {fieldErrors.telefono && <span className="aur-field-error">{fieldErrors.telefono}</span>}
                     </div>
                     <div className="aur-row aur-row--multiline">
                       <label className="aur-row-label" htmlFor="usr-rol">Rol</label>
+                      {/* El <select> sólo ofrece roles válidos, así que no puede
+                          producir un error de validación: no lleva onBlur ni
+                          inputClass (el chequeo de rol en validate() queda como
+                          defensa de backend ante drafts manipulados). */}
                       <select
                         id="usr-rol"
-                        className={inputClass('rol', 'aur-select')}
+                        className="aur-select"
                         name="rol"
                         value={formData.rol}
                         onChange={handleInputChange}
-                        onBlur={() => blurField('rol', formData)}
                       >
                         <option value="trabajador">Trabajador</option>
                         <option value="encargado">Encargado</option>
@@ -604,22 +732,39 @@ function UserManagement() {
                 <section className="aur-section">
                   <div className="aur-section-header">
                     <h3>Acceso por módulo</h3>
-                    <span className="aur-section-count">{formData.restrictedTo.length}/{MODULES.length}</span>
+                    <div className="usr-modules-header-right">
+                      {formData.restrictedTo.length > 0 && (
+                        <button
+                          type="button"
+                          className="aur-btn-text usr-modules-clear"
+                          onClick={() => setFormData(prev => ({ ...prev, restrictedTo: [] }))}
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                      <span className="aur-section-count">{formData.restrictedTo.length}/{reachableCount}</span>
+                    </div>
                   </div>
                   <p className="usr-modules-hint">
                     Si no marcas ninguno, el usuario verá todos los módulos que su rol permita.
-                    Si marcas uno o más, solo verá esos.
+                    Si marcas uno o más, solo verá esos. Los módulos que el rol no
+                    alcanza aparecen deshabilitados.
                   </p>
                   <div className="aur-list">
                     {MODULES.map(mod => {
-                      const checked = formData.restrictedTo.includes(mod.id);
+                      const reachable = roleCanAccessModule(mod, formData.rol);
+                      const checked = formData.restrictedTo.includes(mod.id) && reachable;
                       return (
-                        <div key={mod.id} className="aur-row">
-                          <span className="aur-row-label">{mod.nombre}</span>
+                        <div key={mod.id} className={`aur-row${reachable ? '' : ' usr-module-row--disabled'}`}>
+                          <span className="aur-row-label">
+                            {mod.nombre}
+                            {!reachable && <span className="usr-module-norole"> · el rol no accede</span>}
+                          </span>
                           <label className="aur-toggle">
                             <input
                               type="checkbox"
                               checked={checked}
+                              disabled={!reachable}
                               onChange={() => toggleModule(mod.id)}
                             />
                             <span className="aur-toggle-track"><span className="aur-toggle-thumb" /></span>
@@ -647,27 +792,69 @@ function UserManagement() {
           {/* Derecha: lista de usuarios */}
           {view !== 'form' && (
             <div className="lote-list-panel">
-              <ul className="lote-list">
-                {visibleUsers.map(user => {
-                  const roleKey = user.rol || 'trabajador';
-                  const badgeVariant = ROLE_BADGE_VARIANT[roleKey] || 'aur-badge--gray';
-                  return (
-                    <li
-                      key={user.id}
-                      className={`lote-list-item${selectedUser?.id === user.id ? ' active' : ''}`}
-                      onClick={() => selectedUser?.id === user.id ? setSelectedUser(null) : handleSelectUser(user)}
+              <div className="usr-list-toolbar">
+                <div className="usr-search">
+                  <FiSearch size={13} aria-hidden="true" />
+                  <input
+                    type="search"
+                    className="usr-search-input"
+                    placeholder="Buscar por nombre, email o rol…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    aria-label="Buscar usuarios"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      className="usr-search-clear"
+                      onClick={() => setSearch('')}
+                      aria-label="Limpiar búsqueda"
                     >
-                      <div className="usr-list-info">
-                        <span className="lote-list-code">{user.nombre}</span>
-                        <span className={`aur-badge ${badgeVariant} usr-list-role`}>
-                          {ROLE_LABELS[roleKey] || 'Trabajador'}
-                        </span>
-                      </div>
-                      <FiChevronRight size={14} className="lote-list-arrow" />
-                    </li>
-                  );
-                })}
-              </ul>
+                      <FiX size={12} />
+                    </button>
+                  )}
+                </div>
+                <span className="usr-list-count">{visibleUsers.length} de {accessibleUsers.length}</span>
+              </div>
+              {visibleUsers.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  icon={FiSearch}
+                  title="Sin resultados para la búsqueda."
+                />
+              ) : (
+                <ul className="lote-list">
+                  {visibleUsers.map(user => {
+                    const roleKey = user.rol || 'trabajador';
+                    const badgeVariant = ROLE_BADGE_VARIANT[roleKey] || 'aur-badge--gray';
+                    const isActive = selectedUser?.id === user.id;
+                    return (
+                      <li
+                        key={user.id}
+                        className={`lote-list-item${isActive ? ' active' : ''}${user.id === flashId ? ' usr-list-item--flash' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isActive}
+                        onClick={() => toggleSelectUser(user)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleSelectUser(user);
+                          }
+                        }}
+                      >
+                        <div className="usr-list-info">
+                          <span className="lote-list-code">{user.nombre}</span>
+                          <span className={`aur-badge ${badgeVariant} usr-list-role`}>
+                            {ROLE_LABELS[roleKey] || 'Trabajador'}
+                          </span>
+                        </div>
+                        <FiChevronRight size={14} className="lote-list-arrow" aria-hidden="true" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           )}
 
