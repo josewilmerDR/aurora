@@ -30,7 +30,6 @@ function UnidadesMedida() {
   const apiFetch = useApiFetch();
   const [items,     setItems]     = useState([]);
   const [labores,   setLabores]   = useState([]);
-  const [productos, setProductos] = useState([]); // sólo para contar impacto al borrar/renombrar
   const [loading,   setLoading]   = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [form,      setForm]      = useState(EMPTY_FORM);
@@ -78,13 +77,23 @@ function UnidadesMedida() {
     }
   };
 
-  // Productos: sólo para contar impacto. Si falla, el conteo queda sin número
-  // pero el modal sigue siendo honesto ("no encontramos referencias").
-  const fetchProductos = () =>
-    apiFetch('/api/productos')
-      .then(r => r.json())
-      .then(d => setProductos(Array.isArray(d) ? d : []))
-      .catch(() => {});
+  // Conteo de referencias server-side (productos con esta unidad + otras unidades
+  // que la usan como base). Antes descargábamos el catálogo entero de productos
+  // solo para esto; ahora el backend agrega con count(). Devuelve null si falla,
+  // y el caller decide cómo degradar.
+  const fetchRefs = async (id) => {
+    try {
+      const res = await apiFetch(`/api/unidades-medida/${id}/refs`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        productCount: Number(data?.productCount) || 0,
+        baseCount: Number(data?.baseCount) || 0,
+      };
+    } catch {
+      return null;
+    }
+  };
 
   // Restauración de borrador: sólo al montar.
   useEffect(() => {
@@ -102,7 +111,6 @@ function UnidadesMedida() {
 
   useEffect(() => {
     fetchItems();
-    fetchProductos();
     apiFetch('/api/labores').then(r => r.json()).then(d => setLabores(Array.isArray(d) ? d : [])).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -208,6 +216,17 @@ function UnidadesMedida() {
     });
   };
 
+  // Abre el modal de borrado y pide el conteo de referencias al backend. El
+  // modal aparece de inmediato (refsState: 'loading') y se completa al resolver.
+  const requestDelete = async (item) => {
+    setConfirmDelete({ id: item.id, nombre: item.nombre, refsState: 'loading', productCount: 0, baseCount: 0 });
+    const refs = await fetchRefs(item.id);
+    setConfirmDelete(prev => {
+      if (!prev || prev.id !== item.id) return prev; // el usuario cerró o cambió de fila
+      return refs ? { ...prev, ...refs, refsState: 'ready' } : { ...prev, refsState: 'error' };
+    });
+  };
+
   const handleDeleteConfirm = async () => {
     if (!confirmDelete) return;
     const { id } = confirmDelete;
@@ -274,7 +293,7 @@ function UnidadesMedida() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const payload = buildPayload();
     if (!payload.nombre) {
@@ -290,14 +309,16 @@ function UnidadesMedida() {
 
     if (isEditing) {
       // Renombrar rompe referencias por nombre (no hay cascada): productos con
-      // esta unidad asignada y otras unidades que la usan como base. Avisamos
-      // con números concretos antes de aplicar.
+      // esta unidad asignada y otras unidades que la usan como base. Pedimos el
+      // conteo al backend y avisamos con números concretos antes de aplicar. Si
+      // el conteo falla (refs null) no bloqueamos el rename: el aviso es asesor.
       const original = items.find(u => u.id === form.id);
       if (original && original.nombre !== payload.nombre) {
-        const baseCount    = items.filter(u => u.id !== form.id && u.unidadBase === original.nombre).length;
-        const productCount = productos.filter(p => p.unidad === original.nombre).length;
-        if (baseCount + productCount > 0) {
-          setRenameWarn({ oldNombre: original.nombre, newNombre: payload.nombre, baseCount, productCount, payload });
+        setSaving(true);
+        const refs = await fetchRefs(form.id);
+        setSaving(false);
+        if (refs && refs.baseCount + refs.productCount > 0) {
+          setRenameWarn({ oldNombre: original.nombre, newNombre: payload.nombre, baseCount: refs.baseCount, productCount: refs.productCount, payload });
           return;
         }
       }
@@ -371,9 +392,8 @@ function UnidadesMedida() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {confirmDelete && (() => {
-        const baseCount    = items.filter(u => u.id !== confirmDelete.id && u.unidadBase === confirmDelete.nombre).length;
-        const productCount = productos.filter(p => p.unidad === confirmDelete.nombre).length;
-        const hasRefs = baseCount + productCount > 0;
+        const { productCount = 0, baseCount = 0, refsState } = confirmDelete;
+        const hasRefs = productCount + baseCount > 0;
         return (
           <AuroraConfirmModal
             danger
@@ -381,7 +401,9 @@ function UnidadesMedida() {
             body={(
               <>
                 Esta acción no se puede deshacer.
-                {hasRefs ? (
+                {refsState === 'loading' && ' Verificando referencias…'}
+                {refsState === 'error' && ' No pudimos verificar si hay productos o unidades que la referencien.'}
+                {refsState === 'ready' && (hasRefs ? (
                   <>
                     {productCount > 0 && (
                       <>
@@ -400,7 +422,7 @@ function UnidadesMedida() {
                   </>
                 ) : (
                   ' No encontramos productos ni unidades que la referencien.'
-                )}
+                ))}
               </>
             )}
             confirmLabel="Eliminar"
@@ -742,7 +764,7 @@ function UnidadesMedida() {
                         <button
                           type="button"
                           className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                          onClick={() => setConfirmDelete({ id: item.id, nombre: item.nombre })}
+                          onClick={() => requestDelete(item)}
                           title="Eliminar"
                           aria-label={`Eliminar unidad ${item.nombre}`}
                         >

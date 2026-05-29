@@ -70,6 +70,11 @@ const ACTIONS = Object.freeze({
   // forensic or recovery value. Routine creates/updates are intentionally
   // not audited to keep the stream focused on security + money + loss.
   PRODUCTO_DELETE: 'producto.delete',
+  // Unidades de medida. Solo DELETE: es irreversible y rompe referencias por
+  // nombre (productos con la unidad asignada + otras unidades que la usan como
+  // unidadBase, sin cascada). Forensic: quién la borró y qué nombre tenía. Los
+  // renames son reversibles → fuera del audit, alineado con la política del archivo.
+  UNIDAD_MEDIDA_DELETE: 'unidad_medida.delete',
   LOTE_DELETE: 'lote.delete',
   // Grupos. Mismo criterio que lote/siembra: solo DELETE (irreversible, libera
   // bloques al pool y borra cedulas/tasks pendientes) y cambios destructivos
