@@ -249,6 +249,17 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
             {isEditMode ? 'Editar cédula' : 'Mezcla lista'}
             {cedula?.consecutivo && <span className="mla-modal-subtitle"> · {cedula.consecutivo}</span>}
           </span>
+          {/* Botón X explícito (paridad con FiltroPeriodoModal). Disabled
+              durante submit, igual que backdrop y ESC. */}
+          <button
+            type="button"
+            className="aur-icon-btn aur-modal-close"
+            onClick={onClose}
+            disabled={submitting}
+            aria-label="Cerrar"
+          >
+            <FiX size={16} />
+          </button>
         </div>
 
         <div className="aur-modal-content">

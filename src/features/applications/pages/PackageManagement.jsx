@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import '../styles/packages.css';
-import { FiPlus, FiX, FiSearch, FiChevronRight, FiChevronDown, FiArchive, FiCheck, FiFilter, FiInfo } from 'react-icons/fi';
+import { FiPlus, FiX, FiSearch, FiChevronRight, FiChevronDown, FiArchive, FiCheck, FiFilter, FiInfo, FiPackage } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import FilterButton from '../../../components/ui/FilterButton';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { translateApiError } from '../../../lib/errorMessages';
@@ -1078,22 +1079,42 @@ function PackageManagement() {
             };
 
             if (packages.length === 0) {
+              // Vacío real: paridad con CedulasAplicacion e HistorialAplicaciones
+              // (variant default con icono + subtitle explicativo + CTA contextual
+              // al rol). Antes era un <p> plano sin contexto del concepto. */
               return (
-                <p className="empty-state">
-                  Aún no hay registros que mostrar. Crea el primero en "Nuevo Paquete".
-                </p>
+                <EmptyState
+                  variant="default"
+                  icon={FiPackage}
+                  title="Aún no hay paquetes técnicos"
+                  subtitle="Los paquetes definen los conjuntos de aplicaciones que se programan automáticamente al asignarlos a un grupo de lotes."
+                  action={(
+                    <button
+                      type="button"
+                      className="aur-btn-pill"
+                      onClick={() => guardedNav(handleNew)}
+                    >
+                      <FiPlus size={14} /> Nuevo Paquete
+                    </button>
+                  )}
+                />
               );
             }
 
             const totalFiltered = filteredActivePackages.length + filteredArchivedPackages.length;
             if (totalFiltered === 0) {
+              // Lista filtrada sin matches: variant compact sin ícono, CTA limpiar.
               return (
-                <p className="empty-state">
-                  Sin resultados para los filtros aplicados.{' '}
-                  <button type="button" className="aur-btn-text pkg-list-clear-link" onClick={clearAllFilters}>
-                    Limpiar filtros
-                  </button>
-                </p>
+                <EmptyState
+                  variant="compact"
+                  icon={null}
+                  title="Sin resultados para los filtros aplicados."
+                  action={(
+                    <button type="button" className="aur-btn-text" onClick={clearAllFilters}>
+                      Limpiar filtros
+                    </button>
+                  )}
+                />
               );
             }
 

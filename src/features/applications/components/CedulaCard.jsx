@@ -41,10 +41,36 @@ export default function CedulaCard({
   const canAnular = cedula && cedula.status !== 'aplicada_en_campo'
                  && hasMinRole(currentUser?.rol, 'encargado');
 
+  // Card clickable cuando hay cédula → abre preview (paridad con filas de
+  // Historial y items de PackageManagement). closest('button,a') evita
+  // disparar el handler cuando el click vino de un control interno, sin
+  // necesidad de stopPropagation por cada botón. Si hay selección de texto
+  // (drag para copiar consecutivo), tampoco navega.
+  const isClickable = !!cedula;
+  const handleCardClick = (e) => {
+    if (!isClickable) return;
+    if (e.target.closest('button, a, input')) return;
+    if (window.getSelection()?.toString()) return;
+    onPreview(cedula.id);
+  };
+  const handleCardKey = (e) => {
+    if (!isClickable) return;
+    if (e.target.closest('button, a, input')) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onPreview(cedula.id);
+    }
+  };
+
   return (
     <article
       data-task-id={task.id}
-      className={`ca-cedula-card${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}${isHighlighted ? ' is-highlighted' : ''}`}
+      className={`ca-cedula-card${overdue ? ' is-overdue' : ''}${isManualTask(task) ? ' is-manual' : ''}${isHighlighted ? ' is-highlighted' : ''}${isClickable ? ' is-clickable' : ''}`}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      aria-label={isClickable ? `Ver cédula ${cedula.consecutivo || task.activityName}` : undefined}
+      onClick={isClickable ? handleCardClick : undefined}
+      onKeyDown={isClickable ? handleCardKey : undefined}
     >
       <div className="ca-cedula-head">
         <div className="ca-cedula-info">

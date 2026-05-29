@@ -454,6 +454,19 @@ function CedulaNuevaModal({ lotes, grupos, siembras, productos, calibraciones, a
             <FiPlusCircle size={16} />
           </span>
           <span className="aur-modal-title">Nueva cédula de aplicación</span>
+          {/* Botón X explícito (paridad con FiltroPeriodoModal). Pasa por
+              handleCloseRequest para respetar el dirty-guard (AuroraConfirmModal
+              de descarte cuando el form tiene contenido significativo).
+              Disabled durante submit para no romper la mutación en vuelo. */}
+          <button
+            type="button"
+            className="aur-icon-btn aur-modal-close"
+            onClick={handleCloseRequest}
+            disabled={submitting}
+            aria-label="Cerrar"
+          >
+            <FiX size={16} />
+          </button>
         </div>
 
         <form className="aur-modal-content" onSubmit={handleSubmit}>

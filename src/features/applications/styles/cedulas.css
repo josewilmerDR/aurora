@@ -1189,6 +1189,21 @@
   border-color: var(--aur-divider-2);
 }
 
+/* Card clickable: cursor + focus visible (paridad con filas de Historial y
+   items de PackageManagement). El handler vive en CedulaCard.jsx y solo se
+   activa cuando hay cédula (sin cédula, la acción primaria es "Generar"). */
+.ca-cedula-card.is-clickable {
+  cursor: pointer;
+}
+.ca-cedula-card.is-clickable:hover {
+  background: var(--aur-bg-hover);
+  border-color: var(--aur-divider-2);
+}
+.ca-cedula-card.is-clickable:focus-visible {
+  outline: 2px solid var(--aurora-green);
+  outline-offset: 2px;
+}
+
 /* Estados visuales */
 .ca-cedula-card.is-overdue {
   background: rgba(204, 51, 255, 0.04);
@@ -1351,6 +1366,22 @@
   background: var(--aur-bg-hover);
   border-radius: 10px;
   flex-wrap: wrap;
+}
+
+/* Sub-row clickable: cursor + hover + focus visible. Paridad con CedulaCard
+   y filas de Historial. El handler abre el preview de esa cédula concreta;
+   los controles internos (Editar / Mezcla lista / Aplicada / Anular / Ver)
+   se preservan via closest('button,a') en el handler. */
+.ca-split-row.is-clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.ca-split-row.is-clickable:hover {
+  background: var(--aur-bg-input);
+}
+.ca-split-row.is-clickable:focus-visible {
+  outline: 2px solid var(--aurora-green);
+  outline-offset: 2px;
 }
 
 .ca-split-info {
