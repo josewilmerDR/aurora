@@ -3,7 +3,7 @@ const { db } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
-const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { sendApiError, ERROR_CODES, ApiError, handleApiError } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
 const {
   ROLES_VALIDOS,
@@ -100,15 +100,6 @@ router.post('/api/users', authenticate, requireAdmin, rateLimit('users_write', '
     const { errs, clean } = validateUserPayload(req.body, { mode: 'create' });
     if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
 
-    // Email uniqueness only matters for personas who actually use the email
-    // to log in. Two non-system "people" with the same emergency email is fine.
-    if (clean.email) {
-      const dup = await db.collection('users')
-        .where('fincaId', '==', req.fincaId)
-        .where('email', '==', clean.email).limit(1).get();
-      if (!dup.empty) return sendApiError(res, ERROR_CODES.ALREADY_EXISTS, 'Email already registered.', 409);
-    }
-
     const restrictedTo = clean.tieneAcceso ? (cleanRestrictedTo(req.body.restrictedTo) || []) : [];
 
     const user = {
@@ -125,7 +116,24 @@ router.post('/api/users', authenticate, requireAdmin, rateLimit('users_write', '
       fincaId: req.fincaId,
       restrictedTo,
     };
-    const docRef = await db.collection('users').add(user);
+    // Atomic create: re-check email uniqueness and write inside one
+    // transaction so two concurrent POSTs cannot both pass the guard and
+    // create duplicate login emails. Uniqueness only matters for personas who
+    // actually use the email to log in; two non-system "people" sharing an
+    // emergency email is fine (clean.email is empty for them).
+    const usersCol = db.collection('users');
+    const docRef = usersCol.doc();
+    await db.runTransaction(async (tx) => {
+      if (clean.email) {
+        const dupSnap = await tx.get(
+          usersCol.where('fincaId', '==', req.fincaId).where('email', '==', clean.email).limit(1)
+        );
+        if (!dupSnap.empty) {
+          throw new ApiError(ERROR_CODES.ALREADY_EXISTS, 'Email already registered.', 409);
+        }
+      }
+      tx.set(docRef, user);
+    });
 
     const isPrivileged = clean.rol === 'administrador' || clean.rol === 'supervisor';
     writeAuditEvent({
@@ -145,7 +153,7 @@ router.post('/api/users', authenticate, requireAdmin, rateLimit('users_write', '
 
     res.status(201).json({ id: docRef.id, ...user });
   } catch (error) {
-    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create user.', 500);
+    return handleApiError(res, error, 'Failed to create user.');
   }
 });
 
@@ -202,13 +210,6 @@ router.put('/api/users/:id', authenticate, requireAdmin, rateLimit('users_write'
     const { errs, clean } = validateUserPayload(merged, { mode: 'update' });
     if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
 
-    if (userData.email && clean.email) {
-      const dup = await db.collection('users')
-        .where('fincaId', '==', req.fincaId)
-        .where('email', '==', clean.email).limit(1).get();
-      if (!dup.empty && dup.docs[0].id !== id) return sendApiError(res, ERROR_CODES.ALREADY_EXISTS, 'Email already registered.', 409);
-    }
-
     const updates = {};
     if (userData.nombre !== undefined) updates.nombre = clean.nombre;
     if (userData.email !== undefined) updates.email = clean.email;
@@ -225,14 +226,14 @@ router.put('/api/users/:id', authenticate, requireAdmin, rateLimit('users_write'
     if (userData.restrictedTo !== undefined) {
       updates.restrictedTo = clean.tieneAcceso ? (cleanRestrictedTo(userData.restrictedTo) || []) : [];
     }
-    // tieneAcceso=false implies restrictedTo=[]; enforce even if caller didn't
-    // pass restrictedTo, otherwise stale module restrictions could re-apply
-    // if access is later re-granted.
-    if (userData.tieneAcceso === true && !clean.tieneAcceso) {
+    // tieneAcceso=false implies restrictedTo=[]; enforce even when the caller
+    // didn't pass restrictedTo, otherwise stale module restrictions could
+    // re-apply if access is later re-granted. updates.tieneAcceso is only set
+    // when the caller explicitly sent tieneAcceso, so this fires exactly on a
+    // PUT that revokes access.
+    if (updates.tieneAcceso === false) {
       updates.restrictedTo = [];
     }
-
-    await db.collection('users').doc(id).update(updates);
 
     // Memberships are the source of truth for authenticated requests. Sync
     // rol/restrictedTo changes; delete the membership entirely if access was
@@ -241,28 +242,48 @@ router.put('/api/users/:id', authenticate, requireAdmin, rateLimit('users_write'
     const rolChanged = userData.rol !== undefined && clean.rol !== current.rol;
     const restrictedChanged = userData.restrictedTo !== undefined;
     const accessRevoked = userData.tieneAcceso === false && current.tieneAcceso !== false;
-    if (rolChanged || restrictedChanged || accessRevoked) {
-      const targetEmail = (updates.email || current.email || '').toLowerCase();
-      if (targetEmail) {
-        const memSnap = await db.collection('memberships')
-          .where('fincaId', '==', req.fincaId)
-          .where('email', '==', targetEmail)
-          .limit(1)
-          .get();
-        if (!memSnap.empty) {
-          if (accessRevoked) {
-            await memSnap.docs[0].ref.delete();
-          } else {
-            const membershipUpdate = {};
-            if (rolChanged) membershipUpdate.rol = clean.rol;
-            if (restrictedChanged) membershipUpdate.restrictedTo = updates.restrictedTo;
-            if (Object.keys(membershipUpdate).length) {
-              await memSnap.docs[0].ref.update(membershipUpdate);
-            }
-          }
+    const targetEmail = (updates.email || current.email || '').toLowerCase();
+    const syncMembership = (rolChanged || restrictedChanged || accessRevoked) && !!targetEmail;
+    const checkEmailDup = !!(userData.email && clean.email);
+
+    // Atomic write: the email-uniqueness re-check, the users update, and the
+    // membership sync share one transaction. A concurrent create/update can no
+    // longer slip a duplicate login email past the guard, and the users doc
+    // never diverges from its membership (rol/access) if a write fails midway.
+    const usersCol = db.collection('users');
+    await db.runTransaction(async (tx) => {
+      // Firestore requires all reads before any writes in a transaction.
+      if (checkEmailDup) {
+        const dupSnap = await tx.get(
+          usersCol.where('fincaId', '==', req.fincaId).where('email', '==', clean.email).limit(1)
+        );
+        if (!dupSnap.empty && dupSnap.docs[0].id !== id) {
+          throw new ApiError(ERROR_CODES.ALREADY_EXISTS, 'Email already registered.', 409);
         }
       }
-    }
+      let memRef = null;
+      if (syncMembership) {
+        const memSnap = await tx.get(
+          db.collection('memberships')
+            .where('fincaId', '==', req.fincaId)
+            .where('email', '==', targetEmail)
+            .limit(1)
+        );
+        if (!memSnap.empty) memRef = memSnap.docs[0].ref;
+      }
+
+      tx.update(usersCol.doc(id), updates);
+      if (memRef) {
+        if (accessRevoked) {
+          tx.delete(memRef);
+        } else {
+          const membershipUpdate = {};
+          if (rolChanged) membershipUpdate.rol = clean.rol;
+          if (restrictedChanged) membershipUpdate.restrictedTo = updates.restrictedTo;
+          if (Object.keys(membershipUpdate).length) tx.update(memRef, membershipUpdate);
+        }
+      }
+    });
 
     if (rolChanged) {
       const escalating = (ROLES_VALIDOS.indexOf(clean.rol) > ROLES_VALIDOS.indexOf(current.rol || 'trabajador'));
@@ -307,8 +328,7 @@ router.put('/api/users/:id', authenticate, requireAdmin, rateLimit('users_write'
 
     res.status(200).json({ id, ...updates });
   } catch (error) {
-    console.error('[users:put]', error);
-    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update user.', 500);
+    return handleApiError(res, error, 'Failed to update user.');
   }
 });
 
