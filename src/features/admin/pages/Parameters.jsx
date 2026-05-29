@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiEdit2, FiSave, FiX, FiBarChart2, FiInfo, FiAlertTriangle } from 'react-icons/fi';
+import { FiEdit2, FiSave, FiX, FiInfo, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
@@ -36,12 +36,12 @@ const SECTIONS = [
       { key: 'kgPorPlanta',      label: 'Kg estimados por planta - I Cosecha',  unit: 'kg', default: 1.8, min: 0, step: 0.01 },
       { key: 'kgPorPlantaII',   label: 'Kg estimados por planta - II Cosecha', unit: 'kg', default: 1.6, min: 0, step: 0.01 },
       { key: 'kgPorPlantaIII',  label: 'Kg estimados por planta - III Cosecha',unit: 'kg', default: 1.5, min: 0, step: 0.01 },
-      { key: 'rechazoICosecha',       label: 'Rechazo estimado — I Cosecha',        unit: '%', default: 10, min: 0, step: 0.1 },
-      { key: 'rechazoIICosecha',      label: 'Rechazo estimado — II Cosecha',       unit: '%', default: 20, min: 0, step: 0.1 },
-      { key: 'rechazoIIICosecha',     label: 'Rechazo estimado — III Cosecha',      unit: '%', default: 20, min: 0, step: 0.1 },
-      { key: 'mortalidadICosecha',    label: 'Mortalidad en primera cosecha',       unit: '%', default: 2,  min: 0, step: 0.1 },
-      { key: 'mortalidadIICosecha',   label: 'Mortalidad en segunda cosecha',       unit: '%', default: 10, min: 0, step: 0.1 },
-      { key: 'mortalidadIIICosecha',  label: 'Mortalidad en tercera cosecha',       unit: '%', default: 20, min: 0, step: 0.1 },
+      { key: 'rechazoICosecha',       label: 'Rechazo estimado — I Cosecha',        unit: '%', default: 10, min: 0, max: 100, step: 0.1 },
+      { key: 'rechazoIICosecha',      label: 'Rechazo estimado — II Cosecha',       unit: '%', default: 20, min: 0, max: 100, step: 0.1 },
+      { key: 'rechazoIIICosecha',     label: 'Rechazo estimado — III Cosecha',      unit: '%', default: 20, min: 0, max: 100, step: 0.1 },
+      { key: 'mortalidadICosecha',    label: 'Mortalidad en primera cosecha',       unit: '%', default: 2,  min: 0, max: 100, step: 0.1 },
+      { key: 'mortalidadIICosecha',   label: 'Mortalidad en segunda cosecha',       unit: '%', default: 10, min: 0, max: 100, step: 0.1 },
+      { key: 'mortalidadIIICosecha',  label: 'Mortalidad en tercera cosecha',       unit: '%', default: 20, min: 0, max: 100, step: 0.1 },
     ],
   },
 ];
@@ -53,9 +53,17 @@ function fromApi(data) {
   return Object.fromEntries(ALL_PARAMS.map(p => [p.key, data[p.key] ?? p.default]));
 }
 
-// Devuelve los params cuyo valor en el draft es inválido: vacío, no numérico o
-// por debajo del mínimo. El backend hace Number() y convertiría '' en 0, así
-// que validamos en cliente antes de guardar para no envenenar las proyecciones.
+// Formato con separador de miles local (es-CR), consistente con el resto de la
+// app. Si el valor no es numérico lo devuelve crudo para no romper el render.
+function formatValue(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString('es-CR') : value;
+}
+
+// Devuelve los params cuyo valor en el draft es inválido: vacío, no numérico, o
+// fuera del rango [min, max]. El backend hace Number() y convertiría '' en 0,
+// así que validamos en cliente antes de guardar para no envenenar las
+// proyecciones (p.ej. mortalidad > 100% daría Kg negativos).
 function getInvalidParams(draft) {
   return ALL_PARAMS.filter(p => {
     const raw = draft[p.key];
@@ -63,6 +71,7 @@ function getInvalidParams(draft) {
     const n = Number(raw);
     if (!Number.isFinite(n)) return true;
     if (p.min != null && n < p.min) return true;
+    if (p.max != null && n > p.max) return true;
     return false;
   });
 }
@@ -107,11 +116,13 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
     <AuroraConfirmModal
       title="Confirmar cambios"
       icon={<FiSave size={16} />}
+      iconVariant="neutral"
       size="wide"
       body={changes.length === 0
         ? 'No hay cambios respecto a los valores actuales.'
         : 'Se guardarán los siguientes cambios:'}
       confirmLabel="Guardar"
+      confirmDisabled={changes.length === 0}
       loading={loading}
       loadingLabel="Guardando..."
       onConfirm={onConfirm}
@@ -127,8 +138,8 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
               {changes.map(p => (
                 <tr key={p.key}>
                   <td>{p.label}</td>
-                  <td className="param-diff-old">{saved[p.key]} {p.unit}</td>
-                  <td className="param-diff-new aur-td-strong">{draft[p.key]} {p.unit}</td>
+                  <td className="param-diff-old">{formatValue(saved[p.key])} {p.unit}</td>
+                  <td className="param-diff-new aur-td-strong">{formatValue(draft[p.key])} {p.unit}</td>
                 </tr>
               ))}
             </tbody>
@@ -276,22 +287,10 @@ function Parameters() {
           />
         ) : (
           <>
-            <section className="aur-section">
-              <div className="aur-section-header">
-                <h3>KPI</h3>
-              </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <span className="aur-row-label"><FiBarChart2 size={13} /> Indicadores</span>
-                  <span className="param-kpi-placeholder">Próximamente — indicadores clave de rendimiento.</span>
-                </div>
-              </div>
-            </section>
-
             {SECTIONS.map((section, sIdx) => (
               <section key={section.title} className="aur-section">
                 <div className="aur-section-header">
-                  <span className="aur-section-num">{String(sIdx + 2).padStart(2, '0')}</span>
+                  <span className="aur-section-num">{String(sIdx + 1).padStart(2, '0')}</span>
                   <h3>{section.title}</h3>
                   <span className="aur-section-count">{section.params.length}</span>
                 </div>
@@ -304,14 +303,17 @@ function Parameters() {
                 <div className="aur-list">
                   {section.params.map(p => {
                     const isInvalid = invalidKeys.includes(p.key);
+                    const inputId = `param-${p.key}`;
                     return (
                       <div key={p.key} className="aur-row">
-                        <span className="aur-row-label">{p.label}</span>
+                        <label className="aur-row-label" htmlFor={inputId}>{p.label}</label>
                         {editMode ? (
                           <input
+                            id={inputId}
                             className={`aur-input aur-input--num${isInvalid ? ' aur-input--error' : ''}`}
                             type="number"
                             min={p.min}
+                            max={p.max}
                             step={p.step}
                             name={p.key}
                             value={draft[p.key]}
@@ -320,7 +322,7 @@ function Parameters() {
                           />
                         ) : (
                           <span className="param-row-value">
-                            <span className="param-row-num">{saved[p.key]}</span>
+                            <span className="param-row-num">{formatValue(saved[p.key])}</span>
                             <span className="param-row-unit">{p.unit}</span>
                           </span>
                         )}

@@ -6,8 +6,6 @@
    UnlockModal) + AuroraConfirmModal + aur-table (tabla de diff dentro del
    SaveModal). Aquí sólo queda lo que las primitivas no cubren:
 
-     · param-kpi-placeholder — texto en gris dentro del row del KPI
-                               (placeholder hasta que existan KPIs reales).
      · param-section-note    — aur-banner--info entre el header de la sección y
                                la lista; sólo aporta el margen inferior.
      · param-row-value / -num / -unit — composición valor + unidad cuando NO
@@ -24,13 +22,6 @@
 /* ── Nota informativa de sección (aur-banner--info) ──────────────────────── */
 .param-section-note {
   margin-bottom: 12px;
-}
-
-/* ── KPI placeholder ─────────────────────────────────────────────────────── */
-.param-kpi-placeholder {
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-3);
-  font-style: italic;
 }
 
 /* ── Valor read-only (cuando NO estamos en editMode) ─────────────────────── */
