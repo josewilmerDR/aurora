@@ -18,6 +18,9 @@ export const ACTION_OPTIONS = [
   { value: 'finca.create',                  label: 'Creación de finca' },
   { value: 'membership.claim',              label: 'Reclamación de membresía' },
 
+  // Configuración de la finca
+  { value: 'config.update',                 label: 'Configuración actualizada' },
+
   // Gestión de usuarios
   { value: 'user.create',                   label: 'Creación de usuario' },
   { value: 'user.update',                   label: 'Actualización de usuario' },
