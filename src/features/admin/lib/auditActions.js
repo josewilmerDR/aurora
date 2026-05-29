@@ -39,6 +39,7 @@ export const ACTION_OPTIONS = [
 
   // Operaciones de negocio de alto valor
   { value: 'producto.delete',               label: 'Eliminación de producto' },
+  { value: 'unidad_medida.delete',          label: 'Eliminación de unidad de medida' },
   { value: 'lote.delete',                   label: 'Eliminación de lote' },
   { value: 'grupo.delete',                  label: 'Eliminación de grupo' },
   { value: 'grupo.package.change',          label: 'Grupo — cambio de paquete' },
