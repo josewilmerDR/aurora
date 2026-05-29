@@ -40,6 +40,13 @@ const ACTIONS = Object.freeze({
   FINCA_CREATE: 'finca.create',
   MEMBERSHIP_CLAIM: 'membership.claim',
 
+  // Finca configuration. Privileged, admin-only mutation that touches legal/
+  // fiscal identity, the logo embedded in every PDF, and the cultivation
+  // parameters (días de desarrollo, kg/planta, mortalidad…) that feed harvest
+  // projections and KPIs across ALL grupos. A bad write silently degrades the
+  // whole platform's numbers, so "who+when+what changed" has forensic value.
+  CONFIG_UPDATE: 'config.update',
+
   // User management
   USER_CREATE: 'user.create',
   USER_UPDATE: 'user.update',
