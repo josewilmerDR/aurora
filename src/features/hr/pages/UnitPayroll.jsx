@@ -536,7 +536,7 @@ function UnitPayroll() {
     const isAdmin = currentUser?.rol === 'administrador';
     if (!isAdmin && !currentUser?.userId) return;
     const url = isAdmin
-      ? '/api/users'
+      ? '/api/users/lite'
       : `/api/hr/subordinados?encargadoId=${currentUser.userId}`;
     apiFetch(url)
       .then(r => r.json())

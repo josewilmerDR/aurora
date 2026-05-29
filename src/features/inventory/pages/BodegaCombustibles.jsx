@@ -374,7 +374,7 @@ function BodegaCombustibles() {
           await Promise.all([
             apiFetch(`/api/bodegas/${b.id}/items`).then(r => r.json()),
             apiFetch('/api/lotes').then(r => r.json()),
-            apiFetch('/api/users').then(r => r.json()),
+            apiFetch('/api/users/lite').then(r => r.json()),
             apiFetch('/api/hr/fichas').then(r => r.json()),
             apiFetch('/api/maquinaria').then(r => r.json()),
             apiFetch('/api/labores').then(r => r.json()),

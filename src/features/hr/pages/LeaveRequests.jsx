@@ -121,7 +121,7 @@ function LeaveRequests() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await apiFetch('/api/users');
+        const r = await apiFetch('/api/users/lite');
         if (!r.ok) throw new Error();
         const data = await r.json();
         setUsers(Array.isArray(data) ? data : []);

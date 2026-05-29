@@ -160,7 +160,7 @@ function TaskTracking() {
     if (!showNewTask) return;
     Promise.all([
       apiFetch('/api/lotes').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/productos').then(r => r.json()),
       apiFetch('/api/task-templates').then(r => r.json()),
     ]).then(([l, u, p, t]) => {

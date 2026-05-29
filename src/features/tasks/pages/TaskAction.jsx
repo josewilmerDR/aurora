@@ -61,7 +61,7 @@ const TaskAction = () => {
 
     const fetchUsers = async () => {
       try {
-        const res = await apiFetch('/api/users');
+        const res = await apiFetch('/api/users/lite');
         const data = await res.json();
         if (!cancelled) setUsers(Array.isArray(data) ? data : []);
       } catch (err) {

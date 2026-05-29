@@ -61,7 +61,7 @@ export default function CosechaDespachoModal({
     let alive = true;
     Promise.all([
       apiFetch('/api/lotes').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/unidades-medida').then(r => r.json()),
       apiFetch('/api/cosecha/registros').then(r => r.json()),
     ]).then(([lotesData, usersData, unidadesData, registrosData]) => {

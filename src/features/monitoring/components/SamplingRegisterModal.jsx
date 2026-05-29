@@ -200,7 +200,7 @@ export default function SamplingRegisterModal({ orden, onClose, onComplete }) {
     setSupervisorLoading(true);
     Promise.all([
       apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json()).catch(() => ({})),
-      apiFetch('/api/users').then(r => r.json()).catch(() => []),
+      apiFetch('/api/users/lite').then(r => r.json()).catch(() => []),
     ]).then(([ficha, allUsers]) => {
       setUsers(Array.isArray(allUsers) ? allUsers : []);
       if (ficha.encargadoId) {
