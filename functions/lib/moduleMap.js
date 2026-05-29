@@ -5,22 +5,24 @@
 // Design choices:
 //   - Path matching is by prefix. Cheap, predictable, and easy to keep in sync
 //     with the sidebar MODULES definition in src/components/Sidebar.jsx.
-//   - Paths that match no module fall back to "allow + warn" when STRICT is
-//     false, so an unmapped endpoint does not lock users out silently. Flip
-//     STRICT to true once logs are clean, analogous to the App Check warn →
-//     enforce rollout.
+//   - STRICT is now ENFORCED (true): a path that matches no module is DENIED
+//     for members with a non-empty restrictedTo. Every live `/api` endpoint
+//     must therefore be mapped to an owning module below (or live in
+//     PUBLIC_PREFIXES). When you add a new route, add its prefix here or
+//     restricted members will get a 403 on it. The warn → enforce rollout
+//     (analogous to App Check) is complete.
 //   - PUBLIC_PREFIXES covers endpoints that every member must be able to
 //     reach regardless of their module restriction: auth, dashboard feed,
 //     own-task list, reminders, push, and the conversational assistant.
 //     Keep this list tight — each entry is a potential bypass.
 
-const STRICT = false;
+const STRICT = true;
 
 const PUBLIC_PREFIXES = [
   '/api/auth',
   '/api/feed',
   '/api/reminders',
-  '/api/webpush',
+  '/api/push', // suscripción web-push: la consume MainLayout para todo miembro
   '/api/chat',
   '/api/tasks',
 ];
@@ -34,10 +36,18 @@ const MODULE_PREFIXES = {
     // `/api/materiales-siembra`. Sin estos, al flipear STRICT=true en
     // moduleMap, ambos quedarían denegados para usuarios con restrictedTo.
     '/api/lotes', '/api/grupos', '/api/siembras', '/api/materiales-siembra',
-    '/api/cosecha', '/api/packages', '/api/cedulas', '/api/horimetro', '/api/templates',
+    '/api/block-transitions', '/api/cosecha', '/api/packages', '/api/cedulas',
+    // Plantillas de tareas y de cédulas son config de aplicaciones (campo). El
+    // antiguo '/api/templates' estaba muerto (los endpoints reales son estos).
+    '/api/cedula-templates', '/api/task-templates', '/api/horimetro',
+    // Clima sólo lo consume AplicadaModal al aplicar una cédula (campo).
+    '/api/weather',
   ],
   bodega: [
     '/api/productos', '/api/bodegas', '/api/movimientos', '/api/recepciones',
+    // Toma física / ajuste de inventario, confirmación de ingreso de mercancía,
+    // y cierre de combustible (su ítem de sidebar vive en el grupo Bodega).
+    '/api/inventario', '/api/ingreso', '/api/cierres-combustible',
   ],
   rrhh: [
     '/api/hr', '/api/autopilot-hr',
@@ -62,7 +72,9 @@ const MODULE_PREFIXES = {
     // `/api/unidades-medida`; sin esta corrección, al flipear STRICT quedaba
     // denegado para todos los usuarios con restrictedTo, incluso admin-only.
     '/api/users', '/api/maquinaria', '/api/labores', '/api/unidades-medida',
-    '/api/calibraciones', '/api/config', '/api/combustible',
+    // '/api/combustible' estaba muerto; el cierre de combustible real
+    // (/api/cierres-combustible) se movió a `bodega`, donde vive su UI.
+    '/api/calibraciones', '/api/config',
     '/api/meta', '/api/autopilot', '/api/autopilot-control',
     '/api/autopilot-orchestrator', '/api/audit',
   ],
@@ -94,6 +106,9 @@ function checkModuleAccess(path, restrictedTo) {
       console.warn('[restrictedTo] unmapped path', path, '— allowing (STRICT=false)');
       return 'allow';
     }
+    // STRICT: an unmapped path is denied. Log it so a route added without a
+    // moduleMap entry surfaces immediately instead of silently 403-ing members.
+    console.warn('[restrictedTo] unmapped path', path, '— denying (STRICT=true)');
     return 'deny';
   }
 
