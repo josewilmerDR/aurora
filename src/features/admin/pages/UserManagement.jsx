@@ -16,7 +16,10 @@ import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { translateApiError } from '../../../lib/errorMessages';
 import { getInitials, firstName } from '../../../lib/names';
 
-const DRAFT_KEY = 'aurora_user_mgmt_draft';
+// Namespaced under aurora_draft_ so clearAllDrafts() (called on logout) purges
+// it — the draft holds PII (email, teléfono) and must not survive logout on a
+// shared machine.
+const DRAFT_KEY = 'aurora_draft_user-mgmt';
 const EMPTY_FORM = { id: null, nombre: '', email: '', telefono: '', rol: 'trabajador', restrictedTo: [] };
 const LIMITS = { nombre: 80, email: 120, telefono: 20 };
 const VALID_ROLES = ['trabajador', 'encargado', 'supervisor', 'rrhh', 'administrador'];
