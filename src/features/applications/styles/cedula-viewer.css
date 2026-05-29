@@ -144,8 +144,11 @@
   min-height: 60vh;
 }
 
-/* ── Mobile (≤600px) ────────────────────────────────────────────────────── */
-@media (max-width: 600px) {
+/* ── Mobile (≤640px) ──────────────────────────────────────────────────────
+   Alineado con el resto del dominio cedulas (cedulas.css usa 640 consistente).
+   Antes era 600, dejando un "limbo 601-640" donde el viewer aplicaba reglas
+   desktop pero las cards del listing ya habían cambiado a mobile. */
+@media (max-width: 640px) {
   .cv-toolbar {
     flex-wrap: wrap;
     padding: 10px 12px;

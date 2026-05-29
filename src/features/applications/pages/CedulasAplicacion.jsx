@@ -24,6 +24,7 @@ import {
   filterTasksByDateRange,
   computeTaskStatusFromCedulas,
 } from '../lib/cedulas-helpers';
+import { generateAndShareCedulaPdf } from '../lib/cedula-pdf';
 import '../styles/cedulas.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -803,51 +804,17 @@ function CedulasAplicacion() {
   };
 
   // ── PDF share ─────────────────────────────────────────────────────────────
+  // Lógica de render → PDF → share vive en lib/cedula-pdf.js (compartido con
+  // CedulaViewer). El listing loggea en consola en falla porque el operador
+  // suele estar en desktop con devtools — útil para soporte.
   const handleShare = async () => {
     if (!docRef.current || !previewTask) return;
     try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const canvas  = await html2canvas(docRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW   = pdf.internal.pageSize.getWidth();
-      const pageH   = pdf.internal.pageSize.getHeight();
-      const imgH    = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
-      // Sanitizar el nombre del archivo: activityName es texto libre del
-       // usuario y puede traer `/`, `\`, `:` u otros caracteres que algunos
-       // browsers/sistemas interpretan como path separators. Reemplazamos
-       // todo lo no alfanumérico/espacio/guión por `_` y truncamos a 64
-       // caracteres para evitar paths excesivos.
-      const rawName = previewTask.activityName || previewTask.id || 'cedula';
-      const safeName = rawName.replace(/[^\w\s-]/g, '_').replace(/\s+/g, '_').slice(0, 64);
-      const filename = `Cedula-${safeName}.pdf`;
-      const blob = pdf.output('blob');
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.canShare?.({ files: [file] })) {
-        // navigator.share rechaza con AbortError cuando el usuario cancela la
-        // hoja de compartir nativa — esa rama no es un error.
-        try { await navigator.share({ files: [file], title: filename }); } catch {}
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        URL.revokeObjectURL(url);
-      }
+      await generateAndShareCedulaPdf({
+        node: docRef.current,
+        filenameRaw: previewTask.activityName || previewTask.id,
+      });
     } catch (err) {
-      // Causas frecuentes: html2canvas falla con imágenes CORS (logoUrl
-      // externo), jsPDF revienta en navegadores móviles antiguos, dynamic
-      // import bloqueado offline. Antes era `// silently fail` — el botón
-      // se veía muerto y el usuario reintentaba. Toast accionable + log
-      // del error real para soporte.
       console.error('[handleShare] failed to generate/share PDF:', err);
       toast.error('No se pudo generar el PDF. Probá Imprimir desde el navegador.');
     }
@@ -918,11 +885,11 @@ function CedulasAplicacion() {
 
           <section className="aur-section">
             {aplicacionTasks.length > 0 && (
-              <div className="ca-list-search">
+              <div className="aur-list-search">
                 <FiSearch size={13} aria-hidden="true" />
                 <input
                   type="search"
-                  className="ca-list-search-input"
+                  className="aur-list-search-input"
                   placeholder="Buscar por actividad, lote, responsable o consecutivo…"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -931,7 +898,7 @@ function CedulasAplicacion() {
                 {searchQuery && (
                   <button
                     type="button"
-                    className="ca-list-search-clear"
+                    className="aur-list-search-clear"
                     onClick={() => setSearchQuery('')}
                     aria-label="Limpiar búsqueda"
                   >

@@ -9,50 +9,7 @@
 /* ── Búsqueda libre del header (paralelo de .ca-list-search en CedulasAplicacion).
    Vive entre el header y la tabla; siempre visible cuando hay dataset. Mantengo
    las reglas locales en historial.css para no acoplar la página a cedulas.css. */
-.ha-list-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  margin-bottom: 12px;
-  background: rgba(230, 242, 255, 0.04);
-  border: 1px solid var(--aur-divider, var(--aurora-border));
-  border-radius: 6px;
-  color: var(--aur-text-3, #6b819b);
-}
-.ha-list-search:focus-within {
-  border-color: var(--aurora-green);
-}
-.ha-list-search-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  outline: none;
-  padding: 0;
-  -webkit-appearance: none;
-  appearance: none;
-}
-.ha-list-search-input::-webkit-search-cancel-button { display: none; }
-.ha-list-search-input::placeholder {
-  color: var(--aur-text-3, #6b819b);
-}
-.ha-list-search-clear {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--aur-text-3, #6b819b);
-  display: inline-flex;
-  align-items: center;
-  padding: 2px;
-  border-radius: 3px;
-}
-.ha-list-search-clear:hover {
-  color: var(--aurora-light);
-  background: rgba(230, 242, 255, 0.08);
-}
+/* Base del search vive como primitiva .aur-list-search en aurora.css. */
 
 /* Wrap del skeleton de carga — reemplaza el `historial-page-loading` (spinner
    full-page) por una versión inline que vive bajo el header. Mismo min-height
