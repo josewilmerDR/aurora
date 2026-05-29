@@ -43,7 +43,7 @@ export default function Asistencia() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   useEffect(() => {
-    apiFetch('/api/users')
+    apiFetch('/api/users/lite')
       .then(r => r.json())
       .then(data => {
         const sorted = (Array.isArray(data) ? data : [])

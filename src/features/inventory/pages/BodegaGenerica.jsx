@@ -368,7 +368,7 @@ function BodegaGenerica() {
       apiFetch('/api/bodegas').then(r => r.json()),
       apiFetch(`/api/bodegas/${bodegaId}/items`).then(r => r.json()),
       apiFetch('/api/lotes').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/hr/fichas').then(r => r.json()),
       apiFetch('/api/maquinaria').then(r => r.json()),
       apiFetch('/api/labores').then(r => r.json()),

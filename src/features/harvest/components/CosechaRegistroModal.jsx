@@ -91,7 +91,7 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
       apiFetch('/api/grupos').then(r => r.json()),
       apiFetch('/api/siembras').then(r => r.json()),
       apiFetch('/api/unidades-medida').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/maquinaria').then(r => r.json()),
     ]).then(([lotesData, gruposData, siembrasData, unidadesData, usersData, maqData]) => {
       if (!alive) return;

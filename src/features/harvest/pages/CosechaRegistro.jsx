@@ -175,7 +175,7 @@ export default function CosechaRegistro() {
       apiFetch('/api/grupos').then(r => r.json()),
       apiFetch('/api/siembras').then(r => r.json()),
       apiFetch('/api/unidades-medida').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/maquinaria').then(r => r.json()),
     ]).then(([lotes, grupos, siembras, unidades, usuarios, maquinaria]) => {
       if (!alive) return;

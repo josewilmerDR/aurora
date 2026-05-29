@@ -130,7 +130,7 @@ function RegistroHorimetro() {
     Promise.all([
       apiFetch('/api/maquinaria').then(r => r.json()),
       apiFetch('/api/lotes').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/grupos').then(r => r.json()),
       apiFetch('/api/siembras').then(r => r.json()),
       apiFetch('/api/labores').then(r => r.json()),

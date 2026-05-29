@@ -317,7 +317,7 @@ function SamplingPackages() {
   useEffect(() => {
     Promise.all([
       apiFetch('/api/muestreos/paquetes').then(r => r.json()),
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/muestreos/tipos').then(r => r.json()),
     ])
       .then(([pkgs, usrs, tipos]) => {

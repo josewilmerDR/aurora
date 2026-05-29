@@ -32,12 +32,26 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Gate for endpoints that expose PII (email, teléfono, rol, motivo de salida…)
+// but are read by non-admin screens too (HR ficha, planilla). The floor is
+// `encargado`: the lowest role that legitimately needs the full directory.
+// Workers below that resolve id→nombre through GET /api/users/lite, which
+// carries no PII and stays open to any authenticated member.
+function requireEncargado(req, res, next) {
+  if (!hasMinRoleBE(req.userRole, 'encargado')) {
+    return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Requires encargado role or higher.', 403);
+  }
+  next();
+}
+
 // --- API ENDPOINTS: USERS ---
-// Rate-limited (compartido con /api/users/lite): el directorio expone email,
-// teléfono, rol y empleadoPlanilla — un autenticado podía polearlo para
-// extraer PII de toda la finca. Mismo bucket que la variante /lite para que
-// el budget total quede acotado por usuario sin importar qué endpoint use.
-router.get('/api/users', authenticate, rateLimit('users_read', 'public_read'), async (req, res) => {
+// PII-bearing directory: returns email, teléfono, rol, restrictedTo and the
+// HR termination fields (motivoSalidaPlanilla…) for every person in the finca.
+// Gated to `encargado+` so a trabajador can no longer dump the whole finca's
+// PII; name-only call sites use GET /api/users/lite instead (no PII, open to
+// any authenticated member). Rate-limited on the same bucket as /lite so the
+// per-user budget is shared regardless of which variant is hit.
+router.get('/api/users', authenticate, requireEncargado, rateLimit('users_read', 'public_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('users').where('fincaId', '==', req.fincaId).get();
     const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

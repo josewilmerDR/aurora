@@ -280,7 +280,7 @@ function FixedPayroll() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/api/users').then(r => r.json()),
+      apiFetch('/api/users/lite').then(r => r.json()),
       apiFetch('/api/hr/permisos').then(r => r.json()),
     ]).then(([u, p]) => { setUsers(u); setAllPermisos(p); }).catch(console.error);
     fetchPlanillas();
