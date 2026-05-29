@@ -90,8 +90,11 @@ function CedulasAplicacion() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const savedScrollRef   = useRef(0);
-  const openedViaUrlRef  = useRef(false);
+  // (savedScrollRef / openedViaUrlRef vivían acá para el back-aware del
+  // preview modal de cédulas reales — eliminados con la migración a
+  // /aplicaciones/cedula/:id. El browser y React Router 6 ya restauran scroll
+  // al volver del viewer; el highlight se conserva via highlightAndScrollTo
+  // post-generación/aplicación, no post-cierre del preview.)
 
   // Highlight + scroll a la card recién creada: reemplaza el feedback "vuelve
   // la lista, ¿se creó o no?". El Set captura task IDs (no cedula IDs) porque
@@ -207,16 +210,7 @@ function CedulasAplicacion() {
     if (location.state?.openModal) setShowNuevaModal(true);
   }, []);
 
-  // Auto-open cedula from query param ?open=taskId
-  useEffect(() => {
-    if (!tasks.length) return;
-    const params = new URLSearchParams(location.search);
-    const openId = params.get('open');
-    if (openId) {
-      const task = tasksById.get(openId);
-      if (task) { openedViaUrlRef.current = true; setPreviewTask(task); }
-    }
-  }, [tasks, tasksById, location.search]);
+  // (compat de ?open=taskId vive más abajo, después de cedulasByTaskId)
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const aplicacionTasks = useMemo(() =>
@@ -242,6 +236,31 @@ function CedulasAplicacion() {
     }
     return map;
   }, [cedulas]);
+
+  // Compat con links viejos `?open=taskId` (push notifications previas a la
+  // unificación viewer+listing). Resuelve la primera cédula de la task y
+  // navega a /aplicaciones/cedula/:id reemplazando la URL para no dejar el
+  // query param en el history. Si no hay cédula todavía (la task aún no fue
+  // generada), limpiamos el query y dejamos al usuario en el listing.
+  useEffect(() => {
+    if (!tasks.length) return;
+    const params = new URLSearchParams(location.search);
+    const openId = params.get('open');
+    if (!openId) return;
+    const task = tasksById.get(openId);
+    const firstCedulaId = task ? (cedulasByTaskId[task.id]?.[0]?.id || null) : null;
+    if (firstCedulaId) {
+      navigate(`/aplicaciones/cedula/${firstCedulaId}`, { replace: true });
+    } else {
+      const cleaned = new URLSearchParams(location.search);
+      cleaned.delete('open');
+      const newSearch = cleaned.toString();
+      navigate(
+        { pathname: location.pathname, search: newSearch ? `?${newSearch}` : '' },
+        { replace: true }
+      );
+    }
+  }, [tasks, tasksById, cedulasByTaskId, location.search, location.pathname, navigate]);
 
   // Tasks que matchean SOLO el filtro de fecha (sin search). Lo consume:
   // (1) visibleTasks como input para aplicar después search + sort;
@@ -755,8 +774,6 @@ function CedulasAplicacion() {
         calibracionId: formData.calibracionId || null,
       },
     };
-    openedViaUrlRef.current = false;
-    savedScrollRef.current = window.scrollY;
     setPreviewTask(draftTask);
     setPreviewCedulaId(null);
   };
@@ -776,31 +793,15 @@ function CedulasAplicacion() {
     window.print();
   };
 
-  // ── Cerrar viewer (back-aware) ────────────────────────────────────────────
+  // ── Cerrar draft preview ─────────────────────────────────────────────────
+  // Solo aplica al preview del draft de Nueva Cédula (el único uso vivo de
+  // CedulaPreviewModal tras la unificación con CedulaViewer). El back-aware
+  // sofisticado (viaUrl / savedScrollRef / highlightAndScrollTo) ya no se
+  // necesita porque el draft no se abre vía URL — siempre se dispara desde
+  // el form del modal Nueva Cédula que está montado encima.
   const handleCloseViewer = () => {
-    const viaUrl = openedViaUrlRef.current;
-    const scroll = savedScrollRef.current;
-    const taskId = previewTask?.id;
     setPreviewTask(null);
     setPreviewCedulaId(null);
-    openedViaUrlRef.current = false;
-    if (viaUrl) {
-      // Vino por ?open=taskId (notificación push o link compartido). En vez
-      // de navigate(-1) — que saca al usuario de la página entera, perdiendo
-      // el contexto del listing al que llegó — limpiamos el query param y
-      // dejamos al usuario en el listing con la card destacada por unos
-      // segundos. Patrón típico de retorno desde detail-view. Punto #29 audit.
-      const params = new URLSearchParams(location.search);
-      params.delete('open');
-      const newSearch = params.toString();
-      navigate(
-        { pathname: location.pathname, search: newSearch ? `?${newSearch}` : '' },
-        { replace: true }
-      );
-      if (taskId) highlightAndScrollTo([taskId]);
-    } else {
-      requestAnimationFrame(() => window.scrollTo({ top: scroll, behavior: 'instant' }));
-    }
   };
 
   // ── PDF share ─────────────────────────────────────────────────────────────
@@ -961,14 +962,16 @@ function CedulasAplicacion() {
                   const packageName  = source?.paqueteId ? getPackageName(source.paqueteId) : null;
                   const productCount = task.activity?.productos?.length || 0;
                   const hectareas    = task.loteHectareas ?? source?.hectareas ?? null;
-                  // Closure captura `task` para que el preview sepa cuál
-                  // abrir; setear el scroll antes del cambio de state
-                  // preserva la posición al cerrar.
+                  // Click "Ver cédula" navega al viewer dedicado
+                  // (/aplicaciones/cedula/:id). El viewer tiene back-aware
+                  // navigation (location.key) y al hacer "Volver" usa
+                  // navigate(-1) que devuelve al listing con scroll
+                  // preservado por el browser. Antes esto abría un modal
+                  // in-page (CedulaPreviewModal) — eliminado para colapsar
+                  // las dos UIs de cédula real a una sola entry point
+                  // (causa raíz 1 del audit holístico).
                   const onPreview = (cedulaId) => {
-                    openedViaUrlRef.current = false;
-                    savedScrollRef.current = window.scrollY;
-                    setPreviewTask(task);
-                    setPreviewCedulaId(cedulaId);
+                    navigate(`/aplicaciones/cedula/${cedulaId}`);
                   };
                   return allCedulas.length > 1 ? (
                     <CedulaSplitCard
@@ -1015,7 +1018,15 @@ function CedulasAplicacion() {
         </div>
       )}
 
-      {/* ── PREVIEW MODAL ── */}
+      {/* ── DRAFT PREVIEW MODAL ──────────────────────────────────────────
+          CedulaPreviewModal sobrevive solo para el preview de drafts
+          (botón "Vista previa" en CedulaNuevaModal). Los click "Ver cédula"
+          de cards ahora navegan a /aplicaciones/cedula/:id (viewer dedicado).
+          Por eso el modal solo se renderea cuando previewTask?.isDraft es
+          true — un draft NO tiene id en backend y no puede ir al viewer.
+          CedulaFlowAction internamente retorna null para drafts (isDraft
+          prop), así que onMezclaLista/onAplicada acá son no-ops. */}
+      {previewTask?.isDraft && (
       <CedulaPreviewModal
         previewTask={previewTask}
         activeCedula={activeCedula}
@@ -1045,6 +1056,7 @@ function CedulasAplicacion() {
           getProductoCatalog={getProductoCatalog}
         />
       </CedulaPreviewModal>
+      )}
 
       {/* ── Nueva Cédula Modal ── */}
       {showNuevaModal && (

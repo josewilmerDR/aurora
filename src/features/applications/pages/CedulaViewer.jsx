@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle, FiRefreshCw } from 'react-icons/fi';
+import { FiArrowLeft, FiShare2, FiPrinter, FiCheckCircle, FiRefreshCw, FiCheck, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useToast } from '../../../contexts/ToastContext';
@@ -69,6 +69,13 @@ export default function CedulaViewer() {
   const [mezclaModal,   setMezclaModal]   = useState(null);
   const [aplicadaModal, setAplicadaModal] = useState(null);
   const [actionLoading, setActionLoading] = useState(() => new Set());
+  // Banner persistente post-aplicada: paridad con `lastAppliedCedula` del
+  // listing. Antes acá solo había un toast efímero; cuando el usuario
+  // entraba por push notification y aplicaba, no veía CTA "Ver en historial"
+  // ni link "Volver al listado" — la acción regulatoriamente más crítica
+  // del dominio confirmada con un toast de 4s. Punto raíz E del audit
+  // holístico.
+  const [appliedBanner, setAppliedBanner] = useState(null);
   const addLoading    = (i) => setActionLoading(prev => { const n = new Set(prev); n.add(i); return n; });
   const removeLoading = (i) => setActionLoading(prev => { if (!prev.has(i)) return prev; const n = new Set(prev); n.delete(i); return n; });
 
@@ -315,7 +322,10 @@ export default function CedulaViewer() {
         ...data,
       } : prev);
       setAplicadaModal(null);
-      toast.success('Aplicación registrada.');
+      // Banner persistente en vez de toast — el usuario suele querer
+      // confirmar después de scrollear y verificar el documento. CTAs
+      // "Ver en historial" + "Volver al listado" + cerrar.
+      setAppliedBanner({ id: cedulaId, consecutivo: cedula?.consecutivo || null });
     } finally {
       removeLoading(cedulaId);
     }
@@ -414,6 +424,36 @@ export default function CedulaViewer() {
           </button>
         </div>
       </header>
+
+      {/* Banner persistente post-aplicada (paridad con lastAppliedCedula del
+          listing). Usa las mismas clases .ca-applied-banner-* de cedulas.css
+          ya importadas arriba — no duplica estilos. Se cierra solo cuando el
+          usuario clickea "Cerrar" o navega a historial. no-print para no
+          aparecer en el PDF compartido/impreso. */}
+      {appliedBanner && (
+        <div className="ca-applied-banner no-print" role="status" aria-live="polite">
+          <FiCheck size={14} aria-hidden="true" />
+          <span className="ca-applied-banner-msg">
+            Aplicación registrada
+            {appliedBanner.consecutivo && <> para la cédula <strong>{appliedBanner.consecutivo}</strong></>}.
+          </span>
+          <button
+            type="button"
+            className="ca-applied-banner-action"
+            onClick={() => navigate('/aplicaciones/historial')}
+          >
+            Ver en historial →
+          </button>
+          <button
+            type="button"
+            className="ca-applied-banner-close"
+            onClick={() => setAppliedBanner(null)}
+            aria-label="Cerrar"
+          >
+            <FiX size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Body: loading / error / documento ── */}
       {loading && (

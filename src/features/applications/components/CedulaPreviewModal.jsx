@@ -4,26 +4,22 @@ import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import CedulaFlowAction from './CedulaFlowAction';
 
 // ── CedulaPreviewModal ────────────────────────────────────────────────────────
-// Full-screen preview overlay para una cédula. Contiene:
+// Full-screen preview overlay para una cédula. **Único uso vivo**: preview
+// del DRAFT en CedulaNuevaModal (botón "Vista previa" — el draft existe en
+// memoria pero no tiene id en backend, así que no puede navegarse al viewer
+// dedicado /aplicaciones/cedula/:id). El listing tras la unificación
+// navega directo al viewer; CedulaFlowAction internamente retorna null
+// cuando isDraft=true, así que los handlers onMezclaLista/onAplicada son
+// no-ops en este modal — quedan en la API por si una futura iteración
+// agrega "guardar como cédula" desde el preview.
+//
+// Contiene:
 //   1. Backdrop oscuro + container (cierra al clickear el backdrop).
-//   2. Toolbar: botón Volver, título + consecutivo/BORRADOR badge, acciones
-//      contextuales (Mezcla lista / Aplicada en campo) según status + rol, y
-//      acciones Compartir/Imprimir.
-//   3. `children` — el `<CedulaDocumento>` (u otro renderer del papel blanco)
-//      lo pasa el caller para mantener la separación cromo vs contenido.
-//
-// Patrón children (no owns-document):
-// El modal NO recibe los ~14 props del documento. El caller compone
-// `<CedulaPreviewModal>…<CedulaDocumento .../></CedulaPreviewModal>`, lo que:
-//  - mantiene el ref del documento bajo el control del caller (html2canvas
-//    captura solo el papel, sin la chrome del modal),
-//  - permite que diferentes consumidores pasen documentos con shapes distintos
-//    (relevante para una futura unificación con CedulaViewer.jsx que no usa
-//    este modal pero sí el mismo documento).
-//
-// Extraído de CedulasAplicacion.jsx (Fase 4 del refactor del punto #7 del
-// audit UX/UI). Junto con fase 3 (CedulaDocumento), saca todo el preview
-// del orquestador.
+//   2. Toolbar: botón Volver, título + BORRADOR badge, acciones (no-op),
+//      Compartir/Imprimir del draft.
+//   3. `children` — el `<CedulaDocumento>` lo pasa el caller para mantener
+//      la separación cromo vs contenido y dejar el ref bajo control del
+//      caller (html2canvas captura solo el papel).
 export default function CedulaPreviewModal({
   previewTask,
   activeCedula,
