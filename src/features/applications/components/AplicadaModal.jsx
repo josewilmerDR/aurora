@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTractor } from 'react-icons/fa';
-import { FiAlertTriangle, FiCheckCircle, FiInfo } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiInfo, FiX } from 'react-icons/fi';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import AuroraField, { TextInput, NumberInput, Select } from '../../../components/AuroraField';
 import UserCombo from './UserCombo';
@@ -226,6 +226,19 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
             <FaTractor size={14} />
           </span>
           <span className="aur-modal-title">Confirmar aplicación en campo</span>
+          {/* Botón X explícito (paridad con FiltroPeriodoModal). Disabled
+              durante submit, igual que backdrop y ESC, para no romper la
+              mutación en vuelo. Sin esto el cierre requiere scroll hasta
+              "Cancelar" en el footer en mobile (10+ campos). */}
+          <button
+            type="button"
+            className="aur-icon-btn aur-modal-close"
+            onClick={onClose}
+            disabled={submitting}
+            aria-label="Cerrar"
+          >
+            <FiX size={16} />
+          </button>
         </div>
 
         <div className="aur-modal-content">

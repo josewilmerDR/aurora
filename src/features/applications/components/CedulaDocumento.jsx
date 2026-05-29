@@ -169,7 +169,7 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
             </div>
             {previewPackageName && (
               <div className="ca-dato">
-                <span className="ca-dato-label">Paq. Téc.:</span>
+                <span className="ca-dato-label">Paquete:</span>
                 <span className="ca-dato-value">{previewPackageName}</span>
               </div>
             )}

@@ -120,8 +120,8 @@
   text-transform: uppercase;
   padding: 2px 7px;
   border-radius: 4px;
-  color: var(--aur-warning, #ffb84d);
-  background: rgba(255, 184, 77, 0.12);
+  color: var(--aur-warn);
+  background: var(--aur-warn-tint);
   border: 1px solid rgba(255, 184, 77, 0.35);
   cursor: help;
   white-space: nowrap;
@@ -504,7 +504,7 @@
 /* Botón Desarchivar en hub header: tint ámbar para que el estado "este
    paquete está archivado, puedes desarchivar" se lea sin abrir el tooltip. */
 .icon-btn.pkg-icon-btn--archived {
-  color: var(--aur-warning, #ffb84d);
+  color: var(--aur-warn);
   background: rgba(255, 184, 77, 0.08);
 }
 .icon-btn.pkg-icon-btn--archived:hover {
@@ -519,7 +519,7 @@
    - Badge en el header del form: "N cambios sin guardar"
    - Dot ámbar antes del label de cada campo modificado
    - Dot ámbar en la card de cada actividad modificada
-   Color ámbar (--aur-warning) en vez de verde para que el dot lea "atención,
+   Color ámbar (--aur-warn) en vez de verde para que el dot lea "atención,
    esto difiere de lo guardado" y no se confunda con un estado de éxito. */
 .pkg-changes-badge {
   display: inline-block;
@@ -529,7 +529,7 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--aur-warning, #ffb84d);
+  color: var(--aur-warn);
   background: rgba(255, 184, 77, 0.10);
   border: 1px solid rgba(255, 184, 77, 0.28);
   border-radius: 999px;
@@ -543,7 +543,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--aur-warning, #ffb84d);
+  background: var(--aur-warn);
   margin-right: 6px;
   vertical-align: 1px;
   flex-shrink: 0;
@@ -554,7 +554,7 @@
    en la zona izquierda del card). La franja inset no afecta layout y se
    lee a primera vista como "este card cambió". */
 .pkg-act-card--modified {
-  box-shadow: inset 3px 0 0 var(--aur-warning, #ffb84d);
+  box-shadow: inset 3px 0 0 var(--aur-warn);
 }
 
 /* ── Modal "Nueva plantilla" (inline desde una actividad del paquete) ─────────

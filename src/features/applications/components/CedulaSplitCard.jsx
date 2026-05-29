@@ -101,8 +101,31 @@ export default function CedulaSplitCard({
           const isLdg     = actionLoading.has(c.id);
           const canAnular = c.status !== 'aplicada_en_campo' && hasMinRole(currentUser?.rol, 'encargado');
           const sb        = statusBadge(c.status);
+          // Sub-row clickable → abre preview de esa cédula. closest('button,a')
+          // evita conflicto con los controles internos sin stopPropagation.
+          // El <article> contenedor NO es clickable porque agrupa N cédulas.
+          const handleRowClick = (e) => {
+            if (e.target.closest('button, a, input')) return;
+            if (window.getSelection()?.toString()) return;
+            onPreview(c.id);
+          };
+          const handleRowKey = (e) => {
+            if (e.target.closest('button, a, input')) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onPreview(c.id);
+            }
+          };
           return (
-            <li key={c.id} className="ca-split-row">
+            <li
+              key={c.id}
+              className="ca-split-row is-clickable"
+              role="button"
+              tabIndex={0}
+              aria-label={`Ver cédula ${c.consecutivo || c.splitLoteNombre || ''}`}
+              onClick={handleRowClick}
+              onKeyDown={handleRowKey}
+            >
               <div className="ca-split-info">
                 <span className="ca-split-lote">{c.splitLoteNombre || '—'}</span>
                 <span className="ca-cedula-consecutivo">{c.consecutivo}</span>

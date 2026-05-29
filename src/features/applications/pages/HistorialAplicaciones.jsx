@@ -9,6 +9,7 @@ import AuroraDataTable from '../../../components/AuroraDataTable';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import FilterButton from '../../../components/ui/FilterButton';
 import FiltroPeriodoModal from '../components/FiltroPeriodoModal';
+import { formatShortDate as fmt } from '../lib/cedulas-helpers';
 import '../styles/historial.css';
 
 const DATE_FIELDS = [
@@ -37,13 +38,6 @@ const CAMBIO_BADGE_CLASS = {
   'Añadido':         'aur-badge--green',
   'Retirado':        'aur-badge--gray',
   'Otro':            'aur-badge--violet',
-};
-
-const fmt = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
 };
 
 // Formato numérico: con `decimals` explícito → toFixed(d). Sin él →
@@ -183,7 +177,7 @@ const ALL_COLUMNS = [
     render: (row) => row.metodoAplicacion || '—',
   },
   {
-    key: 'snap_paqueteTecnico', label: 'Paq. Técnico', type: 'text',
+    key: 'snap_paqueteTecnico', label: 'Paquete', type: 'text',
     render: (row) => row.snap_paqueteTecnico || '—',
   },
   {
