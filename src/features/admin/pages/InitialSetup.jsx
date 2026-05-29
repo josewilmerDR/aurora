@@ -41,7 +41,7 @@ const ENTIDADES = [
     descripcion: 'Agroquímicos del inventario — campos idénticos al módulo Inventario de Agroquímicos.',
     icon: FiDroplet,
     endpoint: '/api/productos',
-    adminPath: '/productos',
+    adminPath: '/bodega/agroquimicos/existencias',
     excelHeaders: [
       'ID Producto', 'Nombre Comercial', 'Ingrediente Activo', 'Tipo', 'Plaga / Enfermedad',
       'Dosis/Ha', 'Unidad', 'Reingreso (h)', 'A Cosecha (días)',
@@ -169,7 +169,7 @@ const ENTIDADES = [
     descripcion: 'Proveedores de insumos, maquinaria y servicios — idénticos al módulo Proveedores de Contabilidad.',
     icon: FiTruck,
     endpoint: '/api/proveedores',
-    adminPath: '/proveedores',
+    adminPath: '/procurement/proveedores',
     excelHeaders: [
       'Nombre', 'RUC / Cédula', 'Teléfono', 'Email', 'Dirección',
       'Tipo de Pago', 'Días de Crédito', 'Moneda',

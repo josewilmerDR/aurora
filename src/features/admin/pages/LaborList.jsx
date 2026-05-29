@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { FiList, FiEdit, FiTrash2, FiPlus, FiX, FiCheck, FiSearch, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -555,7 +556,7 @@ function LaborList() {
 
         <section className="aur-section">
           {loading ? (
-            <div className="aur-page-loading" />
+            <div className="aur-page-loading" role="status" aria-label="Cargando labores" />
           ) : loadError ? (
             <EmptyState
               icon={FiAlertTriangle}
@@ -571,7 +572,12 @@ function LaborList() {
             <EmptyState
               icon={FiList}
               title="No hay labores registradas."
-              subtitle="Las labores son tipos de trabajo que después se asocian a lotes y maquinaria desde Horímetro o Unidades de medida."
+              subtitle={(
+                <>
+                  Las labores son tipos de trabajo que después se asocian a lotes y maquinaria desde Horímetro o{' '}
+                  <Link to="/admin/unidades-medida" className="aur-link">Unidades de medida</Link>.
+                </>
+              )}
               action={(
                 <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={handleNew}>
                   <FiPlus size={14} /> Crear primera labor

@@ -107,6 +107,16 @@ a {
   text-decoration: none;
 }
 
+/* Inline text link — subrayado para no depender solo del color (a11y). */
+.aur-link {
+  color: var(--aurora-green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.aur-link:hover {
+  opacity: 0.85;
+}
+
 input[type="date"],
 input[type="month"],
 input[type="time"] {

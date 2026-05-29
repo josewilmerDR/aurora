@@ -450,7 +450,7 @@ function AuditEvents() {
     }
 
     if (loading && events.length === 0) {
-      return <div className="aur-page-loading" />;
+      return <div className="aur-page-loading" role="status" aria-label="Cargando eventos de auditoría" />;
     }
 
     if (events.length === 0) {

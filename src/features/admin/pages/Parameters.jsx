@@ -232,7 +232,7 @@ function Parameters() {
         </header>
 
         {loading ? (
-          <div className="aur-page-loading" />
+          <div className="aur-page-loading" role="status" aria-label="Cargando parámetros" />
         ) : loadError ? (
           <EmptyState
             icon={FiAlertTriangle}
