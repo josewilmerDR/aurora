@@ -61,12 +61,9 @@ export function calcHorasSemanales(horario = {}) {
   }, 0);
 }
 
-export const getInitials = (nombre) => {
-  if (!nombre) return '?';
-  const parts = nombre.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
+// Re-exportado desde el home neutral src/lib/names.js para no duplicar la
+// lógica de iniciales; los consumidores HR siguen importándolo desde acá.
+export { getInitials } from '../../../lib/names';
 
 export function validateForms(userForm, fichaForm) {
   const errors = {};

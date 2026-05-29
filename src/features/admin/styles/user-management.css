@@ -20,55 +20,32 @@
      · btn btn-primary  → aur-btn-pill
      · icon-btn / icon-btn--danger → aur-icon-btn / aur-icon-btn--danger
      · um-page-loading  → aur-page-loading
-     · usr-empty-state  → aur-sheet aur-sheet--empty
+     · page-header      → <PageHeader> (aur-sheet-header)
+     · empty-state      → <EmptyState> (componente compartido aur-empty)
      · window.confirm   → AuroraConfirmModal danger
 
    Aquí queda slim sólo:
-     · usr-page-header / usr-page-title — encabezado de página coherente con
-                                          el resto del dominio admin.
-     · usr-empty                       — interior del aur-sheet--empty.
-     · usr-list-info                   — composición vertical nombre + badge
-                                          dentro del lote-list-item (legacy).
-     · usr-list-role                   — alias del aur-badge en el item para
-                                          alinearlo al inicio de la columna.
-     · usr-modules-hint                — texto informativo arriba de la lista
-                                          de toggles de módulos.
+     · usr-list-info       — composición vertical nombre + badge dentro del
+                             lote-list-item (legacy).
+     · usr-list-role       — alias del aur-badge en el item para alinearlo al
+                             inicio de la columna.
+     · usr-list-toolbar/   — buscador sobre la lista derecha (el shell no lo trae).
+       usr-search*
+     · usr-modules-hint    — texto informativo arriba de los toggles de módulos.
+     · usr-module-*        — estado deshabilitado de un módulo que el rol no alcanza.
+     · usr-employment-*    — sección "Empleo" al pie del hub.
+     · usr-delete-*        — contenido del UserDeleteWithEmploymentModal.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Page header (pre-form / pre-detalle) ────────────────────────────────── */
-.usr-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.usr-page-title {
-  font-size: var(--aur-fs-title3);
-  font-weight: 600;
-  margin: 0;
-  color: var(--aur-text);
-  letter-spacing: -0.01em;
-}
-
-/* Ocultar cabecera en móvil cuando hay un usuario seleccionado */
+/* ── Header en mobile cuando hay un usuario seleccionado ──────────────────── */
+/* Tras migrar a <PageHeader>, el header se renderiza como `.aur-sheet-header`.
+   La regla legacy sobre `.usr-page-header` ya no aplica; replicamos el
+   equivalente que usa LoteManagement para que en mobile el header y el
+   carousel sticky no dupliquen la barra de acciones. */
 @media (max-width: 768px) {
-  .lote-page--selected .usr-page-header {
+  .lote-page--selected .aur-sheet-header {
     display: none;
   }
-}
-
-/* ── Empty state (interior de aur-sheet--empty) ──────────────────────────── */
-.usr-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-  color: var(--aur-text-3);
-}
-.usr-empty p {
-  margin: 0;
-  font-size: var(--aur-fs-body);
-  color: var(--aur-text-2);
 }
 
 /* ── Lista derecha: composición nombre + role-badge dentro del lote-list-item ── */
@@ -87,12 +64,116 @@
   align-self: flex-start;
 }
 
+/* ── Toolbar de búsqueda sobre la lista derecha ───────────────────────────
+   El shell (lote-list-panel/lote-list) no trae buscador; lo agregamos acá
+   replicando el look del search de LoteManagement para mantener simetría
+   cross-domain sin tocar el shell compartido. */
+.usr-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.usr-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid var(--aur-border);
+  border-radius: 6px;
+  color: var(--aur-text-3);
+}
+.usr-search:focus-within { border-color: var(--aurora-green); }
+.usr-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--aur-text);
+  font-size: 0.85rem;
+  outline: none;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.usr-search-input::-webkit-search-cancel-button { display: none; }
+.usr-search-input::placeholder { color: var(--aur-text-3); }
+.usr-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--aur-text-3);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 3px;
+}
+.usr-search-clear:hover {
+  color: var(--aur-text);
+  background: rgba(230, 242, 255, 0.08);
+}
+.usr-list-count {
+  flex-shrink: 0;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  white-space: nowrap;
+}
+
 /* ── Hint del módulos-section dentro del form ────────────────────────────── */
 .usr-modules-hint {
   margin: 0 0 10px 4px;
   color: var(--aur-text-2);
   font-size: var(--aur-fs-footnote);
   line-height: 1.45;
+}
+
+/* Módulo que el rol elegido no alcanza: toggle inerte y label atenuado, para
+   que el admin entienda que existe pero no tiene sentido restringirlo. */
+.usr-module-row--disabled {
+  opacity: 0.5;
+}
+.usr-module-norole {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+  font-style: italic;
+}
+
+/* Bloque derecho del header de "Acceso por módulo": botón Limpiar + contador. */
+.usr-modules-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.usr-modules-clear {
+  font-size: var(--aur-fs-footnote);
+  padding: 0;
+}
+
+/* Banner de borrador recuperado al volver al alta sin haber guardado. */
+.usr-draft-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-border);
+  border-radius: var(--aur-r-card);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+
+/* Flash transitorio de la fila recién guardada (ver setFlashId). */
+@keyframes usr-row-flash {
+  from { background: color-mix(in srgb, var(--aurora-green) 18%, transparent); }
+  to   { background: transparent; }
+}
+.usr-list-item--flash {
+  animation: usr-row-flash 1.5s ease-out;
 }
 
 /* ── Hub: sección "Empleo" ────────────────────────────────────────────────
@@ -180,4 +261,16 @@
 .usr-delete-hint strong {
   color: var(--aur-text);
   font-weight: 600;
+}
+
+/* ── Hit-area táctil de editar/eliminar en el hub ──────────────────────────
+   El primitive .aur-icon-btn mide 30px — por debajo del mínimo táctil (~40px)
+   y con editar/eliminar pegados es fácil tocar el destructivo por error.
+   En mobile agrandamos sólo estos dos botones del hub sin tocar el primitive
+   global. */
+@media (max-width: 768px) {
+  .hub-header-actions .aur-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
 }

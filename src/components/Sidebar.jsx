@@ -191,6 +191,17 @@ export const ALL_ITEMS = [
   ...MODULES.flatMap((m) => m.items.flatMap((item) => item.children ? item.children : [item])),
 ];
 
+// ¿El rol alcanza al menos un item (o sub-item) del módulo? Un módulo es
+// "inalcanzable" para un rol cuando ninguno de sus items pasa hasMinRole — en
+// ese caso restringir el acceso a ese módulo no tiene sentido. Lo usa la
+// pantalla de Gestión de Usuarios para no ofrecer restricciones vacías.
+export const roleCanAccessModule = (mod, rol) =>
+  mod.items.some((item) =>
+    item.children
+      ? item.children.some((c) => hasMinRole(rol, c.minRole))
+      : hasMinRole(rol, item.minRole)
+  );
+
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 export const getPinned  = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_pinned_${uid}`)) || []; } catch { return []; } };
 export const getRecents = (uid) => { try { return JSON.parse(localStorage.getItem(`aurora_recent_${uid}`)) || []; } catch { return []; } };
