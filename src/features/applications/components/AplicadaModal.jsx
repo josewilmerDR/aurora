@@ -4,6 +4,7 @@ import { FaTractor } from 'react-icons/fa';
 import { FiAlertTriangle, FiCheckCircle, FiInfo, FiX } from 'react-icons/fi';
 import AuroraTimePicker from '../../../components/AuroraTimePicker';
 import AuroraField, { TextInput, NumberInput, Select } from '../../../components/AuroraField';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import UserCombo from './UserCombo';
 import { nowTimeStr, CONDICIONES_TIEMPO } from '../lib/cedulas-helpers';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
@@ -66,9 +67,35 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ESC bloqueado durante submit (mismo gate que el backdrop) para evitar
-  // que el usuario cierre el modal mientras la mutación está en vuelo.
-  useEscapeClose(submitting ? null : onClose); // Punto #28 audit.
+  // Dirty-guard: si el usuario tocó cualquier campo y luego cierra el
+  // modal (backdrop / ESC / X / Cancelar), pedimos confirmación. Sin esto
+  // los 10+ campos llenados a mano (operario, encargados, horas, condiciones,
+  // observaciones) se perdían silenciosamente — la acción regulatoria más
+  // crítica del dominio sin protección. Mismo patrón que CedulaNuevaModal,
+  // pero acá usamos un touched flag en vez de comparación con snapshot
+  // porque el seed automático de temperatura/humedad desde geolocation
+  // cambiaría los valores sin acción del usuario y dispararía un falso
+  // positivo. El touched solo se setea desde onChange explícitos del usuario.
+  const [touched, setTouched] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const markTouched = () => { if (!touched) setTouched(true); };
+  const handleCloseRequest = () => {
+    if (submitting) return;
+    if (touched) {
+      setDiscardConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+  const handleDiscardConfirm = () => {
+    setDiscardConfirmOpen(false);
+    onClose();
+  };
+  const handleDiscardCancel = () => setDiscardConfirmOpen(false);
+
+  // ESC bloqueado durante submit Y mientras el confirm de descarte está
+  // abierto (AuroraConfirmModal tiene su propia ESC y no queremos cascada).
+  useEscapeClose(submitting || discardConfirmOpen ? null : handleCloseRequest); // Punto #28 audit.
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -219,7 +246,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
   };
 
   return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={submitting ? undefined : onClose}>
+    <div className="aur-modal-backdrop" onPointerDown={submitting || discardConfirmOpen ? undefined : handleCloseRequest}>
       <div className="aur-modal aur-modal--lg" onPointerDown={e => e.stopPropagation()}>
         <div className="aur-modal-header">
           <span className="aur-modal-icon">
@@ -233,7 +260,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
           <button
             type="button"
             className="aur-icon-btn aur-modal-close"
-            onClick={onClose}
+            onClick={handleCloseRequest}
             disabled={submitting}
             aria-label="Cerrar"
           >
@@ -256,7 +283,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 <input
                   type="checkbox"
                   checked={sobrante}
-                  onChange={e => setSobrante(e.target.checked)}
+                  onChange={e => { markTouched(); setSobrante(e.target.checked); }}
                 />
                 <span className="aur-toggle-track">
                   <span className="aur-toggle-thumb" />
@@ -269,7 +296,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
               <AuroraField layout="row" htmlFor="apl-sobrante-lote" label="Lote del sobrante">
                 <Select
                   value={sobranteLoteId}
-                  onChange={e => setSobranteLoteId(e.target.value)}
+                  onChange={e => { markTouched(); setSobranteLoteId(e.target.value); }}
                 >
                   <option value="">— Seleccionar lote —</option>
                   {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
@@ -280,7 +307,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
             <AuroraField layout="row" htmlFor="apl-tiempo" label="Condiciones del tiempo">
               <Select
                 value={condicionesTiempo}
-                onChange={e => setCondicionesTiempo(e.target.value)}
+                onChange={e => { markTouched(); setCondicionesTiempo(e.target.value); }}
               >
                 <option value="">— Seleccionar —</option>
                 {CONDICIONES_TIEMPO.map(c => <option key={c} value={c}>{c}</option>)}
@@ -306,6 +333,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 max="70"
                 value={temperatura}
                 onChange={e => {
+                  markTouched();
                   setTemperatura(e.target.value);
                   if (tempError) setTempError('');
                 }}
@@ -326,6 +354,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 max="100"
                 value={humedadRelativa}
                 onChange={e => {
+                  markTouched();
                   setHumedadRelativa(e.target.value);
                   if (humError) setHumError('');
                 }}
@@ -339,7 +368,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
               <AuroraTimePicker
                 id="apl-h-inicio"
                 value={horaInicio}
-                onChange={setHoraInicio}
+                onChange={(v) => { markTouched(); setHoraInicio(v); }}
               />
             </div>
 
@@ -349,7 +378,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 <AuroraTimePicker
                   id="apl-h-fin"
                   value={horaFinal}
-                  onChange={setHoraFinal}
+                  onChange={(v) => { markTouched(); setHoraFinal(v); }}
                   min={horaInicio || undefined}
                   hasError={!!horaInicio && !!horaFinal && horaFinal <= horaInicio}
                 />
@@ -366,7 +395,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 value={operario}
                 userId={operarioUserId}
                 users={users}
-                onChange={(name, uid) => { setOperario(name); setOperarioUserId(uid); }}
+                onChange={(name, uid) => { markTouched(); setOperario(name); setOperarioUserId(uid); }}
                 placeholder="Nombre del operario"
               />
             </div>
@@ -375,7 +404,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
               <TextInput
                 maxLength={200}
                 value={metodoAplicacion}
-                onChange={e => setMetodoAplicacion(e.target.value)}
+                onChange={e => { markTouched(); setMetodoAplicacion(e.target.value); }}
                 placeholder="Ej. Spray Boom, Drench…"
               />
             </AuroraField>
@@ -387,7 +416,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 value={encargadoFinca}
                 userId={encargadoFincaUserId}
                 users={users}
-                onChange={(name, uid) => { setEncargadoFinca(name); setEncargadoFincaUserId(uid); }}
+                onChange={(name, uid) => { markTouched(); setEncargadoFinca(name); setEncargadoFincaUserId(uid); }}
                 placeholder="Nombre del encargado de finca"
               />
             </div>
@@ -399,7 +428,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 value={encargadoBodega}
                 userId={encargadoBodegaUserId}
                 users={users}
-                onChange={(name, uid) => { setEncargadoBodega(name); setEncargadoBodegaUserId(uid); }}
+                onChange={(name, uid) => { markTouched(); setEncargadoBodega(name); setEncargadoBodegaUserId(uid); }}
                 placeholder="Nombre del encargado de bodega"
               />
             </div>
@@ -411,7 +440,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 value={supAplicaciones}
                 userId={supAplicacionesUserId}
                 users={users}
-                onChange={(name, uid) => { setSupAplicaciones(name); setSupAplicacionesUserId(uid); }}
+                onChange={(name, uid) => { markTouched(); setSupAplicaciones(name); setSupAplicacionesUserId(uid); }}
                 placeholder="Nombre del supervisor o regente"
               />
             </div>
@@ -431,7 +460,7 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
                 id="apl-obs"
                 className="aur-textarea"
                 value={observacionesAplicacion}
-                onChange={e => setObservacionesAplicacion(e.target.value.slice(0, 500))}
+                onChange={e => { markTouched(); setObservacionesAplicacion(e.target.value.slice(0, 500)); }}
                 rows={3}
                 placeholder="Ej. viento inesperado en el último bloque, se pausó 15 min. Novedades, incidentes, o cualquier detalle relevante para el auditor."
               />
@@ -440,12 +469,24 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
         </div>
 
         <div className="aur-modal-actions">
-          <button type="button" className="aur-btn-text" onClick={onClose} disabled={submitting}>Cancelar</button>
+          <button type="button" className="aur-btn-text" onClick={handleCloseRequest} disabled={submitting}>Cancelar</button>
           <button type="button" className="aur-btn-pill" onClick={handleConfirm} disabled={submitting}>
             <FiCheckCircle size={14} /> {submitting ? 'Registrando…' : 'Confirmar'}
           </button>
         </div>
       </div>
+
+      {discardConfirmOpen && (
+        <AuroraConfirmModal
+          title="¿Descartar los datos ingresados?"
+          body="Si cierras ahora, se perderán los campos completados (operario, encargados, horas, condiciones, observaciones). Esta cédula sigue en tránsito y podés volver a registrar la aplicación más tarde."
+          confirmLabel="Descartar"
+          cancelLabel="Seguir editando"
+          danger
+          onConfirm={handleDiscardConfirm}
+          onCancel={handleDiscardCancel}
+        />
+      )}
     </div>,
     document.body
   );

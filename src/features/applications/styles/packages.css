@@ -354,50 +354,11 @@
 }
 
 /* ── Búsqueda inline en el panel de lista ─────────────────────────────────── */
-.pkg-list-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+/* Base del search vive como primitiva .aur-list-search en aurora.css.
+   Packages usa margin-bottom 10px (12px default) porque el list panel tiene
+   spacing más compacto que cédulas/historial. */
+.lote-list-panel .aur-list-search {
   margin-bottom: 10px;
-  background: rgba(230, 242, 255, 0.04);
-  border: 1px solid var(--aur-divider, var(--aurora-border));
-  border-radius: 6px;
-  color: var(--aur-text-3, #6b819b);
-}
-.pkg-list-search:focus-within {
-  border-color: var(--aurora-green);
-}
-.pkg-list-search-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--aurora-light);
-  font-size: 0.85rem;
-  outline: none;
-  padding: 0;
-  /* Anula el "X" nativo de Safari/Chrome para no duplicar nuestro botón */
-  -webkit-appearance: none;
-  appearance: none;
-}
-.pkg-list-search-input::-webkit-search-cancel-button { display: none; }
-.pkg-list-search-input::placeholder {
-  color: var(--aur-text-3, #6b819b);
-}
-.pkg-list-search-clear {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--aur-text-3, #6b819b);
-  display: inline-flex;
-  align-items: center;
-  padding: 2px;
-  border-radius: 3px;
-}
-.pkg-list-search-clear:hover {
-  color: var(--aurora-light);
-  background: rgba(230, 242, 255, 0.08);
 }
 .pkg-list-clear-link {
   display: inline;

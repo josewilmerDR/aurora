@@ -972,11 +972,11 @@ function PackageManagement() {
       {(packages.length > 0 || !isFormOpen) && (
         <div className="lote-list-panel">
           {packages.length > 0 && (
-            <div className="pkg-list-search">
+            <div className="aur-list-search">
               <FiSearch size={13} aria-hidden="true" />
               <input
                 type="search"
-                className="pkg-list-search-input"
+                className="aur-list-search-input"
                 placeholder="Buscar paquete por nombre…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
@@ -985,7 +985,7 @@ function PackageManagement() {
               {searchQuery && (
                 <button
                   type="button"
-                  className="pkg-list-search-clear"
+                  className="aur-list-search-clear"
                   onClick={() => setSearchQuery('')}
                   aria-label="Limpiar búsqueda"
                 >

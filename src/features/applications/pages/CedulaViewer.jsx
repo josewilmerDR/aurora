@@ -7,7 +7,8 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { translateApiError } from '../../../lib/errorMessages';
-import { tsToDate } from '../lib/cedulas-helpers';
+import { tsToDate, getCedulaStatusMeta } from '../lib/cedulas-helpers';
+import { generateAndShareCedulaPdf } from '../lib/cedula-pdf';
 import CedulaDocumento from '../components/CedulaDocumento';
 import CedulaFlowAction from '../components/CedulaFlowAction';
 import MezclaListaModal from '../components/MezclaListaModal';
@@ -21,19 +22,18 @@ import '../styles/cedula-viewer.css';
 // hardcodeaba "Aplicada" en verde — el rótulo mentía cuando el viewer se
 // llegaba por deep-link sobre una cédula pendiente / en tránsito / anulada,
 // engañando al regente en una decisión regulatoria. Punto #1 audit.
+// Label + badgeClass desde getCedulaStatusMeta (single source of truth
+// compartido con cards e historial). El ícono check vive acá porque solo
+// el viewer lo necesita — el listing usa badges sin ícono.
 function StatusBadge({ status }) {
-  switch (status) {
-    case 'aplicada_en_campo':
-      return <span className="aur-badge aur-badge--green"><FiCheckCircle size={11} /> Aplicada</span>;
-    case 'en_transito':
-      return <span className="aur-badge aur-badge--blue">En Tránsito</span>;
-    case 'pendiente':
-      return <span className="aur-badge aur-badge--yellow">Pendiente</span>;
-    case 'anulada':
-      return <span className="aur-badge aur-badge--magenta">Anulada</span>;
-    default:
-      return null;
-  }
+  if (!status) return null;
+  const sb = getCedulaStatusMeta(status);
+  return (
+    <span className={`aur-badge ${sb.badgeClass}`}>
+      {status === 'aplicada_en_campo' && <FiCheckCircle size={11} />}
+      {' '}{sb.label}
+    </span>
+  );
 }
 
 export default function CedulaViewer() {
@@ -322,63 +322,21 @@ export default function CedulaViewer() {
   };
 
   // ── PDF share ────────────────────────────────────────────────────────────
-  // Endurecido respecto a la versión original (puntos #8-#11 audit):
-  //   #8 toast en falla — antes el catch hacía solo console.error y el
-  //      botón se veía muerto (causas frecuentes: html2canvas tropieza con
-  //      CORS del logo externo, jsPDF revienta en mobile viejo, dynamic
-  //      import bloqueado offline).
-  //   #9 guard contra re-entrancia — sin esto un doble-tap en mobile
-  //      dispara dos PDFs y dos share-sheets en paralelo.
-  //   #10 sanitize del filename — un consecutivo con `/` o `:` se
-  //       interpretaba como subdir en algunos sistemas.
-  //   #11 revoke del object URL inmediato — antes setTimeout(1000) y en
-  //       mobile con CPU lenta el revoke pisaba el download a medio.
+  // Lógica de render → PDF → share vive en lib/cedula-pdf.js (compartido con
+  // CedulasAplicacion). Acá solo: guard contra re-entrancia (sharing flag,
+  // punto #9 audit — un doble-tap en mobile dispara dos PDFs en paralelo) y
+  // toast en falla (no console.error: L7 audit — los failure modes
+  // (html2canvas+CORS, jsPDF mobile viejo, import offline) ya son visibles
+  // abriendo devtools en el intento de reproducción).
   const handleShare = async () => {
     if (sharing || !docRef.current || !cedula) return;
     setSharing(true);
     try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const canvas  = await html2canvas(docRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW   = pdf.internal.pageSize.getWidth();
-      const pageH   = pdf.internal.pageSize.getHeight();
-      const imgH    = (canvas.height * pageW) / canvas.width;
-      let y = 0;
-      while (y < imgH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
-        y += pageH;
-      }
-      // Sanitizar: el consecutivo (texto del backend) puede traer `/`, `:`
-      // o caracteres no-ASCII que algunos OS interpretan como path
-      // separators o reemplazan silenciosamente. Mismo regex que el
-      // handleShare del listing.
-      const raw  = cedula.consecutivo || cedula.id || 'cedula';
-      const safe = String(raw).replace(/[^\w\s-]/g, '_').replace(/\s+/g, '_').slice(0, 64);
-      const filename = `Cedula-${safe}.pdf`;
-      const blob = pdf.output('blob');
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.canShare?.({ files: [file] })) {
-        // navigator.share rechaza con AbortError cuando el usuario cancela
-        // la hoja nativa — esa rama no es un error, no notificar.
-        try { await navigator.share({ files: [file], title: filename }); } catch {}
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
-        // Revoke inmediato: el browser ya capturó la ref del blob al .click().
-        URL.revokeObjectURL(url);
-      }
+      await generateAndShareCedulaPdf({
+        node: docRef.current,
+        filenameRaw: cedula.consecutivo || cedula.id,
+      });
     } catch {
-      // No logueamos el error object: toast comunica el fallo al usuario y
-      // el stack en consola del navegador no aporta diagnóstico accionable
-      // (los failure modes son html2canvas + CORS / jsPDF + mobile viejo /
-      // dynamic import offline — todos visibles abriendo devtools en el
-      // intento de reproducción). L7 audit.
       toast.error('No se pudo generar el PDF. Probá Imprimir desde el navegador.');
     } finally {
       setSharing(false);

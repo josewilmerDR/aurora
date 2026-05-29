@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FiX, FiCheckCircle, FiTrash2, FiPlusCircle, FiAlertTriangle, FiInfo, FiEdit2 } from 'react-icons/fi';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 
 const MAX_NOMBRE_LEN = 48;
 const MAX_OBS_LEN = 288;
@@ -104,9 +105,28 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   // rápido podría disparar onConfirm dos veces antes del primer re-render.
   const submittingRef = useRef(false);
 
-  // ESC cierra el modal. Bloqueado durante submit (mismo gate que el
-  // backdrop onPointerDown). Punto #28 audit.
-  useEscapeClose(submitting ? null : onClose);
+  // Dirty-guard: touched flag se setea desde onChange explícitos del usuario.
+  // Si toca cualquier campo (nombre, toggle cambios, producto, dosis, motivo,
+  // remover/agregar fila, observaciones) y luego cierra (backdrop/ESC/X/Cancelar),
+  // pedimos confirmación. Sin esto las ediciones en flight se perdían
+  // silenciosamente. Mismo patrón que AplicadaModal y CedulaNuevaModal.
+  const [touched, setTouched] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const markTouched = () => { if (!touched) setTouched(true); };
+  const handleCloseRequest = () => {
+    if (submitting) return;
+    if (touched) {
+      setDiscardConfirmOpen(true);
+    } else {
+      onClose();
+    }
+  };
+  const handleDiscardConfirm = () => { setDiscardConfirmOpen(false); onClose(); };
+  const handleDiscardCancel = () => setDiscardConfirmOpen(false);
+
+  // ESC cierra el modal. Bloqueado durante submit Y mientras el confirm de
+  // descarte está abierto (AuroraConfirmModal tiene su propia ESC). Punto #28 audit.
+  useEscapeClose(submitting || discardConfirmOpen ? null : handleCloseRequest);
 
   const catalogoMap = useMemo(() => {
     const m = {};
@@ -115,6 +135,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   }, [productos]);
 
   const updateRow = (idx, patch) => {
+    markTouched();
     setProductosEdit(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
   };
 
@@ -129,11 +150,13 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   };
 
   const removeRow = (idx) => {
+    markTouched();
     setProductosEdit(prev => prev.filter((_, i) => i !== idx));
   };
 
   const addRow = () => {
     if (productosEdit.length >= MAX_PRODUCTOS) return;
+    markTouched();
     setProductosEdit(prev => [...prev, {
       productoId: '',
       nombreComercial: '',
@@ -238,7 +261,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
   };
 
   return createPortal(
-    <div className="aur-modal-backdrop" onPointerDown={submitting ? undefined : onClose}>
+    <div className="aur-modal-backdrop" onPointerDown={submitting || discardConfirmOpen ? undefined : handleCloseRequest}>
       <div className="aur-modal aur-modal--lg mla-modal" onPointerDown={e => e.stopPropagation()}>
 
         <div className="aur-modal-header">
@@ -254,7 +277,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
           <button
             type="button"
             className="aur-icon-btn aur-modal-close"
-            onClick={onClose}
+            onClick={handleCloseRequest}
             disabled={submitting}
             aria-label="Cerrar"
           >
@@ -289,7 +312,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                 type="text"
                 className="aur-input"
                 value={nombre}
-                onChange={e => setNombre(e.target.value.slice(0, MAX_NOMBRE_LEN))}
+                onChange={e => { markTouched(); setNombre(e.target.value.slice(0, MAX_NOMBRE_LEN)); }}
                 maxLength={MAX_NOMBRE_LEN}
                 placeholder="Nombre"
                 autoComplete="off"
@@ -303,7 +326,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
                   <input
                     type="checkbox"
                     checked={hayCambios}
-                    onChange={e => setHayCambios(e.target.checked)}
+                    onChange={e => { markTouched(); setHayCambios(e.target.checked); }}
                   />
                   <span className="aur-toggle-track">
                     <span className="aur-toggle-thumb" />
@@ -431,7 +454,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
               id="mla-obs"
               className="aur-textarea"
               value={observaciones}
-              onChange={e => setObservaciones(e.target.value.slice(0, MAX_OBS_LEN))}
+              onChange={e => { markTouched(); setObservaciones(e.target.value.slice(0, MAX_OBS_LEN)); }}
               maxLength={MAX_OBS_LEN}
               rows={3}
               placeholder="Ej. Producto X agotado en bodega, se sustituyó por Y. Dosis aumentada por alta población de plaga."
@@ -443,7 +466,7 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
           <button
             type="button"
             className="aur-btn-text"
-            onClick={onClose}
+            onClick={handleCloseRequest}
             disabled={submitting}
           >
             Cancelar
@@ -461,6 +484,18 @@ function MezclaListaModal({ mode = 'mezcla-lista', cedula, task, productos, curr
           </button>
         </div>
       </div>
+
+      {discardConfirmOpen && (
+        <AuroraConfirmModal
+          title="¿Descartar los cambios?"
+          body="Si cierras ahora, se perderán las ediciones de productos, dosis u observaciones que aún no se confirmaron."
+          confirmLabel="Descartar"
+          cancelLabel="Seguir editando"
+          danger
+          onConfirm={handleDiscardConfirm}
+          onCancel={handleDiscardCancel}
+        />
+      )}
     </div>,
     document.body
   );
