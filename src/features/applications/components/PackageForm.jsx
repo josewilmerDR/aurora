@@ -71,6 +71,7 @@ export default function PackageForm({
   calibraciones,
   plantillas,
   eligibleResponsables,
+  currentUserId,
   apiFetch,
   onSave,
   onCancel,
@@ -145,9 +146,12 @@ export default function PackageForm({
       tecnicoResponsable: formData.tecnicoResponsable,
       activities: formData.activities,
     };
-    if (isPackageDraftMeaningful(snapshot)) savePackageDraft(snapshot);
-    else clearPackageDraft();
-  }, [formData]);
+    // uid scopea la key de datos en localStorage (audit seguridad): el draft
+    // no debe cruzar entre usuarios en un dispositivo compartido. Mismo uid que
+    // usa el padre para restaurar/limpiar.
+    if (isPackageDraftMeaningful(snapshot)) savePackageDraft(snapshot, currentUserId);
+    else clearPackageDraft(currentUserId);
+  }, [formData, currentUserId]);
 
   // ── Atajo Ctrl/Cmd + S → enviar el form ────────────────────────────────────
   useEffect(() => {

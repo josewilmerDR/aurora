@@ -82,7 +82,15 @@ export default function AplicadaModal({ lotes, users, currentUser, prefill, onCl
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude, longitude } }) => {
         try {
-          const r = await apiFetch(`/api/weather/current?lat=${latitude}&lon=${longitude}`);
+          // Minimización de datos (audit seguridad): redondeamos a 2 decimales
+          // (~1.1 km) antes de que las coordenadas salgan del dispositivo. El
+          // seed de temperatura/humedad no necesita precisión de metros, y la
+          // ubicación exacta del operario no debe quedar en los logs de acceso
+          // (la query string se registra) ni viajar a Open-Meteo. La precisión
+          // de finca/lote es más que suficiente para el clima local.
+          const lat = latitude.toFixed(2);
+          const lon = longitude.toFixed(2);
+          const r = await apiFetch(`/api/weather/current?lat=${lat}&lon=${lon}`);
           if (!r.ok) throw new Error('weather fetch failed');
           const d = await r.json();
           if (cancelled) return;

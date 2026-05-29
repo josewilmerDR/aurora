@@ -266,9 +266,9 @@ function PackageManagement() {
   // con id se reabre como edición del paquete; sin id, como nuevo paquete.
   // El form gestiona su propio estado a partir de `formInitialData`.
   useEffect(() => {
-    const draft = loadPackageDraft();
+    const draft = loadPackageDraft(currentUser?.id);
     if (!isPackageDraftMeaningful(draft)) {
-      clearPackageDraft();
+      clearPackageDraft(currentUser?.id);
       return;
     }
     const activities = Array.isArray(draft.activities) ? draft.activities : [];
@@ -285,7 +285,10 @@ function PackageManagement() {
     setIsFormOpen(true);
     setSelectedPkg(null);
     setRestoredFromDraft(true);
-  }, []);
+    // currentUser?.id en deps: el draft está scopeado por usuario, así que un
+    // cambio de usuario/finca debe releer el slot correcto. RoleRoute ya
+    // garantiza currentUser resuelto antes del primer render de la página.
+  }, [currentUser?.id]);
 
   // Effects de autoguardado, atajo Ctrl+S, y handlers de edición/validación/
   // submit viven ahora en <PackageForm> (Fase F del refactor).
@@ -315,7 +318,7 @@ function PackageManagement() {
     setFormInitialData(null);
     setRestoredFromDraft(false);
     setFormIsDirty(false);
-    clearPackageDraft();
+    clearPackageDraft(currentUser?.id);
   };
 
   // Abre el form en modo crear con una actividad vacía pre-cargada.
@@ -626,7 +629,7 @@ function PackageManagement() {
             // Descartar es intención explícita: tirar el borrador. Necesario
             // sobre todo cuando `action` es handleSelectPkg → cierra el form
             // hacia la vista hub, donde el effect de autoguardado no corre.
-            clearPackageDraft();
+            clearPackageDraft(currentUser?.id);
             action();
           }}
           onCancel={() => setPendingNavAction(null)}
@@ -933,6 +936,7 @@ function PackageManagement() {
           calibraciones={calibraciones}
           plantillas={plantillas}
           eligibleResponsables={eligibleResponsables}
+          currentUserId={currentUser?.id}
           apiFetch={apiFetch}
           onSave={handleSavePackage}
           onCancel={() => guardedNav(resetForm)}

@@ -91,7 +91,13 @@ router.post('/api/task-templates', authenticate, requireEncargado, async (req, r
   }
 });
 
-router.delete('/api/task-templates/:id', authenticate, async (req, res) => {
+// requireEncargado: borrar una plantilla es escritura del catálogo y debe
+// igualar el gate del POST. El GET queda abierto a authenticate porque los
+// trabajadores aplican plantillas al crear tareas (POST /api/tasks no exige
+// rol); pero crear/eliminar el catálogo es encargado+. Sin este gate un
+// trabajador podía borrar plantillas de su finca que no puede crear.
+// verifyOwnership debajo mantiene el aislamiento por finca.
+router.delete('/api/task-templates/:id', authenticate, requireEncargado, async (req, res) => {
   try {
     const ownership = await verifyOwnership('task_templates', req.params.id, req.fincaId);
     if (!ownership.ok) {
@@ -154,7 +160,12 @@ function validateCedulaTemplatePayload(body) {
   return null;
 }
 
-router.get('/api/cedula-templates', authenticate, async (req, res) => {
+// requireEncargado: simetría con el POST/DELETE de cedula-templates. A
+// diferencia de task-templates (que trabajadores leen al crear tareas), el
+// único consumidor de este GET es el flujo de creación de cédulas, gateado a
+// encargado+ en la ruta /aplicaciones/cedulas — no hay consumidor de menor
+// rol, así que el gate es consistencia sin cambio de comportamiento.
+router.get('/api/cedula-templates', authenticate, requireEncargado, async (req, res) => {
   try {
     const snapshot = await db.collection('cedula_templates')
       .where('fincaId', '==', req.fincaId).get();
