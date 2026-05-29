@@ -1,71 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiEdit2, FiSave, FiX, FiBarChart2, FiInfo, FiAlertTriangle } from 'react-icons/fi';
+import { FiEdit2, FiSave, FiX, FiInfo, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import {
+  SECTIONS, ALL_PARAMS, DEFAULTS,
+  fromApi, formatValue, getInvalidParams, hasUnsavedChanges, changedKeys,
+} from '../lib/parameters';
 import '../styles/parameters.css';
-
-// ── Parameter definitions ────────────────────────────────────────────────────
-const SECTIONS = [
-  {
-    title: 'Tiempos de Cosecha',
-    // Estos días sólo alimentan el cálculo de fechas estimadas en las cédulas
-    // (cedulas-helpers / field-records). Las proyecciones por grupo usan los
-    // días de desarrollo de Ajustes de cuenta, por eso lo aclaramos en la UI.
-    note: 'Estos días alimentan las fechas estimadas de cosecha en las cédulas. Las proyecciones por grupo usan los días de desarrollo configurados en Ajustes de cuenta.',
-    params: [
-      { key: 'diasSiembraICosecha', label: 'Días desde siembra hasta I Cosecha', unit: 'días', default: 400, min: 1, step: 1 },
-      { key: 'diasForzaICosecha',   label: 'Días desde forza hasta I Cosecha',   unit: 'días', default: 150, min: 1, step: 1 },
-      // default alineado con el fallback real del cálculo (cedulas-helpers.js,
-      // field-records/{apply,create}.js usan 215). Antes la UI mostraba 365 y
-      // el cálculo usaba 215 → el admin leía un número y el sistema usaba otro.
-      { key: 'diasChapeaIICosecha',  label: 'Días desde chapea hasta II Cosecha',  unit: 'días', default: 215, min: 1, step: 1 },
-      { key: 'diasForzaIICosecha',   label: 'Días desde forza hasta II Cosecha',   unit: 'días', default: 150, min: 1, step: 1 },
-      // Nota: las cosechas III+ (caña hasta 5, piña extendida tras valoración)
-      // todavía no tienen consumo en los cálculos de cédulas/proyección, así que
-      // no exponemos días editables que no moverían nada. Reintroducir cuando
-      // exista el modelo multi-cosecha robusto.
-    ],
-  },
-  {
-    title: 'Producción',
-    params: [
-      { key: 'plantasPorHa',    label: 'Plantas por Ha.',              unit: 'plantas', default: 65000,  min: 1,   step: 1    },
-      { key: 'kgPorCaja',        label: 'Kg/Caja',                             unit: 'kg', default: 12,  min: 0, step: 0.1  },
-      { key: 'kgPorPlanta',      label: 'Kg estimados por planta - I Cosecha',  unit: 'kg', default: 1.8, min: 0, step: 0.01 },
-      { key: 'kgPorPlantaII',   label: 'Kg estimados por planta - II Cosecha', unit: 'kg', default: 1.6, min: 0, step: 0.01 },
-      { key: 'kgPorPlantaIII',  label: 'Kg estimados por planta - III Cosecha',unit: 'kg', default: 1.5, min: 0, step: 0.01 },
-      { key: 'rechazoICosecha',       label: 'Rechazo estimado — I Cosecha',        unit: '%', default: 10, min: 0, step: 0.1 },
-      { key: 'rechazoIICosecha',      label: 'Rechazo estimado — II Cosecha',       unit: '%', default: 20, min: 0, step: 0.1 },
-      { key: 'rechazoIIICosecha',     label: 'Rechazo estimado — III Cosecha',      unit: '%', default: 20, min: 0, step: 0.1 },
-      { key: 'mortalidadICosecha',    label: 'Mortalidad en primera cosecha',       unit: '%', default: 2,  min: 0, step: 0.1 },
-      { key: 'mortalidadIICosecha',   label: 'Mortalidad en segunda cosecha',       unit: '%', default: 10, min: 0, step: 0.1 },
-      { key: 'mortalidadIIICosecha',  label: 'Mortalidad en tercera cosecha',       unit: '%', default: 20, min: 0, step: 0.1 },
-    ],
-  },
-];
-
-const ALL_PARAMS = SECTIONS.flatMap(s => s.params);
-const DEFAULTS   = Object.fromEntries(ALL_PARAMS.map(p => [p.key, p.default]));
-
-function fromApi(data) {
-  return Object.fromEntries(ALL_PARAMS.map(p => [p.key, data[p.key] ?? p.default]));
-}
-
-// Devuelve los params cuyo valor en el draft es inválido: vacío, no numérico o
-// por debajo del mínimo. El backend hace Number() y convertiría '' en 0, así
-// que validamos en cliente antes de guardar para no envenenar las proyecciones.
-function getInvalidParams(draft) {
-  return ALL_PARAMS.filter(p => {
-    const raw = draft[p.key];
-    if (raw === '' || raw === null || raw === undefined) return true;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return true;
-    if (p.min != null && n < p.min) return true;
-    return false;
-  });
-}
 
 // ── Unlock confirmation modal ─────────────────────────────────────────────────
 function UnlockModal({ onConfirm, onCancel }) {
@@ -107,11 +50,13 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
     <AuroraConfirmModal
       title="Confirmar cambios"
       icon={<FiSave size={16} />}
+      iconVariant="neutral"
       size="wide"
       body={changes.length === 0
         ? 'No hay cambios respecto a los valores actuales.'
         : 'Se guardarán los siguientes cambios:'}
       confirmLabel="Guardar"
+      confirmDisabled={changes.length === 0}
       loading={loading}
       loadingLabel="Guardando..."
       onConfirm={onConfirm}
@@ -127,8 +72,8 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
               {changes.map(p => (
                 <tr key={p.key}>
                   <td>{p.label}</td>
-                  <td className="param-diff-old">{saved[p.key]} {p.unit}</td>
-                  <td className="param-diff-new aur-td-strong">{draft[p.key]} {p.unit}</td>
+                  <td className="param-diff-old">{formatValue(saved[p.key])} {p.unit}</td>
+                  <td className="param-diff-new aur-td-strong">{formatValue(draft[p.key])} {p.unit}</td>
                 </tr>
               ))}
             </tbody>
@@ -142,31 +87,55 @@ function SaveModal({ saved, draft, loading, onConfirm, onCancel }) {
 // ── Main page ────────────────────────────────────────────────────────────────
 function Parameters() {
   const apiFetch = useApiFetch();
-  const [saved,       setSaved]       = useState(DEFAULTS);
-  const [draft,       setDraft]       = useState(DEFAULTS);
-  const [editMode,    setEditMode]    = useState(false);
-  const [modal,       setModal]       = useState(null); // 'unlock' | 'save'
-  const [loading,     setLoading]     = useState(true);  // carga inicial
-  const [loadError,   setLoadError]   = useState(false);
-  const [saving,      setSaving]      = useState(false);  // guardado en curso
-  const [invalidKeys, setInvalidKeys] = useState([]);
-  const [toast,       setToast]       = useState(null);
+  const [saved,         setSaved]         = useState(DEFAULTS);
+  const [draft,         setDraft]         = useState(DEFAULTS);
+  const [editMode,      setEditMode]      = useState(false);
+  const [modal,         setModal]         = useState(null); // 'unlock' | 'save'
+  const [loading,       setLoading]       = useState(true);  // carga inicial
+  const [loadError,     setLoadError]     = useState(false);
+  const [saving,        setSaving]        = useState(false);  // guardado en curso
+  const [invalidKeys,   setInvalidKeys]   = useState([]);
+  const [highlightKeys, setHighlightKeys] = useState([]);     // filas recién guardadas
+  const [toast,         setToast]         = useState(null);
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  const loadConfig = useCallback(() => {
+  const loadConfig = useCallback((signal) => {
     setLoading(true);
     setLoadError(false);
-    return apiFetch('/api/config')
+    return apiFetch('/api/config', signal ? { signal } : undefined)
       .then(r => { if (!r.ok) throw new Error('config load failed'); return r.json(); })
       .then(data => { const vals = fromApi(data); setSaved(vals); setDraft(vals); })
-      .catch(() => {
+      .catch((err) => {
+        if (err?.name === 'AbortError') return; // desmontado / refetch: ignorar
         setLoadError(true);
         showToast('Error al cargar los parámetros.', 'error');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!signal?.aborted) setLoading(false); });
   }, [apiFetch]);
 
-  useEffect(() => { loadConfig(); }, [loadConfig]);
+  // Carga inicial; aborta en desmontaje para no setear estado sobre un
+  // componente muerto (y maneja el doble-render de StrictMode sin warning).
+  useEffect(() => {
+    const ctrl = new AbortController();
+    loadConfig(ctrl.signal);
+    return () => ctrl.abort();
+  }, [loadConfig]);
+
+  // Aviso del navegador si se intenta cerrar/recargar con cambios sin guardar.
+  const dirty = editMode && hasUnsavedChanges(saved, draft);
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  // Limpia el highlight de filas guardadas tras unos segundos.
+  useEffect(() => {
+    if (highlightKeys.length === 0) return;
+    const t = setTimeout(() => setHighlightKeys([]), 2500);
+    return () => clearTimeout(t);
+  }, [highlightKeys]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -214,6 +183,7 @@ function Parameters() {
       });
       if (!res.ok) throw new Error();
       const updated = fromApi(await res.json());
+      setHighlightKeys(changedKeys(saved, updated));
       setSaved(updated);
       setDraft(updated);
       setEditMode(false);
@@ -238,7 +208,7 @@ function Parameters() {
           <div className="aur-sheet-header-text">
             <h2 className="aur-sheet-title">Parámetros del sistema</h2>
             <p className="aur-sheet-subtitle">
-              Valores de referencia que alimentan los cálculos de cosecha, Kg estimados y KPIs en toda la plataforma.
+              Valores de referencia para las proyecciones de cosecha y costos de toda la plataforma.
             </p>
           </div>
           {!loading && !loadError && (
@@ -269,29 +239,17 @@ function Parameters() {
             title="No se pudieron cargar los parámetros"
             subtitle="Revisá tu conexión o tus permisos e intentá de nuevo."
             action={(
-              <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={loadConfig}>
+              <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => loadConfig()}>
                 Reintentar
               </button>
             )}
           />
         ) : (
           <>
-            <section className="aur-section">
-              <div className="aur-section-header">
-                <h3>KPI</h3>
-              </div>
-              <div className="aur-list">
-                <div className="aur-row">
-                  <span className="aur-row-label"><FiBarChart2 size={13} /> Indicadores</span>
-                  <span className="param-kpi-placeholder">Próximamente — indicadores clave de rendimiento.</span>
-                </div>
-              </div>
-            </section>
-
             {SECTIONS.map((section, sIdx) => (
               <section key={section.title} className="aur-section">
                 <div className="aur-section-header">
-                  <span className="aur-section-num">{String(sIdx + 2).padStart(2, '0')}</span>
+                  <span className="aur-section-num">{String(sIdx + 1).padStart(2, '0')}</span>
                   <h3>{section.title}</h3>
                   <span className="aur-section-count">{section.params.length}</span>
                 </div>
@@ -304,14 +262,18 @@ function Parameters() {
                 <div className="aur-list">
                   {section.params.map(p => {
                     const isInvalid = invalidKeys.includes(p.key);
+                    const isHighlighted = highlightKeys.includes(p.key);
+                    const inputId = `param-${p.key}`;
                     return (
-                      <div key={p.key} className="aur-row">
-                        <span className="aur-row-label">{p.label}</span>
+                      <div key={p.key} className={`aur-row${isHighlighted ? ' param-row--saved' : ''}`}>
+                        <label className="aur-row-label" htmlFor={inputId}>{p.label}</label>
                         {editMode ? (
                           <input
+                            id={inputId}
                             className={`aur-input aur-input--num${isInvalid ? ' aur-input--error' : ''}`}
                             type="number"
                             min={p.min}
+                            max={p.max}
                             step={p.step}
                             name={p.key}
                             value={draft[p.key]}
@@ -320,7 +282,7 @@ function Parameters() {
                           />
                         ) : (
                           <span className="param-row-value">
-                            <span className="param-row-num">{saved[p.key]}</span>
+                            <span className="param-row-num">{formatValue(saved[p.key])}</span>
                             <span className="param-row-unit">{p.unit}</span>
                           </span>
                         )}

@@ -6,6 +6,27 @@ const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
 const router = Router();
 
+// Claves persistidas en el doc config/{fincaId}. Lista canónica del backend:
+// agregar acá cualquier campo nuevo o el PUT lo descartará en silencio.
+//
+// NOTA DE SINCRONÍA: estas claves son ESPEJO de las que editan dos páginas del
+// frontend — src/features/admin/pages/Parameters.jsx (SECTIONS: tiempos +
+// producción) y src/features/account/pages/AccountSettings.jsx (identidad +
+// díasIDesarrollo/IIDesarrollo/PostForza). No hay módulo compartido FE↔BE, así
+// que al sumar un parámetro hay que tocar ambos lados.
+const CONFIG_STRING_KEYS = [
+  'nombreEmpresa', 'identificacion', 'representanteLegal', 'administrador',
+  'direccion', 'whatsapp', 'correo',
+];
+const CONFIG_NUMERIC_KEYS = [
+  'diasIDesarrollo', 'diasIIDesarrollo', 'diasPostForza',
+  'diasSiembraICosecha', 'diasForzaICosecha', 'diasChapeaIICosecha', 'diasForzaIICosecha',
+  'diasChapeaIIICosecha', 'diasForzaIIICosecha',
+  'plantasPorHa', 'kgPorCaja', 'kgPorPlanta', 'kgPorPlantaII', 'kgPorPlantaIII',
+  'rechazoICosecha', 'rechazoIICosecha', 'rechazoIIICosecha',
+  'mortalidadICosecha', 'mortalidadIICosecha', 'mortalidadIIICosecha',
+];
+
 // --- API ENDPOINTS: ACCOUNT CONFIGURATION ---
 // Lectura gateada a encargado+. El doc incluye identidad legal/fiscal de la
 // finca, contactos, logoUrl y parámetros de cultivo (proyecciones de cosecha
@@ -36,42 +57,18 @@ router.put('/api/config', authenticate, async (req, res) => {
     if (!hasMinRoleBE(req.userRole, 'administrador')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only administrador can update finca config.', 403);
     }
-    const { nombreEmpresa, identificacion, representanteLegal, administrador, direccion, whatsapp, correo, logoBase64, mediaType,
-            diasIDesarrollo, diasIIDesarrollo, diasPostForza,
-            diasSiembraICosecha, diasForzaICosecha, diasChapeaIICosecha, diasForzaIICosecha,
-            diasChapeaIIICosecha, diasForzaIIICosecha,
-            plantasPorHa, kgPorCaja, kgPorPlanta, kgPorPlantaII, kgPorPlantaIII, rechazoICosecha, rechazoIICosecha,
-            rechazoIIICosecha, mortalidadICosecha, mortalidadIICosecha, mortalidadIIICosecha } = req.body;
+    const { logoBase64, mediaType } = req.body;
 
     const data = { fincaId: req.fincaId, updatedAt: Timestamp.now() };
-    if (nombreEmpresa      !== undefined) data.nombreEmpresa      = nombreEmpresa;
-    if (identificacion     !== undefined) data.identificacion     = identificacion;
-    if (representanteLegal !== undefined) data.representanteLegal = representanteLegal;
-    if (administrador      !== undefined) data.administrador      = administrador;
-    if (direccion          !== undefined) data.direccion          = direccion;
-    if (whatsapp         !== undefined) data.whatsapp         = whatsapp;
-    if (correo           !== undefined) data.correo           = correo;
-    if (diasIDesarrollo  !== undefined) data.diasIDesarrollo  = Number(diasIDesarrollo);
-    if (diasIIDesarrollo !== undefined) data.diasIIDesarrollo = Number(diasIIDesarrollo);
-    if (diasPostForza    !== undefined) data.diasPostForza    = Number(diasPostForza);
-    if (diasSiembraICosecha !== undefined) data.diasSiembraICosecha = Number(diasSiembraICosecha);
-    if (diasForzaICosecha   !== undefined) data.diasForzaICosecha   = Number(diasForzaICosecha);
-    if (diasChapeaIICosecha !== undefined) data.diasChapeaIICosecha = Number(diasChapeaIICosecha);
-    if (diasForzaIICosecha   !== undefined) data.diasForzaIICosecha   = Number(diasForzaIICosecha);
-    if (diasChapeaIIICosecha !== undefined) data.diasChapeaIIICosecha = Number(diasChapeaIIICosecha);
-    if (diasForzaIIICosecha  !== undefined) data.diasForzaIIICosecha  = Number(diasForzaIIICosecha);
-    if (plantasPorHa        !== undefined) data.plantasPorHa        = Number(plantasPorHa);
-    if (kgPorCaja           !== undefined) data.kgPorCaja           = Number(kgPorCaja);
-    if (kgPorPlanta         !== undefined) data.kgPorPlanta         = Number(kgPorPlanta);
-    if (kgPorPlantaII       !== undefined) data.kgPorPlantaII       = Number(kgPorPlantaII);
-    if (kgPorPlantaIII      !== undefined) data.kgPorPlantaIII      = Number(kgPorPlantaIII);
-
-    if (rechazoICosecha      !== undefined) data.rechazoICosecha      = Number(rechazoICosecha);
-    if (rechazoIICosecha     !== undefined) data.rechazoIICosecha     = Number(rechazoIICosecha);
-    if (rechazoIIICosecha    !== undefined) data.rechazoIIICosecha    = Number(rechazoIIICosecha);
-    if (mortalidadICosecha   !== undefined) data.mortalidadICosecha   = Number(mortalidadICosecha);
-    if (mortalidadIICosecha  !== undefined) data.mortalidadIICosecha  = Number(mortalidadIICosecha);
-    if (mortalidadIIICosecha !== undefined) data.mortalidadIIICosecha = Number(mortalidadIIICosecha);
+    for (const key of CONFIG_STRING_KEYS) {
+      if (req.body[key] !== undefined) data[key] = req.body[key];
+    }
+    for (const key of CONFIG_NUMERIC_KEYS) {
+      if (req.body[key] === undefined) continue;
+      const n = Number(req.body[key]);
+      // Ignorar valores no numéricos en vez de escribir NaN al doc.
+      if (Number.isFinite(n)) data[key] = n;
+    }
 
     if (logoBase64) {
       try {

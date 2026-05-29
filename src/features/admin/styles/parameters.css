@@ -6,8 +6,6 @@
    UnlockModal) + AuroraConfirmModal + aur-table (tabla de diff dentro del
    SaveModal). Aquí sólo queda lo que las primitivas no cubren:
 
-     · param-kpi-placeholder — texto en gris dentro del row del KPI
-                               (placeholder hasta que existan KPIs reales).
      · param-section-note    — aur-banner--info entre el header de la sección y
                                la lista; sólo aporta el margen inferior.
      · param-row-value / -num / -unit — composición valor + unidad cuando NO
@@ -19,18 +17,16 @@
                                aur-table cubre la base; slim afina el padding
                                del wrap, el strikethrough del valor anterior y
                                el peso/color del nuevo valor.
+     · param-row--saved     — flash transitorio de las filas recién guardadas.
+
+   NOTA: el padding horizontal de los slots del modal (gate/diff-wrap) replica el
+   de .aur-modal-body en aurora.css (22px desktop / 18px ≤560px). No hay token
+   compartido para ese valor; si cambia allá, ajustar acá.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Nota informativa de sección (aur-banner--info) ──────────────────────── */
 .param-section-note {
   margin-bottom: 12px;
-}
-
-/* ── KPI placeholder ─────────────────────────────────────────────────────── */
-.param-kpi-placeholder {
-  font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-3);
-  font-style: italic;
 }
 
 /* ── Valor read-only (cuando NO estamos en editMode) ─────────────────────── */
@@ -80,4 +76,26 @@
    nowrap para el par valor+unidad sin partirse en dos líneas. */
 .param-diff-new {
   white-space: nowrap;
+}
+
+/* ── Highlight transitorio de filas recién guardadas ─────────────────────── */
+.param-row--saved {
+  animation: param-row-flash 2.5s ease-out;
+}
+@keyframes param-row-flash {
+  0%   { background: var(--aur-accent-tint); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .param-row--saved { animation: none; }
+}
+
+/* Padding de los slots del modal alineado a .aur-modal-body en mobile (≤560px,
+   donde aurora.css baja de 22px a 18px). Ver nota del header. */
+@media (max-width: 560px) {
+  .param-modal-gate,
+  .param-diff-wrap {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
 }
