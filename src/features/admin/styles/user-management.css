@@ -25,10 +25,10 @@
      · window.confirm   → AuroraConfirmModal danger
 
    Aquí queda slim sólo:
-     · usr-list-info       — composición vertical nombre + badge dentro del
-                             lote-list-item (legacy).
-     · usr-list-role       — alias del aur-badge en el item para alinearlo al
-                             inicio de la columna.
+     · usr-list-info       — composición horizontal nombre + badge en una sola
+                             línea dentro del lote-list-item (legacy).
+     · usr-list-role       — alias del aur-badge en el item; no se encoge para
+                             que el rol quede legible junto al nombre.
      · usr-list-toolbar/   — buscador sobre la lista derecha (el shell no lo trae).
        usr-search*
      · usr-modules-hint    — texto informativo arriba de los toggles de módulos.
@@ -51,17 +51,26 @@
 /* ── Lista derecha: composición nombre + role-badge dentro del lote-list-item ── */
 .usr-list-info {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
 }
 
-/* aur-badge--* ya provee bg/color/padding/radius; aquí sólo añadimos
-   align-self para que el badge no se estire al ancho del item flex y se
-   mantenga compacto pegado a la izquierda de su columna. */
+/* El nombre toma el espacio disponible y trunca con ellipsis si no cabe,
+   dejando el badge siempre visible al final de la misma línea. */
+.usr-list-info .lote-list-code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* aur-badge--* ya provee bg/color/padding/radius; aquí evitamos que el badge
+   se encoja para que el rol quede legible aunque el nombre sea largo. */
 .usr-list-role {
-  align-self: flex-start;
+  flex-shrink: 0;
 }
 
 /* ── Toolbar de búsqueda sobre la lista derecha ───────────────────────────
