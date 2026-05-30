@@ -76,8 +76,8 @@ function RoiTable({ desde, hasta }) {
     }
   }, [data, subTab]);
 
-  if (loading) return <div className="cost-loading">Calculando rentabilidad…</div>;
-  if (error) return <div className="cost-empty cost-num--negative">{error}</div>;
+  if (loading) return <div className="cost-empty">Calculando rentabilidad…</div>;
+  if (error) return <div className="cost-empty cost-num--negative" role="alert">{error}</div>;
   if (!data) return <div className="cost-empty">Sin datos.</div>;
 
   const kpiTone = kpiToneClass(data.resumen.margen);

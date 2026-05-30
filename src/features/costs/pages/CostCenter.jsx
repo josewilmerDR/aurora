@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FiCamera, FiTrash2, FiEye, FiColumns } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useToast } from '../../../contexts/ToastContext';
+import { translateApiError } from '../../../lib/errorMessages';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import RoiTable from '../../finance/components/RoiTable';
@@ -42,8 +44,15 @@ const tabNameLabel = (tab) =>
 // ═══════════════════════════════════════════════════════════════════════
 // Main component
 // ═══════════════════════════════════════════════════════════════════════
+// Extrae el mensaje en español del cuerpo de error del backend, con fallback.
+async function apiErrorMessage(res, fallback) {
+  const body = await res.json().catch(() => null);
+  return translateApiError(body, fallback);
+}
+
 export default function CostCenter() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
 
   // Date range
   const defaultRange = useMemo(getDefaultRange, []);
@@ -53,6 +62,7 @@ export default function CostCenter() {
   // Live data
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   // Tabs
   const [tab, setTab] = useState('general');
@@ -76,10 +86,20 @@ export default function CostCenter() {
   // ── Fetch live data ───────────────────────────────────────────────
   const fetchLive = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await apiFetch(`/api/costos/live?desde=${desde}&hasta=${hasta}`);
-      if (res.ok) setData(await res.json());
-    } catch (e) { console.error(e); }
+      if (res.ok) {
+        setData(await res.json());
+      } else {
+        setData(null);
+        setLoadError(await apiErrorMessage(res, 'No se pudieron cargar los costos.'));
+      }
+    } catch (e) {
+      console.error(e);
+      setData(null);
+      setLoadError('No se pudieron cargar los costos. Revisá tu conexión.');
+    }
     setLoading(false);
   }, [apiFetch, desde, hasta]);
 
@@ -108,7 +128,12 @@ export default function CostCenter() {
       method: 'POST',
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error('Failed to create indirecto');
+    if (!res.ok) {
+      // IndirectoForm conserva los datos si tiramos; avisamos qué pasó.
+      toast.error(await apiErrorMessage(res, 'No se pudo agregar el costo indirecto.'));
+      throw new Error('Failed to create indirecto');
+    }
+    toast.success('Costo indirecto agregado.');
     fetchIndirectos();
     fetchLive();
   };
@@ -120,9 +145,14 @@ export default function CostCenter() {
       const res = await apiFetch(`/api/costos/indirectos/${confirmDeleteIndirecto.id}`, { method: 'DELETE' });
       if (res.ok) {
         setConfirmDeleteIndirecto(null);
+        toast.success('Costo indirecto eliminado.');
         fetchIndirectos();
         fetchLive();
+      } else {
+        toast.error(await apiErrorMessage(res, 'No se pudo eliminar el costo indirecto.'));
       }
+    } catch {
+      toast.error('No se pudo eliminar el costo indirecto.');
     } finally {
       setDeletingIndirecto(false);
     }
@@ -137,7 +167,15 @@ export default function CostCenter() {
         method: 'POST',
         body: JSON.stringify({ nombre, tipo, rangoFechas: data.rangoFechas, resumen: data.resumen, porLote: data.porLote, porGrupo: data.porGrupo, porBloque: data.porBloque }),
       });
-      if (res.ok) { setShowSnapModal(false); fetchSnapshots(); }
+      if (res.ok) {
+        setShowSnapModal(false);
+        toast.success('Snapshot guardado.');
+        fetchSnapshots();
+      } else {
+        toast.error(await apiErrorMessage(res, 'No se pudo guardar el snapshot.'));
+      }
+    } catch {
+      toast.error('No se pudo guardar el snapshot.');
     } finally {
       setSavingSnap(false);
     }
@@ -154,15 +192,25 @@ export default function CostCenter() {
         setCompareSnaps(c => c.filter(x => x.id !== id));
         if (viewSnap?.id === id) setViewSnap(null);
         setConfirmDeleteSnap(null);
+        toast.success('Snapshot eliminado.');
+      } else {
+        toast.error(await apiErrorMessage(res, 'No se pudo eliminar el snapshot.'));
       }
+    } catch {
+      toast.error('No se pudo eliminar el snapshot.');
     } finally {
       setDeletingSnap(false);
     }
   };
 
   const viewSnapshot = async (id) => {
-    const res = await apiFetch(`/api/costos/snapshots/${id}`);
-    if (res.ok) setViewSnap(await res.json());
+    try {
+      const res = await apiFetch(`/api/costos/snapshots/${id}`);
+      if (res.ok) setViewSnap(await res.json());
+      else toast.error(await apiErrorMessage(res, 'No se pudo abrir el snapshot.'));
+    } catch {
+      toast.error('No se pudo abrir el snapshot.');
+    }
   };
 
   const toggleCompare = async (snap) => {
@@ -170,11 +218,20 @@ export default function CostCenter() {
       setCompareSnaps(c => c.filter(x => x.id !== snap.id));
       return;
     }
-    if (compareSnaps.length >= 2) return;
-    const res = await apiFetch(`/api/costos/snapshots/${snap.id}`);
-    if (res.ok) {
-      const data = await res.json();
-      setCompareSnaps(c => [...c, data]);
+    if (compareSnaps.length >= 2) {
+      toast.info('Solo se pueden comparar dos snapshots. Quitá uno primero.');
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/costos/snapshots/${snap.id}`);
+      if (res.ok) {
+        const detail = await res.json();
+        setCompareSnaps(c => (c.length >= 2 || c.find(x => x.id === detail.id) ? c : [...c, detail]));
+      } else {
+        toast.error(await apiErrorMessage(res, 'No se pudo cargar el snapshot para comparar.'));
+      }
+    } catch {
+      toast.error('No se pudo cargar el snapshot para comparar.');
     }
   };
 
@@ -196,6 +253,10 @@ export default function CostCenter() {
 
   const r = data?.resumen;
 
+  // Rango inválido: hasta anterior a desde. El backend devolvería vacío sin
+  // explicar por qué, así que lo señalamos en el cliente.
+  const rangeInvalid = !!desde && !!hasta && hasta < desde;
+
   // ── Indirectos filtered by date range ─────────────────────────────
   const indirectosFiltrados = useMemo(() =>
     indirectos.filter(i => i.fecha >= desde && i.fecha <= hasta),
@@ -215,21 +276,33 @@ export default function CostCenter() {
 
       {/* ── Date range toolbar ───────────────────────────────────────── */}
       <div className="cost-toolbar">
-        <label className="cost-toolbar-label">Desde</label>
+        <label className="cost-toolbar-label" htmlFor="cost-desde">Desde</label>
         <input
+          id="cost-desde"
           type="date"
           className="aur-input cost-toolbar-input"
           value={desde}
+          max={hasta || undefined}
+          aria-invalid={rangeInvalid}
           onChange={e => setDesde(e.target.value)}
         />
-        <label className="cost-toolbar-label">Hasta</label>
+        <label className="cost-toolbar-label" htmlFor="cost-hasta">Hasta</label>
         <input
+          id="cost-hasta"
           type="date"
           className="aur-input cost-toolbar-input"
           value={hasta}
+          min={desde || undefined}
+          aria-invalid={rangeInvalid}
           onChange={e => setHasta(e.target.value)}
         />
       </div>
+
+      {rangeInvalid && (
+        <div className="cost-notice cost-notice--warn" role="alert">
+          La fecha «Hasta» es anterior a «Desde». Corregí el rango para ver los costos.
+        </div>
+      )}
 
       {loading && (
         <div className="cost-loading-skeleton">
@@ -237,7 +310,16 @@ export default function CostCenter() {
         </div>
       )}
 
-      {!loading && r && (
+      {!loading && loadError && (
+        <div className="cost-empty cost-num--negative" role="alert">
+          {loadError}{' '}
+          <button type="button" className="aur-btn-text" onClick={fetchLive}>
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {!loading && !loadError && r && (
         <>
           {/* ── KPI cards ─────────────────────────────────────────────
               3 cards centradas: Total, Kg, Costo/Kg. La métrica
@@ -309,6 +391,11 @@ export default function CostCenter() {
 
         <IndirectoForm categorias={CATEGORIAS_INDIRECTO} onSubmit={addIndirecto} />
 
+        {indirectosFiltrados.length === 0 && indirectos.length > 0 && (
+          <div className="cost-empty">
+            No hay costos indirectos en el rango seleccionado. Hay {indirectos.length} fuera de este período.
+          </div>
+        )}
         {indirectosFiltrados.length > 0 && (
           <div className="aur-list">
             {indirectosFiltrados.map(item => (
