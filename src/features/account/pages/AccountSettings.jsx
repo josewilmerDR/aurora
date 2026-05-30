@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { FiUpload, FiSave, FiX, FiImage, FiEdit2, FiAlertTriangle } from 'react-icons/fi';
+import { FiUpload, FiSave, FiX, FiImage, FiEdit2, FiAlertTriangle, FiBriefcase, FiCalendar, FiInfo } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
@@ -11,6 +11,12 @@ import {
 } from '../lib/account-settings';
 import '../styles/account-settings.css';
 
+// MODELO DE EDICIÓN (divergencia intencional con Profile): esta página usa un
+// modo Editar→Guardar global con dirty-state, guard de beforeunload y ESC para
+// cancelar, porque escribe un doc de config compartido y multi-campo de forma
+// atómica. Profile, en cambio, aplica cada acción de inmediato y por fila
+// porque son operaciones individuales e idempotentes. No unificar a ciegas: la
+// asimetría entre las dos páginas del dominio es deliberada.
 function AccountSettings() {
   const apiFetch = useApiFetch();
   const [form, setForm]               = useState(EMPTY_FORM);
@@ -170,18 +176,13 @@ function AccountSettings() {
   // togglear el disabled a mitad de la petición).
   const canSave = saving || dirty;
 
-  if (loadingPage) {
-    return (
-      <div className="lote-management-layout">
-        <div className="aur-page-loading" role="status" aria-label="Cargando configuración" />
-      </div>
-    );
-  }
+  return (
+    <div className="aur-sheet">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-  if (loadError) {
-    return (
-      <div className="lote-management-layout">
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {loadingPage ? (
+        <div className="aur-page-loading" role="status" aria-label="Cargando configuración" />
+      ) : loadError ? (
         <EmptyState
           icon={FiAlertTriangle}
           title="No se pudo cargar la configuración"
@@ -192,18 +193,14 @@ function AccountSettings() {
             </button>
           )}
         />
-      </div>
-    );
-  }
-
-  return (
-    <div className="lote-management-layout">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
+      ) : (
       <form onSubmit={handleSubmit} className="account-form">
-        <header className="account-form-header">
-          <h2 className="account-form-title">Configuración de la cuenta</h2>
-          <div className="account-form-header-actions">
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h2 className="aur-sheet-title">Configuración de la cuenta</h2>
+            <p className="aur-sheet-subtitle">Identidad de la empresa y días de proyección de cosecha.</p>
+          </div>
+          <div className="aur-sheet-header-actions">
             {editMode ? (
               <>
                 <button type="button" className="aur-btn-text" onClick={handleCancel} disabled={saving}>
@@ -223,6 +220,7 @@ function AccountSettings() {
 
         <section className="aur-section">
           <header className="aur-section-header">
+            <span className="aur-section-num"><FiImage size={14} /></span>
             <h3 className="aur-section-title">Logo de la empresa</h3>
           </header>
           <div className="account-logo-area">
@@ -270,6 +268,7 @@ function AccountSettings() {
 
         <section className="aur-section">
           <header className="aur-section-header">
+            <span className="aur-section-num"><FiBriefcase size={14} /></span>
             <h3 className="aur-section-title">Datos de la empresa</h3>
           </header>
           <ul className="aur-list">
@@ -303,13 +302,21 @@ function AccountSettings() {
 
         <section className="aur-section">
           <header className="aur-section-header">
+            <span className="aur-section-num"><FiCalendar size={14} /></span>
             <h3 className="aur-section-title">Días de desarrollo</h3>
           </header>
-          {editMode && (
-            <p className="account-section-note">
+          {/* Nota canónica (aur-banner--info, igual que param-section-note) — siempre
+              visible, no solo en editMode, para que el usuario entienda el alcance
+              de estos días tanto leyendo como editando. La 2ª frase desambigua el
+              solapamiento con «Parámetros del sistema», que guarda los demás
+              valores de referencia de proyección/costos de la plataforma. */}
+          <div className="aur-banner aur-banner--info account-section-note">
+            <FiInfo size={14} />
+            <span>
               Estos días alimentan las fechas estimadas de las proyecciones de cosecha por grupo.
-            </p>
-          )}
+              Los demás parámetros de proyección y costos se configuran en «Parámetros del sistema».
+            </span>
+          </div>
           <ul className="aur-list">
             {TIMING_FIELDS.map(f => {
               const isInvalid = invalidKeys.includes(f.name);
@@ -338,6 +345,7 @@ function AccountSettings() {
           </ul>
         </section>
       </form>
+      )}
     </div>
   );
 }

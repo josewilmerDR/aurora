@@ -32,6 +32,14 @@ function GoogleIcon() {
   );
 }
 
+// MODELO DE EDICIÓN (divergencia intencional con AccountSettings): esta página
+// aplica cada acción de inmediato y por fila (cambiar tema, vincular/desvincular
+// Google, crear/completar/eliminar recordatorio) porque son operaciones
+// individuales e idempotentes — no hay un "modo edición" global ni un botón
+// Guardar. AccountSettings, en cambio, usa Editar→Guardar con dirty-state
+// porque escribe un doc de config compartido y multi-campo de forma atómica.
+// No unificar a ciegas: la asimetría entre las dos páginas del dominio es
+// deliberada.
 export default function Profile({ onClose }) {
   const { firebaseUser, currentUser } = useUser();
   const apiFetch = useApiFetch();
@@ -240,24 +248,29 @@ export default function Profile({ onClose }) {
   };
 
   return (
-    <div className="lote-management-layout">
+    <div className="aur-sheet">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="profile-form">
-        <div className="profile-form-titlebar">
-          <h2 className="profile-form-title">Mi perfil</h2>
+        <header className="aur-sheet-header">
+          <div className="aur-sheet-header-text">
+            <h2 className="aur-sheet-title">Mi perfil</h2>
+            <p className="aur-sheet-subtitle">Tus datos, preferencias y recordatorios personales.</p>
+          </div>
           {onClose && (
-            <button
-              type="button"
-              className="aur-icon-btn aur-icon-btn--sm"
-              onClick={onClose}
-              title="Cerrar"
-              aria-label="Cerrar"
-            >
-              <FiX size={16} />
-            </button>
+            <div className="aur-sheet-header-actions">
+              <button
+                type="button"
+                className="aur-icon-btn aur-icon-btn--sm"
+                onClick={onClose}
+                title="Cerrar"
+                aria-label="Cerrar"
+              >
+                <FiX size={16} />
+              </button>
+            </div>
           )}
-        </div>
+        </header>
 
         <section className="aur-section">
           <header className="aur-section-header">
