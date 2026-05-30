@@ -52,6 +52,10 @@ router.put('/api/config', authenticate, rateLimit('config', 'write'), async (req
     data.fincaId = req.fincaId;
     data.updatedAt = Timestamp.now();
 
+    // El logo se sube ANTES de persistir el doc: si Storage falla, abortamos
+    // con error en vez de tragar la excepción y seguir. Tragarla guardaba el
+    // resto de los campos y respondía 200 sin logoUrl — el admin veía "guardado
+    // correctamente" mientras el logo nunca subió (falla silenciosa parcial).
     if (logo) {
       try {
         const { randomUUID } = require('crypto');
@@ -72,6 +76,7 @@ router.put('/api/config', authenticate, rateLimit('config', 'write'), async (req
           : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
       } catch (storageErr) {
         console.error('Logo upload failed:', storageErr.message);
+        return sendApiError(res, ERROR_CODES.EXTERNAL_SERVICE_ERROR, 'Failed to upload logo to storage.', 502);
       }
     }
 

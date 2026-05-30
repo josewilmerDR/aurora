@@ -93,6 +93,12 @@ const numericField = ({ min, max, int }) =>
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
+// Nota de seguridad: los CONFIG_STRING_KEYS (identidad legal, whatsapp,
+// dirección…) se validan solo por longitud/trim, sin formato — decisión
+// deliberada (teléfonos/identificaciones de formato libre). Estos strings se
+// embeben en PDFs; la cota de longitud + el hecho de que el motor de PDF los
+// trata como texto plano (no como sink de HTML/JS) mitigan inyección. Si algún
+// consumer futuro renderizara estos campos como HTML, escapar en ese sink.
 const configShape = {
   correo: optionalEmail,
   logoBase64: z.string().optional(),
