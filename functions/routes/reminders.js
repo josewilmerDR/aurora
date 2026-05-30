@@ -7,6 +7,28 @@ const { getAnthropicClient } = require('../lib/clients');
 
 const router = Router();
 
+// Cota de longitud de los textos de reminder, aplicada server-side porque el
+// endpoint es alcanzable por API directa (el front ya limita a 500 con
+// maxLength). `message` se persiste a Firestore; `text` (lenguaje natural) se
+// manda al prompt de Claude — sin cota, un payload enorme infla el costo de
+// tokens y el tamaño del doc. Mismo valor que el maxLength de la UI.
+const MAX_REMINDER_LEN = 500;
+
+// Valida y neutraliza la zona horaria provista por el cliente. Un nombre IANA
+// inválido rompía toLocaleString (RangeError → 500) y, peor, se interpolaba
+// crudo en el system prompt de Claude (vector de prompt-injection). Solo los
+// nombres de zona reales pasan el constructor de Intl; cualquier otra cosa cae
+// al default. Así el valor que llega al prompt es siempre de un set conocido.
+function resolveTimeZone(tz) {
+  if (typeof tz !== 'string' || !tz) return 'America/Costa_Rica';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return 'America/Costa_Rica';
+  }
+}
+
 // --- API ENDPOINTS: PERSONAL REMINDERS ---
 
 // GET /api/reminders/due — due reminders (remindAt <= now), marks them as delivered
@@ -59,8 +81,11 @@ router.get('/api/reminders', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/reminders — create a personal reminder
-router.post('/api/reminders', authenticate, async (req, res) => {
+// POST /api/reminders — create a personal reminder.
+// Nota: hoy ningún cliente del frontend usa este endpoint (toda la creación
+// pasa por /api/reminders/parse). Se conserva para clientes API y se endurece
+// (cap de longitud + rate-limit 'write') en vez de eliminarlo.
+router.post('/api/reminders', authenticate, rateLimit('reminders_write', 'write'), async (req, res) => {
   try {
     const { message, remindAt } = req.body;
     if (!message?.trim()) {
@@ -69,6 +94,7 @@ router.post('/api/reminders', authenticate, async (req, res) => {
     if (!remindAt) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Reminder date is required.', 400);
     }
+    const cleanMessage = message.trim().slice(0, MAX_REMINDER_LEN);
     const remindDate = new Date(remindAt);
     if (isNaN(remindDate.getTime())) {
       return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid date.', 400);
@@ -76,12 +102,12 @@ router.post('/api/reminders', authenticate, async (req, res) => {
     const docRef = await db.collection('reminders').add({
       uid: req.uid,
       fincaId: req.fincaId,
-      message: message.trim(),
+      message: cleanMessage,
       remindAt: Timestamp.fromDate(remindDate),
       status: 'pending',
       createdAt: Timestamp.now(),
     });
-    res.status(201).json({ id: docRef.id, message: message.trim(), remindAt: remindDate.toISOString() });
+    res.status(201).json({ id: docRef.id, message: cleanMessage, remindAt: remindDate.toISOString() });
   } catch (err) {
     console.error('Error creating reminder:', err);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create reminder.', 500);
@@ -113,7 +139,7 @@ router.get('/api/reminders/done', authenticate, async (req, res) => {
 });
 
 // POST /api/reminders/:id/done — mark a reminder as done (not deleted).
-router.post('/api/reminders/:id/done', authenticate, async (req, res) => {
+router.post('/api/reminders/:id/done', authenticate, rateLimit('reminders_write', 'write'), async (req, res) => {
   try {
     const ref = db.collection('reminders').doc(req.params.id);
     const doc = await ref.get();
@@ -139,7 +165,7 @@ router.post('/api/reminders/:id/done', authenticate, async (req, res) => {
 // POST /api/reminders/:id/undone — reactivate a reminder marked done by mistake.
 // Status vuelve a 'delivered' si la fecha ya pasó (no re-dispara el push) o
 // 'pending' si es futura; limpia completedAt. Evita recrear vía parse de Claude.
-router.post('/api/reminders/:id/undone', authenticate, async (req, res) => {
+router.post('/api/reminders/:id/undone', authenticate, rateLimit('reminders_write', 'write'), async (req, res) => {
   try {
     const ref = db.collection('reminders').doc(req.params.id);
     const doc = await ref.get();
@@ -173,8 +199,14 @@ router.post('/api/reminders/parse', authenticate, rateLimit('reminders_parse', '
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Text is required.', 400);
     }
 
+    // F1: acota el texto ANTES de mandarlo a Claude. Sin esto, un payload
+    // gigante por API directa amplifica el costo de tokens del prompt.
+    const cleanText = text.trim().slice(0, MAX_REMINDER_LEN);
+
     const userNow = clientTime ? new Date(clientTime) : new Date();
-    const tz = clientTzName || 'America/Costa_Rica';
+    // F3: zona horaria validada (no el valor crudo del cliente) — evita el
+    // RangeError de toLocaleString y la inyección al system prompt.
+    const tz = resolveTimeZone(clientTzName);
     const userDateTimeStr = userNow.toLocaleString('es-CR', {
       timeZone: tz,
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -199,7 +231,7 @@ router.post('/api/reminders/parse', authenticate, rateLimit('reminders_parse', '
         },
       }],
       system: `Eres un extractor de recordatorios para la plataforma agrícola Aurora. Fecha y hora actual del usuario: ${userDateTimeStr} (${tz}). Interpretas frases como "recuérdame hoy a las 12:30 pm revisar la fruta del lote 4" o "en dos horas llamar al proveedor" y extraes mensaje + fecha/hora futura. Usa SIEMPRE la herramienta extraer_recordatorio; nunca respondas en texto libre.`,
-      messages: [{ role: 'user', content: text.trim() }],
+      messages: [{ role: 'user', content: cleanText }],
     });
 
     const toolUse = response.content.find(b => b.type === 'tool_use' && b.name === 'extraer_recordatorio');
@@ -239,7 +271,7 @@ router.post('/api/reminders/parse', authenticate, rateLimit('reminders_parse', '
 });
 
 // DELETE /api/reminders/:id — delete a reminder
-router.delete('/api/reminders/:id', authenticate, async (req, res) => {
+router.delete('/api/reminders/:id', authenticate, rateLimit('reminders_write', 'write'), async (req, res) => {
   try {
     const doc = await db.collection('reminders').doc(req.params.id).get();
     if (!doc.exists) {
