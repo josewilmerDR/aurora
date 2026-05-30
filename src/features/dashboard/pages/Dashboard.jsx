@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage, FiRefreshCw } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import { useUser } from '../../../contexts/UserContext';
 import {
   getTaskStatus, isCountableTask, readIdSet, archivedTasksKey, dismissedTasksKey,
@@ -53,10 +54,26 @@ function Dashboard() {
     setLoading(true);
     setError(null);
 
+    // Lee la respuesta validando el status: un 4xx/5xx con cuerpo {code,...}
+    // ya NO se cuela como JSON "exitoso" (antes un 403 se veía como finca
+    // vacía). Las requests opcionales degradan a null en vez de romper todo.
+    const fetchJson = async (url, { optional = false } = {}) => {
+      const res = await apiFetch(url);
+      if (!res.ok) {
+        if (optional) return null;
+        let body = null;
+        try { body = await res.json(); } catch { /* cuerpo vacío o no-JSON */ }
+        const err = new Error(translateApiError(body));
+        err.handled = true; // mensaje ya traducido y seguro para mostrar
+        throw err;
+      }
+      return res.json();
+    };
+
     Promise.all([
-      apiFetch('/api/tasks').then(res => res.json()),
-      apiFetch('/api/feed').then(res => res.json()),
-      apiFetch('/api/productos').then(res => res.json()).catch(() => []),
+      fetchJson('/api/tasks'),
+      fetchJson('/api/feed'),
+      fetchJson('/api/productos', { optional: true }).catch(() => null),
     ]).then(([tasksData, feedData, productosData]) => {
       if (cancelled) return;
 
@@ -85,8 +102,8 @@ function Dashboard() {
       setLoading(false);
     }).catch(err => {
       if (cancelled) return;
-      console.error('Error fetching dashboard data:', err);
-      setError('No se pudieron cargar los datos del dashboard.');
+      console.error('Error fetching dashboard data:', err?.message || err);
+      setError(err?.handled ? err.message : 'No se pudieron cargar los datos del dashboard.');
       setLoading(false);
     });
 
