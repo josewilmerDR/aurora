@@ -3,6 +3,7 @@ import { FiUpload, FiSave, FiX, FiImage, FiEdit2, FiAlertTriangle } from 'react-
 import Toast from '../../../components/Toast';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import {
   COMPANY_FIELDS, TIMING_FIELDS, EMPTY_FORM,
   ALLOWED_LOGO_TYPES, MAX_LOGO_BYTES,
@@ -141,7 +142,15 @@ function AccountSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error();
+      // Parseamos el body en error y traducimos vía translateApiError, que lee
+      // el `code` del backend (VALIDATION_FAILED, RATE_LIMITED, FORBIDDEN,
+      // EXTERNAL_SERVICE_ERROR del upload de logo…) a un mensaje en español
+      // específico. Antes un throw vacío daba el mismo toast genérico para todo
+      // y ocultaba, p. ej., el 429 del rate limit o qué campo rechazó el server.
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(translateApiError(body, 'Error al guardar la configuración.'));
+      }
       const updated = await res.json();
       if (updated.logoUrl) { setLogoUrl(updated.logoUrl); clearLogo(); }
       setSavedForm(fromApi(updated));
@@ -149,8 +158,8 @@ function AccountSettings() {
       setInvalidKeys([]);
       setEditMode(false);
       showToast('Configuración guardada correctamente.');
-    } catch {
-      showToast('Error al guardar la configuración.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al guardar la configuración.', 'error');
     } finally {
       setSaving(false);
     }

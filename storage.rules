@@ -17,6 +17,12 @@ service firebase.storage {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    // Deny-all por defecto. Incluye config/**, donde vive el logo de la finca.
+    // Ese logo NO es legible por el SDK cliente: el backend lo sirve como
+    // capability URL tokenizado (firebaseStorageDownloadTokens) embebido en
+    // PDFs. El token no expira ni rota salvo re-subida del logo. Es aceptable
+    // para un logo de empresa (dato no sensible); NO reutilizar este patrón
+    // para assets sensibles bajo este match deny-all sin un esquema de expiración.
     match /{allPaths=**} {
       allow read, write: if false;
     }
