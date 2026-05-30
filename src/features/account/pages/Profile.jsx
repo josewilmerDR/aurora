@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { linkWithPopup, unlink, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, googleProvider } from '../../../firebase';
 import { useUser } from '../../../contexts/UserContext';
 import { useReminders } from '../../../contexts/RemindersContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { FiBell, FiTrash2, FiPlus, FiX, FiCheck, FiChevronDown, FiChevronUp, FiUser, FiKey, FiInfo, FiSun, FiMoon } from 'react-icons/fi';
+import { FiBell, FiTrash2, FiPlus, FiX, FiCheck, FiChevronDown, FiChevronUp, FiUser, FiKey, FiInfo, FiSun, FiMoon, FiRotateCcw } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
+import { formatReminderDate } from '../../../lib/reminderFormat';
+import { translateApiError } from '../../../lib/errorMessages';
 import { useTheme } from '../../../hooks/useTheme';
 import '../styles/profile.css';
 
@@ -28,13 +32,7 @@ function GoogleIcon() {
   );
 }
 
-function formatReminderDate(isoString) {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  return d.toLocaleString('es-CR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-
-export default function Profile() {
+export default function Profile({ onClose }) {
   const { firebaseUser, currentUser } = useUser();
   const apiFetch = useApiFetch();
   const { theme, setTheme } = useTheme();
@@ -42,15 +40,36 @@ export default function Profile() {
     reminders, setReminders,
     doneReminders, setDoneReminders,
     loading: remindersLoading,
+    error: remindersError,
+    overdueCount,
+    reload: reloadReminders,
   } = useReminders();
   const [loading, setLoading] = useState(null); // 'link' | 'unlink' | 'reset'
   const [toast, setToast] = useState(null);
+  // deletingId/markingDoneId son por-id (no globales): bloquean solo la row en
+  // vuelo, no toda la lista. Activos y hechos comparten deletingId pero los ids
+  // de reminders son únicos entre ambas listas, así que no colisionan.
   const [deletingId, setDeletingId] = useState(null);
   const [markingDoneId, setMarkingDoneId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // reminder pendiente de confirmar borrado
+  const [confirmUnlink, setConfirmUnlink] = useState(false); // confirmar desvincular Google
+  const [highlightId, setHighlightId] = useState(null);      // row recién creada (flash)
   const [showCreateReminder, setShowCreateReminder] = useState(false);
   const [newReminderText, setNewReminderText] = useState('');
   const [creatingReminder, setCreatingReminder] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const createFormRef = useRef(null);
+  const submittingReminderRef = useRef(false); // guard síncrono anti doble-submit
+
+  // providerData del firebaseUser del context no se re-renderiza tras link/unlink
+  // (linkWithPopup muta auth.currentUser en sitio). Mantenemos copia local que
+  // re-sincronizamos manualmente tras cada acción para que badges y botones
+  // reflejen el estado real sin esperar un refresh.
+  const [providers, setProviders] = useState(() => firebaseUser?.providerData.map(p => p.providerId) ?? []);
+  useEffect(() => {
+    setProviders(firebaseUser?.providerData.map(p => p.providerId) ?? []);
+  }, [firebaseUser]);
+  const syncProviders = () => setProviders(auth.currentUser?.providerData.map(p => p.providerId) ?? []);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -65,9 +84,14 @@ export default function Profile() {
   };
 
   const handleCreateReminder = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
+    // Guard síncrono: setCreatingReminder es async respecto al render, y el
+    // parse de Claude es lento → sin esto un Enter + click en "Crear" dispara
+    // dos POST y crea recordatorios duplicados.
+    if (submittingReminderRef.current) return;
     const text = newReminderText.trim();
     if (!text) return showToast('Describe tu recordatorio.', 'error');
+    submittingReminderRef.current = true;
     setCreatingReminder(true);
     try {
       const now = new Date();
@@ -85,14 +109,19 @@ export default function Profile() {
         const created = await res.json();
         setReminders(prev => [...prev, created].sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt)));
         cancelCreateReminder();
+        // Flash de la row recién creada: entra ordenada por fecha (en medio de
+        // la lista), así que el toast solo no basta para ubicarla.
+        setHighlightId(created.id);
+        setTimeout(() => setHighlightId(curr => (curr === created.id ? null : curr)), 2200);
         showToast(`Recordatorio creado para ${formatReminderDate(created.remindAt)}.`);
       } else {
         const err = await res.json().catch(() => null);
-        showToast(err?.message || 'No se pudo interpretar el recordatorio. Intenta reformular.', 'error');
+        showToast(translateApiError(err, 'No se pudo interpretar el recordatorio. Intenta reformular.'), 'error');
       }
     } catch {
       showToast('Error de conexión.', 'error');
     } finally {
+      submittingReminderRef.current = false;
       setCreatingReminder(false);
     }
   };
@@ -109,8 +138,15 @@ export default function Profile() {
       }
     } catch { showToast('Error de conexión.', 'error'); } finally {
       setDeletingId(null);
+      setConfirmDelete(null);
     }
   };
+
+  // Ordena la lista de hechos por completedAt desc, igual que el backend
+  // (GET /api/reminders/done) — así el orden no depende de en qué sesión se
+  // marcó cada uno y se mantiene tras un reload.
+  const sortByCompleted = (list) =>
+    [...list].sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
 
   const handleMarkDone = async (id) => {
     setMarkingDoneId(id);
@@ -119,7 +155,7 @@ export default function Profile() {
       if (res.ok) {
         const completed = await res.json();
         setReminders(prev => prev.filter(r => r.id !== id));
-        setDoneReminders(prev => [completed, ...prev]);
+        setDoneReminders(prev => sortByCompleted([completed, ...prev]));
       } else {
         showToast('No se pudo marcar como hecho.', 'error');
       }
@@ -128,7 +164,23 @@ export default function Profile() {
     }
   };
 
-  const providers = firebaseUser?.providerData.map(p => p.providerId) ?? [];
+  const handleReactivateReminder = async (id) => {
+    setMarkingDoneId(id);
+    try {
+      const res = await apiFetch(`/api/reminders/${id}/undone`, { method: 'POST' });
+      if (res.ok) {
+        const reactivated = await res.json();
+        setDoneReminders(prev => prev.filter(r => r.id !== id));
+        setReminders(prev => [...prev, reactivated].sort((a, b) => new Date(a.remindAt) - new Date(b.remindAt)));
+        showToast('Recordatorio reactivado.');
+      } else {
+        showToast('No se pudo reactivar el recordatorio.', 'error');
+      }
+    } catch { showToast('Error de conexión.', 'error'); } finally {
+      setMarkingDoneId(null);
+    }
+  };
+
   const hasGoogle = providers.includes(GOOGLE_PROVIDER_ID);
   const hasPassword = providers.includes(PASSWORD_PROVIDER_ID);
 
@@ -136,6 +188,8 @@ export default function Profile() {
     setLoading('link');
     try {
       await linkWithPopup(auth.currentUser, googleProvider);
+      await auth.currentUser.reload();
+      syncProviders();
       showToast('Cuenta de Google vinculada correctamente.');
     } catch (err) {
       if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/email-already-in-use') {
@@ -150,19 +204,25 @@ export default function Profile() {
     }
   };
 
-  const handleUnlinkGoogle = async () => {
+  const requestUnlinkGoogle = () => {
     if (!hasPassword) {
       showToast('Configura una contraseña antes de desvincular Google para no perder el acceso.', 'error');
       return;
     }
+    setConfirmUnlink(true);
+  };
+
+  const handleUnlinkGoogle = async () => {
     setLoading('unlink');
     try {
       await unlink(auth.currentUser, GOOGLE_PROVIDER_ID);
+      syncProviders();
       showToast('Cuenta de Google desvinculada.');
     } catch {
       showToast('No se pudo desvincular la cuenta de Google.', 'error');
     } finally {
       setLoading(null);
+      setConfirmUnlink(false);
     }
   };
 
@@ -184,13 +244,29 @@ export default function Profile() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="profile-form">
-        <h2 className="profile-form-title">Mi perfil</h2>
+        <div className="profile-form-titlebar">
+          <h2 className="profile-form-title">Mi perfil</h2>
+          {onClose && (
+            <button
+              type="button"
+              className="aur-icon-btn aur-icon-btn--sm"
+              onClick={onClose}
+              title="Cerrar"
+              aria-label="Cerrar"
+            >
+              <FiX size={16} />
+            </button>
+          )}
+        </div>
 
         <section className="aur-section">
           <header className="aur-section-header">
             <span className="aur-section-num"><FiUser size={14} /></span>
             <h3 className="aur-section-title">Información</h3>
           </header>
+          {/* Fuentes distintas a propósito: nombre/rol salen del doc Firestore
+              (currentUser), email del Firebase Auth user (firebaseUser) — que es
+              donde se cambia y verifica. Si llegaran a divergir, manda Auth. */}
           <ul className="aur-list">
             <li className="aur-row">
               <span className="aur-row-label">Nombre</span>
@@ -215,7 +291,7 @@ export default function Profile() {
           <ul className="aur-list">
             <li className="aur-row aur-row--action">
               <span className="aur-row-label">Tema</span>
-              <div className="aur-row-content profile-theme-switch">
+              <div className="aur-row-content profile-theme-switch" role="group" aria-label="Tema">
                 <button
                   type="button"
                   className={`aur-chip${theme === 'dark' ? ' is-active' : ''}`}
@@ -235,6 +311,7 @@ export default function Profile() {
               </div>
             </li>
           </ul>
+          <p className="aur-field-hint profile-theme-hint">Se aplica solo en este dispositivo.</p>
         </section>
 
         <section className="aur-section">
@@ -242,6 +319,9 @@ export default function Profile() {
             <span className="aur-section-num profile-reminders-icon"><FiBell size={14} /></span>
             <h3 className="aur-section-title">Mis recordatorios</h3>
             {reminders.length > 0 && <span className="aur-section-count">{reminders.length}</span>}
+            {overdueCount > 0 && (
+              <span className="aur-section-count profile-overdue-count">{overdueCount} vencido{overdueCount === 1 ? '' : 's'}</span>
+            )}
             <div className="aur-section-actions">
               <button
                 type="button"
@@ -256,7 +336,7 @@ export default function Profile() {
           </header>
 
           {showCreateReminder && (
-            <form onSubmit={handleCreateReminder} className="profile-reminder-create">
+            <form ref={createFormRef} onSubmit={handleCreateReminder} className="profile-reminder-create">
               <textarea
                 className="aur-textarea"
                 placeholder='Ej: "recuérdame hoy a las 12:30 pm revisar la fruta del lote 4"'
@@ -265,7 +345,7 @@ export default function Profile() {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    handleCreateReminder(e);
+                    createFormRef.current?.requestSubmit();
                   }
                 }}
                 rows={3}
@@ -274,7 +354,7 @@ export default function Profile() {
                 disabled={creatingReminder}
               />
               <div className="profile-reminder-create-footer">
-                <p className="aur-field-hint">Aurora interpretará la fecha y hora</p>
+                <p className="aur-field-hint">Aurora interpretará la fecha y hora · {newReminderText.length}/500</p>
                 <div className="aur-form-actions profile-reminder-create-actions">
                   <button type="button" className="aur-btn-text" onClick={cancelCreateReminder} disabled={creatingReminder}>
                     Cancelar
@@ -288,15 +368,22 @@ export default function Profile() {
           )}
 
           {remindersLoading ? (
-            <p className="profile-reminder-empty">Cargando…</p>
+            <AuroraSkeleton variant="row" count={2} label="Cargando recordatorios…" />
+          ) : remindersError ? (
+            <p className="profile-reminder-empty profile-reminder-error">
+              No se pudieron cargar tus recordatorios.{' '}
+              <button type="button" className="aur-btn-text" onClick={() => reloadReminders()}>
+                Reintentar
+              </button>
+            </p>
           ) : reminders.length === 0 ? (
             <p className="profile-reminder-empty">
-              No tienes recordatorios activos. Usa el botón + para crear uno o háblale a Aurora en el chat.
+              No tienes recordatorios activos. Usa el botón + para crear uno.
             </p>
           ) : (
             <ul className="aur-list">
               {reminders.map(r => (
-                <li key={r.id} className="aur-row profile-reminder-row">
+                <li key={r.id} className={`aur-row profile-reminder-row${r.id === highlightId ? ' profile-reminder-row--new' : ''}`}>
                   <div className="profile-reminder-content">
                     <span className="profile-reminder-message">{r.message}</span>
                     <span className="profile-reminder-date">{formatReminderDate(r.remindAt)}</span>
@@ -315,7 +402,7 @@ export default function Profile() {
                     <button
                       type="button"
                       className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                      onClick={() => handleDeleteReminder(r.id)}
+                      onClick={() => setConfirmDelete(r)}
                       disabled={deletingId === r.id || markingDoneId === r.id}
                       title="Eliminar recordatorio"
                       aria-label="Eliminar recordatorio"
@@ -353,9 +440,19 @@ export default function Profile() {
                       <div className="profile-reminder-actions">
                         <button
                           type="button"
+                          className="aur-icon-btn aur-icon-btn--sm"
+                          onClick={() => handleReactivateReminder(r.id)}
+                          disabled={markingDoneId === r.id || deletingId === r.id}
+                          title="Reactivar"
+                          aria-label="Reactivar recordatorio"
+                        >
+                          <FiRotateCcw size={14} />
+                        </button>
+                        <button
+                          type="button"
                           className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-                          onClick={() => handleDeleteReminder(r.id)}
-                          disabled={deletingId === r.id}
+                          onClick={() => setConfirmDelete(r)}
+                          disabled={deletingId === r.id || markingDoneId === r.id}
                           title="Eliminar definitivamente"
                           aria-label="Eliminar definitivamente"
                         >
@@ -378,7 +475,7 @@ export default function Profile() {
           <ul className="aur-list">
             <li className="aur-row aur-row--action profile-provider-row">
               <span className="aur-row-label profile-provider-label">
-                <span className="profile-provider-icon" aria-hidden="true">🔑</span>
+                <span className="profile-provider-icon" aria-hidden="true"><FiKey size={16} /></span>
                 <span>Correo y contraseña</span>
               </span>
               <div className="aur-row-content">
@@ -411,7 +508,7 @@ export default function Profile() {
                   <button
                     type="button"
                     className="aur-btn-text"
-                    onClick={handleUnlinkGoogle}
+                    onClick={requestUnlinkGoogle}
                     disabled={loading === 'unlink'}
                   >
                     {loading === 'unlink' ? 'Desvinculando…' : 'Desvincular'}
@@ -438,6 +535,32 @@ export default function Profile() {
           )}
         </section>
       </div>
+
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar recordatorio"
+          body={`Se eliminará «${confirmDelete.message}» (${formatReminderDate(confirmDelete.remindAt)}). Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          loading={deletingId === confirmDelete.id}
+          loadingLabel="Eliminando…"
+          onConfirm={() => handleDeleteReminder(confirmDelete.id)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {confirmUnlink && (
+        <AuroraConfirmModal
+          danger
+          title="Desvincular Google"
+          body="Ya no podrás iniciar sesión con Google. Seguirás entrando con tu correo y contraseña."
+          confirmLabel="Desvincular"
+          loading={loading === 'unlink'}
+          loadingLabel="Desvinculando…"
+          onConfirm={handleUnlinkGoogle}
+          onCancel={() => setConfirmUnlink(false)}
+        />
+      )}
     </div>
   );
 }

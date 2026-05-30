@@ -1,14 +1,7 @@
 import { createPortal } from 'react-dom';
 import { FiBell, FiX } from 'react-icons/fi';
+import { formatReminderDate } from '../lib/reminderFormat';
 import './ReminderNotification.css';
-
-function formatRemindAt(iso) {
-  const d = new Date(iso);
-  return d.toLocaleString('es-CR', {
-    weekday: 'short', day: 'numeric', month: 'short',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 
 function ReminderNotification({ reminders, onDismiss }) {
   if (reminders.length === 0) return null;
@@ -23,7 +16,7 @@ function ReminderNotification({ reminders, onDismiss }) {
           <div className="reminder-body">
             <p className="reminder-label">Recordatorio</p>
             <p className="reminder-message">{r.message}</p>
-            <p className="reminder-time">{formatRemindAt(r.remindAt)}</p>
+            <p className="reminder-time">{formatReminderDate(r.remindAt)}</p>
           </div>
           <button
             className="reminder-close"

@@ -72,7 +72,8 @@ export function ToastProvider({ children }) {
               key={it.id}
               type="button"
               className={`toast toast-${it.type}`}
-              aria-live="polite"
+              role={it.type === 'error' ? 'alert' : 'status'}
+              aria-live={it.type === 'error' ? 'assertive' : 'polite'}
               onClick={() => dismiss(it.id)}
             >
               {it.message}
