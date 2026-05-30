@@ -110,6 +110,12 @@ const ACTIONS = Object.freeze({
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
   INCOME_CREATE: 'income.create',
   INCOME_DELETE: 'income.delete',
+  // Centro de Costos. Solo los DELETE quedan auditados: borrar un costo
+  // indirecto o un snapshot es irreversible y distorsiona los agregados de
+  // costo/ROI de toda la finca (los snapshots son la base de comparación
+  // histórica). Creates/updates van fuera del audit, alineado con la política.
+  COSTO_INDIRECTO_DELETE: 'costo_indirecto.delete',
+  COSTO_SNAPSHOT_DELETE: 'costo_snapshot.delete',
 
   // Task operations that change ownership, timing, or stock — routine
   // creation is not audited (too noisy), but these four are.
