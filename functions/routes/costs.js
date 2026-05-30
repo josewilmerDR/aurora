@@ -5,7 +5,7 @@ const { verifyOwnership, hasMinRoleBE, pick } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
-const { getLiveCosts } = require('./costs.live');
+const { getLiveCosts, computeLiveCosts } = require('./costs.live');
 const {
   validateBody,
   indirectoCreateSchema,
@@ -35,8 +35,9 @@ function requireRole(min) {
 
 // GET /api/costos/live — agregación en vivo (handler en costs.live.js).
 // rateLimit: lee 10 colecciones completas de la finca por request (el endpoint
-// más caro del dominio); el bucket 'write' acota el martilleo desde el date-picker.
-router.get('/api/costos/live', authenticate, requireRole('encargado'), rateLimit('costos_live', 'write'), getLiveCosts);
+// más caro del dominio); el tier 'costly_read' (30/min) acota el martilleo
+// desde el date-picker más que 'write', acorde al costo de lectura.
+router.get('/api/costos/live', authenticate, requireRole('encargado'), rateLimit('costos_live', 'costly_read'), getLiveCosts);
 
 // CRUD costos_indirectos
 router.get('/api/costos/indirectos', authenticate, requireRole('encargado'), async (req, res) => {
@@ -93,7 +94,10 @@ router.delete('/api/costos/indirectos/:id', authenticate, requireRole('encargado
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const prev = ownership.doc.data();
     await db.collection('costos_indirectos').doc(req.params.id).delete();
-    writeAuditEvent({
+    // await: en Cloud Functions el evento puede perderse si la instancia se
+    // congela tras responder. writeAuditEvent es fail-open (traga sus errores),
+    // así que esperarlo garantiza el flush forense sin poder romper el request.
+    await writeAuditEvent({
       fincaId: req.fincaId, actor: req,
       action: ACTIONS.COSTO_INDIRECTO_DELETE,
       target: { type: 'costos_indirectos', id: req.params.id },
@@ -123,7 +127,6 @@ router.get('/api/costos/snapshots', authenticate, requireRole('encargado'), asyn
           rangoFechas: raw.rangoFechas,
           resumen: raw.resumen,
           fechaCreacion: raw.fechaCreacion?.toDate?.()?.toISOString() || null,
-          creadoPor: raw.creadoPor,
         };
       })
       .sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''));
@@ -140,10 +143,11 @@ router.get('/api/costos/snapshots/:id', authenticate, requireRole('encargado'), 
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const raw = ownership.doc.data();
     // Whitelist explícita: no hacemos spread del doc crudo para no filtrar
-    // fincaId ni creadoPor (uid interno) al cliente.
+    // fincaId ni creadoPor (uid interno de Firebase) al cliente. creadoPor se
+    // conserva en el doc para forense, pero no se devuelve por la API.
     res.json({
       id: ownership.doc.id,
-      ...pick(raw, ['nombre', 'tipo', 'rangoFechas', 'resumen', 'porLote', 'porGrupo', 'porBloque', 'creadoPor']),
+      ...pick(raw, ['nombre', 'tipo', 'rangoFechas', 'resumen', 'porLote', 'porGrupo', 'porBloque']),
       fechaCreacion: raw.fechaCreacion?.toDate?.()?.toISOString() || null,
     });
   } catch (error) {
@@ -156,10 +160,20 @@ router.post('/api/costos/snapshots', authenticate, requireRole('encargado'), rat
   try {
     const { data: body, error } = validateBody(snapshotCreateSchema, req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
+    // Provenance: el backend recomputa el agregado a partir del rango en vez de
+    // confiar en el payload del cliente. El snapshot congela el cálculo del
+    // propio servidor "as-of-now", de modo que un snapshot con el sello de
+    // Aurora siempre contiene números que Aurora computó (no fabricados).
+    const aggregate = await computeLiveCosts({
+      fincaId: req.fincaId,
+      desde: body.rangoFechas.desde,
+      hasta: body.rangoFechas.hasta,
+    });
     const data = {
       nombre: body.nombre, tipo: body.tipo,
-      rangoFechas: body.rangoFechas, resumen: body.resumen,
-      porLote: body.porLote, porGrupo: body.porGrupo, porBloque: body.porBloque,
+      rangoFechas: aggregate.rangoFechas,
+      resumen: aggregate.resumen,
+      porLote: aggregate.porLote, porGrupo: aggregate.porGrupo, porBloque: aggregate.porBloque,
       fincaId: req.fincaId, creadoPor: req.uid, fechaCreacion: Timestamp.now(),
     };
     const ref = await db.collection('costos_snapshots').add(data);
@@ -176,7 +190,9 @@ router.delete('/api/costos/snapshots/:id', authenticate, requireRole('encargado'
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const prev = ownership.doc.data();
     await db.collection('costos_snapshots').doc(req.params.id).delete();
-    writeAuditEvent({
+    // await: ver nota en el DELETE de indirectos — esperar el evento garantiza
+    // el flush forense aunque la instancia se congele tras responder.
+    await writeAuditEvent({
       fincaId: req.fincaId, actor: req,
       action: ACTIONS.COSTO_SNAPSHOT_DELETE,
       target: { type: 'costos_snapshots', id: req.params.id },

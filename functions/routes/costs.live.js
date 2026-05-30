@@ -5,6 +5,7 @@
 
 const { db } = require('../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { DATE_RE } = require('./costs.schemas');
 
 // Depreciation per hour for an asset
 function depPerHora(asset) {
@@ -22,16 +23,13 @@ function horasFromRec(rec) {
   return (!isNaN(i) && !isNaN(f) && f >= i) ? f - i : 0;
 }
 
-// GET /api/costos/live — Live aggregation handler.
-async function getLiveCosts(req, res) {
-  try {
-    const { desde, hasta } = req.query;
-    if (!desde || !hasta) {
-      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Query params "desde" and "hasta" are required (YYYY-MM-DD).', 400);
-    }
-
-    const fincaId = req.fincaId;
-
+// Cómputo puro de la agregación de costos para un rango. Asume que `desde` y
+// `hasta` ya vienen validados como YYYY-MM-DD (los dos call sites — el handler
+// GET y el POST de snapshot — validan antes de llamar). Sin acoplamiento a
+// Express: devuelve el objeto agregado. Esto permite que el snapshot congele
+// números computados por el servidor en vez de confiar en un payload del
+// cliente — Aurora solo "firma" su propio cálculo.
+async function computeLiveCosts({ fincaId, desde, hasta }) {
     // Parallelized queries
     const [horSnap, planHistSnap, planFijoSnap, cedulasSnap, cosechaSnap, lotesSnap, maqSnap, prodSnap, indSnap, siembrasSnap] = await Promise.all([
       db.collection('horimetro').where('fincaId', '==', fincaId).get(),
@@ -316,7 +314,7 @@ async function getLiveCosts(req, res) {
       });
     }
 
-    res.json({
+    return {
       rangoFechas: { desde, hasta },
       resumen: {
         costoTotal: round2(totalCosto), kgTotal: round2(totalKg), costoPorKg: costoPorKg(totalCosto, totalKg),
@@ -327,11 +325,25 @@ async function getLiveCosts(req, res) {
       porLote: porLote.sort((a, b) => b.costoTotal - a.costoTotal),
       porGrupo: porGrupo.sort((a, b) => b.costoTotal - a.costoTotal),
       porBloque: porBloque.sort((a, b) => b.costoTotal - a.costoTotal),
-    });
+    };
+}
+
+// GET /api/costos/live — wrapper delgado: valida → computa → responde.
+async function getLiveCosts(req, res) {
+  try {
+    const { desde, hasta } = req.query;
+    if (!desde || !hasta) {
+      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Query params "desde" and "hasta" are required (YYYY-MM-DD).', 400);
+    }
+    if (!DATE_RE.test(desde) || !DATE_RE.test(hasta)) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Query params "desde" and "hasta" must be YYYY-MM-DD.', 400);
+    }
+    const result = await computeLiveCosts({ fincaId: req.fincaId, desde, hasta });
+    res.json(result);
   } catch (error) {
     console.error('[costos/live]', error);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to compute live costs.', 500);
   }
 }
 
-module.exports = { getLiveCosts };
+module.exports = { getLiveCosts, computeLiveCosts };

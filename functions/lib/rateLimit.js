@@ -42,6 +42,12 @@ const LIMITS = {
   ai_light:  { perMinute: 30,  perDay: 500  },
   // Non-AI write endpoints that could still be spammed.
   write:     { perMinute: 120, perDay: 5000 },
+  // Read endpoints that are non-AI but fan out to many full-collection scans
+  // per request (e.g. el Centro de Costos /live une 10 colecciones; ROI /live
+  // une 3 fuentes pesadas). Más ajustado que 'write' porque un solo request ya
+  // es caro en lecturas de Firestore, pero holgado para el uso real del
+  // date-picker.
+  costly_read: { perMinute: 30, perDay: 500 },
   // Write endpoints that fan out to paid external services (Twilio
   // WhatsApp, SendGrid, etc.). One abused call = one billable message.
   notify:    { perMinute: 10,  perDay: 100  },
