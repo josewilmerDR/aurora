@@ -81,7 +81,13 @@
     { "collectionGroup": "audit_events",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "severity",     "order": "ASCENDING"  }, { "fieldPath": "timestamp", "order": "DESCENDING" }] },
     { "collectionGroup": "audit_events",                "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "action",       "order": "ASCENDING"  }, { "fieldPath": "severity",  "order": "ASCENDING"  }, { "fieldPath": "timestamp", "order": "DESCENDING" }] },
     { "collectionGroup": "scheduled_tasks",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "executeAt",    "order": "ASCENDING"  }] },
-    { "collectionGroup": "budgets",                     "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "period",       "order": "ASCENDING"  }, { "fieldPath": "category", "order": "ASCENDING" }] }
+    { "collectionGroup": "scheduled_tasks",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "executeAt",    "order": "DESCENDING" }] },
+    { "collectionGroup": "budgets",                     "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "period",       "order": "ASCENDING"  }, { "fieldPath": "category", "order": "ASCENDING" }] },
+    { "collectionGroup": "income_records",               "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "date",            "order": "DESCENDING" }] },
+    { "collectionGroup": "income_records",               "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "collectionStatus", "order": "ASCENDING" }, { "fieldPath": "date", "order": "DESCENDING" }] },
+    { "collectionGroup": "buyers",                       "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "name",            "order": "ASCENDING"  }] },
+    { "collectionGroup": "copilot_feedback",             "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "userId",          "order": "ASCENDING"  }, { "fieldPath": "updatedAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "copilot_directives",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "userId",          "order": "ASCENDING"  }, { "fieldPath": "active", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }
