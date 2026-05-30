@@ -163,9 +163,11 @@ export default function CostCenter() {
     if (!data) return;
     setSavingSnap(true);
     try {
+      // El backend recomputa los agregados a partir del rango (provenance):
+      // solo le mandamos cómo se llama, su tipo y qué período capturar.
       const res = await apiFetch('/api/costos/snapshots', {
         method: 'POST',
-        body: JSON.stringify({ nombre, tipo, rangoFechas: data.rangoFechas, resumen: data.resumen, porLote: data.porLote, porGrupo: data.porGrupo, porBloque: data.porBloque }),
+        body: JSON.stringify({ nombre, tipo, rangoFechas: data.rangoFechas }),
       });
       if (res.ok) {
         setShowSnapModal(false);

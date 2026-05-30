@@ -20,6 +20,6 @@ function requireEncargado(req, res, next) {
   next();
 }
 
-router.get('/api/roi/live', authenticate, requireEncargado, rateLimit('roi_live', 'write'), getLive);
+router.get('/api/roi/live', authenticate, requireEncargado, rateLimit('roi_live', 'costly_read'), getLive);
 
 module.exports = router;

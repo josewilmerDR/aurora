@@ -23,14 +23,6 @@ const TIPOS_SNAPSHOT = ['manual', 'mensual'];
 // valores absurdos/overflow sin estorbar a una finca real.
 const MAX_MONTO = 1e12;
 
-// Cota de filas por snapshot. Una finca real no tiene miles de lotes/bloques;
-// el tope evita que un POST directo infle el doc hasta el límite de 1 MB de
-// Firestore.
-const MAX_ROWS = 2000;
-
-const num = z.number().finite();
-const numNullable = z.number().finite().nullable();
-
 // ─── Indirectos ───────────────────────────────────────────────────────────────
 
 const indirectoCreateSchema = z.object({
@@ -48,61 +40,11 @@ const indirectoUpdateSchema = indirectoCreateSchema.partial();
 
 // ─── Snapshots ──────────────────────────────────────────────────────────────
 
-// Shape exacto del agregado que emite GET /api/costos/live. `.strict()` en cada
-// nivel actúa como whitelist: descarta cualquier campo inyectado que no sea
-// parte del modelo de costos.
-const desgloseSchema = z.object({
-  combustible: num,
-  planilla: num,
-  insumos: num,
-  depreciacion: num,
-  indirectos: num,
-}).strict();
-
-const resumenSchema = z.object({
-  costoTotal: num,
-  kgTotal: num,
-  costoPorKg: numNullable,
-  combustible: num,
-  planilla: num,
-  insumos: num,
-  depreciacion: num,
-  indirectos: num,
-}).strict();
-
-const STR = z.string().max(200);
-
-const loteRowSchema = z.object({
-  loteId: STR,
-  nombre: STR,
-  desglose: desgloseSchema,
-  costoTotal: num,
-  kg: num,
-  costoPorKg: numNullable,
-}).strict();
-
-const grupoRowSchema = z.object({
-  loteId: STR,
-  loteNombre: STR,
-  grupo: STR,
-  desglose: desgloseSchema,
-  costoTotal: num,
-  kg: num,
-  costoPorKg: numNullable,
-}).strict();
-
-const bloqueRowSchema = z.object({
-  loteId: STR,
-  loteNombre: STR,
-  grupo: STR.nullable(),
-  bloqueId: STR,
-  bloque: STR,
-  desglose: desgloseSchema,
-  costoTotal: num,
-  kg: num,
-  costoPorKg: numNullable,
-}).strict();
-
+// El cliente solo nombra el snapshot y elige el rango. Los agregados
+// (resumen/porLote/porGrupo/porBloque) NO se aceptan del payload: el backend
+// los recomputa con computeLiveCosts() al momento de guardar, así el snapshot
+// congela el cálculo del propio servidor y no un número fabricado por el
+// cliente. Ver functions/routes/costs.js (POST /api/costos/snapshots).
 const snapshotCreateSchema = z.object({
   nombre: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim() : v),
@@ -113,10 +55,6 @@ const snapshotCreateSchema = z.object({
     desde: z.string().regex(DATE_RE, 'rangoFechas.desde must be YYYY-MM-DD'),
     hasta: z.string().regex(DATE_RE, 'rangoFechas.hasta must be YYYY-MM-DD'),
   }).strict(),
-  resumen: resumenSchema,
-  porLote: z.array(loteRowSchema).max(MAX_ROWS).optional().default([]),
-  porGrupo: z.array(grupoRowSchema).max(MAX_ROWS).optional().default([]),
-  porBloque: z.array(bloqueRowSchema).max(MAX_ROWS).optional().default([]),
 }).strict();
 
 // ─── Wrapper ──────────────────────────────────────────────────────────────────
@@ -141,4 +79,5 @@ module.exports = {
   snapshotCreateSchema,
   CATEGORIAS_INDIRECTO,
   TIPOS_SNAPSHOT,
+  DATE_RE,
 };
