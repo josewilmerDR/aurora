@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
 
 // ─── Eager: páginas de la ruta caliente ──────────────────────────────────────
@@ -103,6 +103,7 @@ import NotFoundPage from './components/NotFoundPage';
 import { useReminderPoller } from './hooks/useReminderPoller';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { useAutoPageTitle } from './hooks/usePageTitle';
+import { useEscapeClose } from './hooks/useEscapeClose';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { RemindersProvider, useReminders } from './contexts/RemindersContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -158,6 +159,15 @@ const MainLayout = () => {
   const [chatBadge, setChatBadge] = useState(0);
   const { pendingReminders, dismissReminder } = useReminderPoller();
   const { reload: reloadReminders } = useReminders();
+  const profilePanelRef = useRef(null);
+  // ESC cierra el panel de perfil (solo cuando está abierto: pasar null
+  // desactiva el handler). Patrón del stack innermost de useEscapeClose.
+  useEscapeClose(profileOpen ? () => setProfileOpen(false) : null);
+  // Al abrir, mover el foco al panel para que el teclado/lector entren al
+  // diálogo en vez de quedar detrás del backdrop.
+  useEffect(() => {
+    if (profileOpen) profilePanelRef.current?.focus();
+  }, [profileOpen]);
   useAutoPageTitle();
   const { permission, isSubscribed, subscribe } = usePushNotifications();
   const [pushPromptDismissed, setPushPromptDismissed] = useState(() =>
@@ -257,8 +267,17 @@ const MainLayout = () => {
       {profileOpen && (
         <div className="profile-panel-backdrop" onClick={() => setProfileOpen(false)} />
       )}
-      <div className={`profile-panel${profileOpen ? ' open' : ''}`}>
-        <Profile />
+      <div
+        ref={profilePanelRef}
+        className={`profile-panel${profileOpen ? ' open' : ''}`}
+        role="dialog"
+        aria-modal={profileOpen}
+        aria-label="Mi perfil"
+        aria-hidden={!profileOpen}
+        inert={!profileOpen ? '' : undefined}
+        tabIndex={-1}
+      >
+        <Profile onClose={() => setProfileOpen(false)} />
       </div>
 
       {/* ── Autopilot panel ── */}

@@ -710,6 +710,20 @@ html[data-theme="light"] .aur-select {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Estado activo canónico (segmented/toggle/filtros). Antes cada consumidor lo
+   reimplementaba scoped (Profile, monitoring tpl-list, tasks filter-pills);
+   esta es la base reusable. Los overrides scoped que ya existen siguen
+   ganando por especificidad cuando quieren un look propio. */
+.aur-chip.is-active {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-3);
+  color: var(--aur-accent);
+}
+.aur-chip.is-active:hover:not(:disabled) {
+  background: var(--aur-accent-tint-2);
+  border-color: var(--aur-accent-tint-3);
+  color: var(--aur-accent);
+}
 .aur-chip--ghost {
   background: transparent;
   border-style: dashed;

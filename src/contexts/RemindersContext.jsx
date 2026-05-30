@@ -15,18 +15,25 @@ export function RemindersProvider({ children }) {
   const [reminders, setReminders] = useState([]);
   const [doneReminders, setDoneReminders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Distinguir "sin recordatorios" de "no se pudo cargar": si el GET de
+    // pendientes falla, marcamos error para que Profile no muestre un
+    // empty-state falso (el usuario sí tiene recordatorios, no los pudimos leer).
+    let ok = true;
     try {
       const [pendingRes, doneRes] = await Promise.all([
         apiFetchRef.current('/api/reminders'),
         apiFetchRef.current('/api/reminders/done'),
       ]);
       if (pendingRes.ok) setReminders(await pendingRes.json());
+      else ok = false;
       if (doneRes.ok) setDoneReminders(await doneRes.json());
-    } catch { /* ignore */ } finally {
+    } catch { ok = false; } finally {
+      setError(!ok);
       setLoading(false);
     }
   }, []);
@@ -57,9 +64,10 @@ export function RemindersProvider({ children }) {
     reminders, setReminders,
     doneReminders, setDoneReminders,
     loading,
+    error,
     overdueCount,
     reload: load,
-  }), [reminders, doneReminders, loading, overdueCount, load]);
+  }), [reminders, doneReminders, loading, error, overdueCount, load]);
 
   return <RemindersContext.Provider value={value}>{children}</RemindersContext.Provider>;
 }

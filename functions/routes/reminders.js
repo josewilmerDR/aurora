@@ -136,6 +136,33 @@ router.post('/api/reminders/:id/done', authenticate, async (req, res) => {
   }
 });
 
+// POST /api/reminders/:id/undone — reactivate a reminder marked done by mistake.
+// Status vuelve a 'delivered' si la fecha ya pasó (no re-dispara el push) o
+// 'pending' si es futura; limpia completedAt. Evita recrear vía parse de Claude.
+router.post('/api/reminders/:id/undone', authenticate, async (req, res) => {
+  try {
+    const ref = db.collection('reminders').doc(req.params.id);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Reminder not found.', 404);
+    }
+    if (doc.data().uid !== req.uid) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Access denied.', 403);
+    }
+    const remindAt = doc.data().remindAt?.toDate?.();
+    const status = remindAt && remindAt <= new Date() ? 'delivered' : 'pending';
+    await ref.update({ status, completedAt: null });
+    res.json({
+      id: doc.id,
+      message: doc.data().message,
+      remindAt: remindAt?.toISOString(),
+    });
+  } catch (err) {
+    console.error('Error reactivating reminder:', err);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to reactivate reminder.', 500);
+  }
+});
+
 // POST /api/reminders/parse — parse a natural-language prompt into a reminder
 // and create it. Example input text: "recuérdame hoy a las 12:30 pm revisar la
 // fruta del lote 4". Uses Claude Haiku with a tool schema for structured output.

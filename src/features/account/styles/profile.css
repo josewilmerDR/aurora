@@ -7,12 +7,35 @@
   max-width: 640px;
 }
 
+/* Titlebar: el título y, sólo cuando Profile se monta en el panel lateral
+   (recibe onClose), un botón X de cierre alineado a la derecha. En la ruta
+   /mi-perfil no hay onClose → no hay X. */
+.profile-form-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .profile-form-title {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: var(--aur-fs-title3);
   color: var(--aur-text);
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+/* hint bajo el segmented dark/light — sin margen-top extra del primitive. */
+.profile-theme-hint {
+  margin: 8px 0 0;
+}
+
+/* Reintentar inline en el estado de error de recordatorios: el botón de
+   texto va en línea con el mensaje, sin reflow. */
+.profile-reminder-error .aur-btn-text {
+  display: inline;
+  padding: 0;
 }
 
 /* ── Provider rows (Métodos de acceso) ────────────────────────────────────── */
@@ -46,6 +69,13 @@
    para reforzar la semántica "reminders/pending" del módulo. */
 .profile-reminders-icon {
   color: var(--aur-warn);
+}
+
+/* slim sobre aur-section-count: pill de "N vencidos" en tinta danger para
+   distinguir urgencia del conteo total neutro de al lado. */
+.profile-overdue-count {
+  background: var(--aur-danger-tint);
+  color: var(--aur-danger);
 }
 
 .profile-reminder-create {
@@ -82,6 +112,21 @@
 
 .profile-reminder-row--done {
   opacity: 0.65;
+}
+
+/* Flash de la row recién creada: fade desde tinta accent hasta transparente
+   para que el ojo la encuentre cuando entra ordenada en medio de la lista. */
+.profile-reminder-row--new {
+  animation: profile-reminder-flash 2.2s ease-out;
+}
+
+@keyframes profile-reminder-flash {
+  0%   { background: var(--aur-accent-tint); }
+  100% { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-reminder-row--new { animation: none; }
 }
 
 .profile-reminder-content {
@@ -146,19 +191,35 @@
 }
 
 /* ── Theme switch (segmented dark/light chips) ────────────────────────────── */
-/* Wraps two .aur-chip buttons; the .is-active state is profile-local because
-   .aur-chip in aurora.css has no built-in active variant — we reuse the
-   accent-tint look from .aur-combo-option:hover for visual consistency. */
+/* Sólo el gap entre los dos .aur-chip; el estado .is-active ahora es la
+   primitiva canónica .aur-chip.is-active en aurora.css (antes vivía duplicado
+   acá). */
 .profile-theme-switch {
   gap: 6px;
 }
-.profile-theme-switch .aur-chip.is-active {
-  background: var(--aur-accent-tint);
-  border-color: var(--aur-accent-tint-3);
-  color: var(--aur-accent);
-}
-.profile-theme-switch .aur-chip.is-active:hover {
-  background: var(--aur-accent-tint-2);
-  border-color: var(--aur-accent-tint-3);
-  color: var(--aur-accent);
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+/* Los overrides de arriba fuerzan grid 1fr/auto, pisando el colapso a 1fr que
+   .aur-row trae de fábrica en ≤768px. A 360px eso aplasta label + badge + botón
+   en dos columnas y desborda; acá devolvemos el colapso de la primitiva. */
+@media (max-width: 768px) {
+  .profile-provider-row,
+  .profile-reminder-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* Hit-area táctil: los aur-icon-btn--sm miden 26px, por debajo del mínimo
+     táctil (~40px). En mobile los agrandamos para que marcar-hecho y eliminar
+     no compartan zona de mis-tap. Especificidad > .aur-icon-btn--sm, sin !. */
+  .profile-reminder-actions .aur-icon-btn--sm {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* El segmented dark/light usa .aur-row-content, que en ≤768px la primitiva
+     alinea a flex-start; lo devolvemos a la derecha para conservar el look de
+     control segmentado. Specificity (0,3,0) > la regla base (0,2,0). */
+  .profile-form .aur-row--action .profile-theme-switch {
+    justify-content: flex-end;
+  }
 }
