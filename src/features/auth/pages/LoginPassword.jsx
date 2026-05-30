@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FiArrowLeft } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
+import { useAuthRedirect, safeRedirectPath } from '../hooks/useAuthRedirect';
 import AuthCard from '../components/AuthCard';
 import PasswordInput from '../components/PasswordInput';
 import '../styles/auth.css';
 
 export default function LoginPassword() {
-  const { login, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
+  const { login } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -17,13 +18,8 @@ export default function LoginPassword() {
     if (!emailFromState) navigate('/login', { replace: true });
   }, [emailFromState, navigate]);
 
-  const from = location.state?.from || '/';
-
-  useEffect(() => {
-    if (isLoggedIn) navigate(from, { replace: true });
-    else if (needsOrgSelection) navigate(from, { replace: true });
-    else if (needsSetup) navigate('/register', { replace: true });
-  }, [isLoggedIn, needsOrgSelection, needsSetup, navigate, from]);
+  const from = safeRedirectPath(location.state?.from);
+  useAuthRedirect(from);
 
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -70,7 +66,7 @@ export default function LoginPassword() {
           <Link to="/forgot-password" className="auth-forgot-link">¿Olvidaste tu contraseña?</Link>
         </div>
 
-        {error && <p className="auth-error">{error}</p>}
+        {error && <p className="auth-error" role="alert">{error}</p>}
 
         <button type="submit" className="aur-btn-pill auth-btn-submit" disabled={submitting || !password}>
           {submitting ? 'Entrando...' : 'Entrar'}

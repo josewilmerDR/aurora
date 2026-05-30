@@ -12,6 +12,11 @@ import AuthLoading from '../components/AuthLoading';
 import PasswordInput from '../components/PasswordInput';
 import '../styles/auth.css';
 
+// Tras Google en step 1 mantenemos el spinner esperando a que UserContext
+// resuelva. Si el perfil nunca carga, sin este tope el usuario queda colgado;
+// a los 15s liberamos el spinner con un error accionable.
+const PROFILE_TIMEOUT_MS = 15000;
+
 const PASSWORD_RULES = [
   { id: 'length', label: 'Mínimo 8 caracteres', test: (p) => p.length >= 8 },
   { id: 'upper',  label: 'Una letra mayúscula', test: (p) => /[A-Z]/.test(p) },
@@ -80,11 +85,24 @@ export default function Register() {
             await refreshMemberships();
           } else {
             setStep(2);
+            setGoogleLoading(false); // resolvió: dejamos de esperar a Google
           }
         })
-        .catch(() => setStep(2));
+        .catch(() => { setStep(2); setGoogleLoading(false); });
     }
   }, [isLoggedIn, needsOrgSelection, needsSetup, step, navigate, refreshMemberships]);
+
+  // Tope anti-cuelgue del spinner de Google (ver PROFILE_TIMEOUT_MS). Al pasar
+  // a step 2 las deps cambian y el cleanup descarta el timer, así que nunca
+  // dispara un error tras una transición legítima.
+  useEffect(() => {
+    if (!(step === 1 && googleLoading)) return undefined;
+    const t = setTimeout(() => {
+      setGoogleLoading(false);
+      setError('No pudimos cargar tu perfil. Intenta de nuevo.');
+    }, PROFILE_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [step, googleLoading]);
 
   const passwordValid = PASSWORD_RULES.every(r => r.test(password));
 
@@ -163,7 +181,7 @@ export default function Register() {
       setGoogleLoading(false);
       if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
         setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
-      } else if (err.code !== 'auth/popup-closed-by-user') {
+      } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         setError('No se pudo continuar con Google.');
       }
     }
@@ -189,7 +207,7 @@ export default function Register() {
     >
       {step === 1 && (
         <>
-          <GoogleButton onClick={handleGoogle} disabled={submitting} />
+          <GoogleButton onClick={handleGoogle} disabled={submitting} loading={googleLoading} />
 
           <div className="auth-divider"><span>o</span></div>
 
@@ -250,7 +268,7 @@ export default function Register() {
               )}
             </div>
 
-            {error && <p className="auth-error">{error}</p>}
+            {error && <p className="auth-error" role="alert">{error}</p>}
 
             <button
               type="submit"
@@ -299,7 +317,7 @@ export default function Register() {
               <span className="aur-field-error">{fincaValidation.fieldErrors.nombreAdmin}</span>
             )}
           </div>
-          {error && <p className="auth-error">{error}</p>}
+          {error && <p className="auth-error" role="alert">{error}</p>}
           <button
             type="submit"
             className="aur-btn-pill auth-btn-submit"
