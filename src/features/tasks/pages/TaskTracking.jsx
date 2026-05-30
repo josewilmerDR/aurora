@@ -6,6 +6,7 @@ import Toast from '../../../components/Toast';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import { getTaskStatus, readIdSet, archivedTasksKey, dismissedTasksKey } from '../lib/taskStatus';
 
 // Mapping centralizado de badge variant + label para el tipo de tarea.
 // Cada badge usa una primitiva aur-badge--* del sistema. Los emojis se
@@ -60,17 +61,11 @@ function TaskTracking() {
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   // --- Tareas descartadas del panel (solo frontend, persiste en localStorage) ---
-  const dismissedKey = `aurora_dismissed_tasks_${firebaseUser?.uid || 'guest'}`;
-  const [dismissedIds, setDismissedIds] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(`aurora_dismissed_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')); }
-    catch { return new Set(); }
-  });
+  const dismissedKey = dismissedTasksKey(firebaseUser?.uid);
+  const [dismissedIds, setDismissedIds] = useState(() => readIdSet(dismissedKey));
 
-  const archivedKey = `aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`;
-  const [archivedIds, setArchivedIds] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')); }
-    catch { return new Set(); }
-  });
+  const archivedKey = archivedTasksKey(firebaseUser?.uid);
+  const [archivedIds, setArchivedIds] = useState(() => readIdSet(archivedKey));
 
   const [openKebabId, setOpenKebabId] = useState(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -281,18 +276,16 @@ function TaskTracking() {
   };
 
   // --- Task display logic ---
+  // El cómputo del estado (completed/overdue/pending) vive en lib/taskStatus
+  // (compartido con el Dashboard). Acá sólo mapeamos a texto + clase visual.
+  const STATUS_DISPLAY = {
+    completed: { text: 'Hecha', className: 'status-completed' },
+    overdue: { text: 'Vencida', className: 'status-overdue' },
+    pending: { text: 'Pendiente', className: 'status-pending' },
+  };
   const getTaskDisplayStatus = (task) => {
-    if (task.status === 'completed_by_user') {
-      return { text: 'Hecha', className: 'status-completed', key: 'completed' };
-    }
-    const today = new Date();
-    const dueDate = new Date(task.dueDate);
-    const dueDateDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    if (dueDateDay < todayDay) {
-      return { text: 'Vencida', className: 'status-overdue', key: 'overdue' };
-    }
-    return { text: 'Pendiente', className: 'status-pending', key: 'pending' };
+    const key = getTaskStatus(task);
+    return { ...STATUS_DISPLAY[key], key };
   };
 
   const tasksWithStatus = tasks

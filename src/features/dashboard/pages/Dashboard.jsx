@@ -1,51 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage } from 'react-icons/fi';
+import { FiClock, FiAlertTriangle, FiInbox, FiPlus, FiPackage, FiRefreshCw } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import {
+  getTaskStatus, isCountableTask, readIdSet, archivedTasksKey, dismissedTasksKey,
+} from '../../tasks/lib/taskStatus';
+import { EVENT_LABELS, resolveEventKey, timeAgo, avatarInitial } from '../lib/feedFormat';
 import OnboardingChecklist from '../components/OnboardingChecklist';
 import EmptyState from '../../../components/ui/EmptyState';
 import '../styles/dashboard.css';
 
-const EVENT_LABELS = {
-  aplicacion: { text: 'completó una aplicación', icon: '🧪' },
-  notificacion: { text: 'completó una tarea', icon: '✓' },
-  lote_created: { text: 'creó un lote', icon: '🌱' },
-  autopilot_analysis: { text: 'completó un análisis', icon: '🤖' },
-  autopilot_action_executed: { text: 'ejecutó una acción', icon: '⚡' },
-  autopilot_action_escalated: { text: 'escaló una acción', icon: '⚠️' },
-};
-
-function timeAgo(ms) {
-  const diff = Date.now() - ms;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'ahora mismo';
-  if (m < 60) return `hace ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `hace ${h}h`;
-  const d = Math.floor(h / 24);
-  return `hace ${d}d`;
-}
-
 function FeedEvent({ event }) {
   const isAutopilot = event.eventType?.startsWith('autopilot_');
-  const key = isAutopilot ? event.eventType : (event.eventType === 'lote_created' ? 'lote_created' : (event.activityType || 'notificacion'));
-  const { text, icon } = EVENT_LABELS[key] || EVENT_LABELS.notificacion;
-  const initial = isAutopilot ? '⚙' : (event.userName || '?')[0].toUpperCase();
+  const { text, icon } = EVENT_LABELS[resolveEventKey(event)] || EVENT_LABELS.notificacion;
+  const initial = avatarInitial(event);
+  const relTime = timeAgo(event.timestamp);
+  // Autopilot no tiene userName humano: mostramos "Aurora" como autor.
+  const author = event.userName?.trim() || (isAutopilot ? 'Aurora' : 'Alguien');
 
   return (
     <div className={`aur-row dash-feed-row${isAutopilot ? ' is-autopilot' : ''}`}>
-      <div className="dash-feed-avatar">{initial}</div>
+      <div className="dash-feed-avatar" aria-hidden="true">{initial}</div>
       <div className="dash-feed-body">
-        <span className="dash-feed-username">{event.userName}</span>
+        <span className="dash-feed-username">{author}</span>
         {' '}<span className="dash-feed-action">{text}</span>
         {event.title && <span className="dash-feed-title"> — {event.title}</span>}
         {event.loteNombre && event.eventType !== 'lote_created' && (
           <span className="dash-feed-sub"> · {event.loteNombre}</span>
         )}
       </div>
-      <div className="dash-feed-time">{timeAgo(event.timestamp)}</div>
-      <div className="dash-feed-icon">{icon}</div>
+      {relTime && <div className="dash-feed-time">{relTime}</div>}
+      <div className="dash-feed-icon" aria-hidden="true">{icon}</div>
     </div>
   );
 }
@@ -53,37 +39,38 @@ function FeedEvent({ event }) {
 function Dashboard() {
   const apiFetch = useApiFetch();
   const { firebaseUser } = useUser();
+  const uid = firebaseUser?.uid || 'guest';
+
   const [stats, setStats] = useState({ overdue: 0, pending: 0, lowStock: 0 });
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const uid = firebaseUser?.uid || 'guest';
-
-  const getTaskStatus = (task) => {
-    if (task.status === 'completed_by_user') return 'completed';
-    const today = new Date();
-    const dueDate = new Date(task.dueDate);
-    const dueDateDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    if (dueDateDay < todayDay) return 'overdue';
-    return 'pending';
-  };
+  // `reloadKey` permite reintentar tras un error sin recargar la página.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
+    setError(null);
+
     Promise.all([
       apiFetch('/api/tasks').then(res => res.json()),
       apiFetch('/api/feed').then(res => res.json()),
       apiFetch('/api/productos').then(res => res.json()).catch(() => []),
     ]).then(([tasksData, feedData, productosData]) => {
-      const archivedIds = new Set(
-        JSON.parse(localStorage.getItem(`aurora_archived_tasks_${firebaseUser?.uid || 'guest'}`) || '[]')
-      );
+      if (cancelled) return;
+
+      // Excluimos las mismas tareas que TaskTracking oculta (archivadas +
+      // eliminadas del panel) para que el conteo del Dashboard coincida con
+      // lo que el usuario ve al hacer click en la card.
+      const hiddenIds = new Set([
+        ...readIdSet(archivedTasksKey(uid)),
+        ...readIdSet(dismissedTasksKey(uid)),
+      ]);
 
       const taskStats = { overdue: 0, pending: 0, lowStock: 0 };
-      tasksData
-        .filter(task => task.type !== 'REMINDER_3_DAY' && task.status !== 'skipped' && !archivedIds.has(task.id))
+      (Array.isArray(tasksData) ? tasksData : [])
+        .filter(task => isCountableTask(task) && !hiddenIds.has(task.id))
         .forEach(task => {
           const status = getTaskStatus(task);
           if (status === 'overdue') taskStats.overdue++;
@@ -97,11 +84,39 @@ function Dashboard() {
       setFeed(Array.isArray(feedData) ? feedData : []);
       setLoading(false);
     }).catch(err => {
-      console.error("Error fetching dashboard data:", err);
-      setError("No se pudieron cargar los datos del dashboard.");
+      if (cancelled) return;
+      console.error('Error fetching dashboard data:', err);
+      setError('No se pudieron cargar los datos del dashboard.');
       setLoading(false);
     });
-  }, [firebaseUser?.uid]);
+
+    return () => { cancelled = true; };
+  }, [apiFetch, uid, reloadKey]);
+
+  // Cards de tareas/stock — derivadas de stats para no repetir markup.
+  const statCards = useMemo(() => ([
+    {
+      to: '/tasks?filter=overdue',
+      modifier: 'dash-stat-card--danger',
+      Icon: FiAlertTriangle,
+      count: stats.overdue,
+      label: 'Tareas vencidas',
+    },
+    {
+      to: '/tasks?filter=pending',
+      modifier: 'dash-stat-card--warn',
+      Icon: FiClock,
+      count: stats.pending,
+      label: 'Tareas pendientes',
+    },
+    {
+      to: '/bodega/agroquimicos/existencias',
+      modifier: 'dash-stat-card--warn',
+      Icon: FiPackage,
+      count: stats.lowStock,
+      label: 'Productos en stock bajo',
+    },
+  ]), [stats]);
 
   return (
     <div className="aur-sheet dash-sheet">
@@ -114,9 +129,25 @@ function Dashboard() {
         </div>
       </header>
 
-      {loading && <div className="aur-page-loading" />}
+      {loading && <div className="aur-page-loading" role="status" aria-label="Cargando dashboard" />}
 
-      {!loading && error && <div className="empty-state">{error}</div>}
+      {!loading && error && (
+        <EmptyState
+          variant="default"
+          icon={FiAlertTriangle}
+          title={error}
+          subtitle="Revisá tu conexión e intentá de nuevo."
+          action={
+            <button
+              type="button"
+              className="aur-btn-pill aur-btn-pill--sm"
+              onClick={() => setReloadKey(k => k + 1)}
+            >
+              <FiRefreshCw size={14} /> Reintentar
+            </button>
+          }
+        />
+      )}
 
       {!loading && !error && (
         <>
@@ -126,27 +157,28 @@ function Dashboard() {
               existencias, y un acceso directo para crear una nueva tarea. */}
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num"><FiInbox size={14} /></span>
+              <span className="aur-section-num" aria-hidden="true"><FiInbox size={14} /></span>
               <h3 className="aur-section-title">Resumen</h3>
             </div>
             <div className="dash-stats-grid">
-              <Link to="/tasks?filter=overdue" className="dash-stat-card dash-stat-card--danger">
-                <span className="dash-stat-icon"><FiAlertTriangle size={18} /></span>
-                <span className="dash-stat-count">{stats.overdue}</span>
-                <span className="dash-stat-label">Tareas vencidas</span>
-              </Link>
-              <Link to="/tasks?filter=pending" className="dash-stat-card dash-stat-card--warn">
-                <span className="dash-stat-icon"><FiClock size={18} /></span>
-                <span className="dash-stat-count">{stats.pending}</span>
-                <span className="dash-stat-label">Tareas pendientes</span>
-              </Link>
-              <Link to="/bodega/agroquimicos/existencias" className="dash-stat-card dash-stat-card--warn">
-                <span className="dash-stat-icon"><FiPackage size={18} /></span>
-                <span className="dash-stat-count">{stats.lowStock}</span>
-                <span className="dash-stat-label">Productos en stock bajo</span>
-              </Link>
-              <Link to="/tasks?new=1" className="dash-stat-card dash-stat-card--accent dash-stat-card--action">
-                <span className="dash-stat-icon"><FiPlus size={18} /></span>
+              {statCards.map(({ to, modifier, Icon, count, label }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className={`dash-stat-card ${modifier}`}
+                  aria-label={`${count} ${label}`}
+                >
+                  <span className="dash-stat-icon" aria-hidden="true"><Icon size={18} /></span>
+                  <span className="dash-stat-count">{count}</span>
+                  <span className="dash-stat-label">{label}</span>
+                </Link>
+              ))}
+              <Link
+                to="/tasks?new=1"
+                className="dash-stat-card dash-stat-card--accent dash-stat-card--action"
+                aria-label="Crear una nueva tarea"
+              >
+                <span className="dash-stat-icon" aria-hidden="true"><FiPlus size={18} /></span>
                 <span className="dash-stat-label">Nueva tarea</span>
               </Link>
             </div>
@@ -155,7 +187,7 @@ function Dashboard() {
           {/* ── Feed: actividad reciente ───────────────────────────────── */}
           <section className="aur-section">
             <div className="aur-section-header">
-              <span className="aur-section-num"><FiClock size={14} /></span>
+              <span className="aur-section-num" aria-hidden="true"><FiClock size={14} /></span>
               <h3 className="aur-section-title">Actividad reciente</h3>
               {feed.length > 0 && (
                 <span className="aur-section-count">{feed.length}</span>
