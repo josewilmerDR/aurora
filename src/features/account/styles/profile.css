@@ -7,24 +7,10 @@
   max-width: 640px;
 }
 
-/* Titlebar: el título y, sólo cuando Profile se monta en el panel lateral
-   (recibe onClose), un botón X de cierre alineado a la derecha. En la ruta
-   /mi-perfil no hay onClose → no hay X. */
-.profile-form-titlebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.profile-form-title {
-  margin: 0;
-  font-size: var(--aur-fs-title3);
-  color: var(--aur-text);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
+/* El header (título + subtítulo + botón X de cierre, este último sólo cuando
+   Profile se monta en el panel lateral y recibe onClose) usa la primitiva
+   canónica aur-sheet-header, igual que AccountSettings y el resto del app. En
+   la ruta /mi-perfil no hay onClose → no se renderiza el bloque de acciones. */
 
 /* hint bajo el segmented dark/light — sin margen-top extra del primitive. */
 .profile-theme-hint {
