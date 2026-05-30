@@ -5,6 +5,7 @@ import { auth, googleProvider } from '../../../firebase';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import { isValidEmail } from '../../../lib/validators';
 import AuthCard from '../components/AuthCard';
 import GoogleButton from '../components/GoogleButton';
 import AuthLoading from '../components/AuthLoading';
@@ -26,7 +27,7 @@ function validateAccountStep(form) {
   const errs = {};
   const email = (form.email || '').trim();
   if (!email) errs.email = 'Ingresa tu correo electrónico.';
-  else if (!email.includes('@') || !email.includes('.')) errs.email = 'Email inválido.';
+  else if (!isValidEmail(email)) errs.email = 'Email inválido.';
   if (form.password && form.confirm && form.password !== form.confirm) {
     errs.confirm = 'No coincide con la contraseña.';
   }
