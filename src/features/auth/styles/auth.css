@@ -39,7 +39,7 @@
      · auth-loading / auth-spinner  — spinner inline + texto durante
        / auth-loading-text            autenticación. Reusa @keyframes
                                        aur-spin global.
-     · auth-register-link / -btn-text-link / forgot-link / back-btn
+     · auth-register-link / forgot-link / back-btn
                                     — links de footer + nav. .aur-btn-text
                                        cubre el patrón ghost generic, pero
                                        estos tienen tamaño/spacing fijos
@@ -157,14 +157,18 @@
 
 .auth-input-action {
   position: absolute;
-  right: 0.65rem;
+  right: 0.25rem;
   background: none;
   border: none;
   color: var(--aur-text-3);
   cursor: pointer;
+  /* Tap target ≥40px en táctil (el icono mide 16px; el padding lo expande). */
+  width: 40px;
+  height: 40px;
   padding: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   transition: color 0.2s;
 }
 
@@ -175,12 +179,15 @@
 /* ── Botón flecha submit dentro del campo email (Login) ──────────────────── */
 .auth-input-arrow {
   position: absolute;
-  right: 0.55rem;
+  right: 0.25rem;
   background: none;
   border: none;
   color: var(--aur-accent);
   cursor: pointer;
-  padding: 4px;
+  /* Tap target ≥40px en táctil (antes 4px de padding → ~26px). */
+  width: 40px;
+  height: 40px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -418,4 +425,39 @@
 
 .auth-org-item--own:hover {
   background-color: var(--aur-accent-tint-2);
+}
+
+/* ── Tap target mínimo de los inputs del splash ──────────────────────────────
+   .aur-input nace en ~38px (padding 9px). En el flujo de auth, muy usado en
+   móvil, lo subimos a 44px para acertar con el pulgar sin pelearse con el
+   botón de acción del slot derecho. */
+.auth-form .aur-input {
+  min-height: 44px;
+}
+
+/* ── Responsive: en pantallas chicas el padding de 48/40px ahoga el card ───── */
+@media (max-width: 420px) {
+  .auth-card {
+    padding: 32px 20px;
+  }
+}
+
+/* ── prefers-reduced-motion: sin microanimaciones ni giro a toda velocidad ─── */
+@media (prefers-reduced-motion: reduce) {
+  /* No congelamos el spinner (parecería roto): lo dejamos girar muy lento para
+     conservar el feedback de "trabajando" sin movimiento agresivo. */
+  .auth-spinner {
+    animation-duration: 2.4s;
+  }
+  .auth-btn-google,
+  .auth-input-action,
+  .auth-input-arrow,
+  .auth-forgot-link,
+  .auth-back-btn {
+    transition: none;
+  }
+  .auth-input-arrow:hover:not(:disabled),
+  .auth-input-arrow:active:not(:disabled) {
+    transform: none;
+  }
 }
