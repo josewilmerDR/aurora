@@ -30,7 +30,7 @@ const router = Router();
 
 // --- TASKS ---
 
-router.get('/api/tasks', authenticate, async (req, res) => {
+router.get('/api/tasks', authenticate, rateLimit('tasks_read', 'public_read'), async (req, res) => {
   try {
     // Hard cap — sorted newest-first so when a finca crosses the limit
     // we truncate the oldest completed/skipped tasks first, not the
@@ -41,7 +41,7 @@ router.get('/api/tasks', authenticate, async (req, res) => {
       .limit(LIST_HARD_LIMIT)
       .get();
     let enrichedTasks = (await Promise.all(
-        tasksSnapshot.docs.map(doc => enrichTask(doc).catch(err => {
+        tasksSnapshot.docs.map(doc => enrichTask(doc, { lite: true }).catch(err => {
           console.error('enrichTask failed', logCtx(req, { taskId: doc.id, err: err?.message }));
           return null;
         }))
