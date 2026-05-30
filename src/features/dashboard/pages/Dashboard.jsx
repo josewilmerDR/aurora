@@ -136,10 +136,10 @@ function Dashboard() {
   ]), [stats]);
 
   return (
-    <div className="aur-sheet dash-sheet">
+    <div className="aur-sheet">
       <header className="aur-sheet-header">
         <div className="aur-sheet-header-text">
-          <h1 className="aur-sheet-title">Dashboard</h1>
+          <h2 className="aur-sheet-title">Dashboard</h2>
           <p className="aur-sheet-subtitle">
             Resumen de tareas pendientes y actividad reciente de la finca.
           </p>

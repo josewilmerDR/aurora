@@ -102,16 +102,22 @@ function OnboardingChecklist({ mode = 'fab' }) {
     {
       key: 'continue',
       visitKey: 'continue',
-      label: 'Continue from where you left off.',
-      to: null,
+      label: 'Continúa donde lo dejaste.',
+      // CTA navegacional permanente: lleva al panel operativo (no al chat,
+      // que ya es el paso "Chatea con Aurora"). No cuenta para el progreso.
+      to: '/tasks',
       icon: FiRotateCcw,
-      description: null,
+      description: 'Retoma tus tareas pendientes donde las dejaste.',
       completed: false,
     },
   ]), [baseSteps]);
-  const total = steps.length;
-  const completedCount = steps.filter(s => s.completed).length;
-  const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100);
+  // El paso "continuar" es una afford. de navegación, no un ítem de checklist:
+  // el progreso (X/N, anillo, gate de completado) cuenta solo los pasos reales,
+  // si no el onboarding nunca llegaría a 100% (quedaba clavado en N/N+1).
+  const windowCount = steps.length;
+  const progressTotal = baseSteps.length;
+  const progressDone = baseSteps.filter(s => s.completed).length;
+  const percent = progressTotal === 0 ? 0 : Math.round((progressDone / progressTotal) * 100);
   const viewSize = useResponsiveViewSize();
 
   // Render mode:
@@ -140,10 +146,10 @@ function OnboardingChecklist({ mode = 'fab' }) {
   // Una vez completados todos los pasos, sellar para siempre.
   useEffect(() => {
     if (!enabled) return;
-    if (!loading && total > 0 && completedCount === total) {
+    if (!loading && progressTotal > 0 && progressDone === progressTotal) {
       setCompletedSticky(uid);
     }
-  }, [enabled, loading, total, completedCount, uid]);
+  }, [enabled, loading, progressTotal, progressDone, uid]);
 
   // Índice del primer paso incompleto (-1 si no hay).
   const activeIndex = useMemo(() => steps.findIndex(s => !s.completed), [steps]);
@@ -151,7 +157,7 @@ function OnboardingChecklist({ mode = 'fab' }) {
   if (!enabled) return null;
   if (loading) return null;
   if (completedSticky) return null;
-  if (total > 0 && completedCount === total) return null;
+  if (progressTotal > 0 && progressDone === progressTotal) return null;
   // Una sola instancia se rinde a la vez según el flag de "primera vista":
   //   - mode=inline → sólo si el usuario aún no la ha cerrado.
   //   - mode=fab    → sólo después de cerrar la inline.
@@ -172,7 +178,7 @@ function OnboardingChecklist({ mode = 'fab' }) {
 
   // Ventana visible. En desktop son 3 columnas centradas en el paso activo;
   // en mobile es 1, mostrando solo el activo (o el seleccionado por el usuario).
-  const maxStart = Math.max(0, total - viewSize);
+  const maxStart = Math.max(0, windowCount - viewSize);
   const offsetToCenter = Math.floor(viewSize / 2);
   const derivedStart = Math.min(maxStart, Math.max(0, (activeIndex < 0 ? 0 : activeIndex - offsetToCenter)));
   const clampedOverride = windowOverride == null ? null : Math.min(maxStart, Math.max(0, windowOverride));
@@ -194,7 +200,7 @@ function OnboardingChecklist({ mode = 'fab' }) {
       <p className="dash-onboarding-hint">
         Haz este recorrido guiado por las funciones principales de Aurora para conocer mejor la plataforma
         {' '}
-        <span className="dash-onboarding-hint-count">[{completedCount}/{total}]</span>
+        <span className="dash-onboarding-hint-count">[{progressDone}/{progressTotal}]</span>
       </p>
 
       <div className="dash-onboarding-carousel">
@@ -220,7 +226,7 @@ function OnboardingChecklist({ mode = 'fab' }) {
                 step={step}
                 isActive={absoluteIndex === activeIndex}
                 isGlobalFirst={absoluteIndex === 0}
-                isGlobalLast={absoluteIndex === total - 1}
+                isGlobalLast={absoluteIndex === windowCount - 1}
                 prevDone={Boolean(prevStep?.completed)}
                 onNavigate={isInline ? undefined : close}
               />
@@ -269,12 +275,12 @@ function OnboardingChecklist({ mode = 'fab' }) {
         type="button"
         className={`dash-onboarding-badge${open ? ' is-open' : ''}`}
         onClick={toggle}
-        title={`Onboarding · ${completedCount}/${total} pasos completados`}
-        aria-label={open ? 'Cerrar onboarding' : `Abrir onboarding, ${completedCount} de ${total} pasos completados`}
+        title={`Onboarding · ${progressDone}/${progressTotal} pasos completados`}
+        aria-label={open ? 'Cerrar onboarding' : `Abrir onboarding, ${progressDone} de ${progressTotal} pasos completados`}
         aria-expanded={open}
       >
         <ProgressRing percent={percent} />
-        <span className="dash-onboarding-badge-count">{completedCount}/{total}</span>
+        <span className="dash-onboarding-badge-count">{progressDone}/{progressTotal}</span>
       </button>
 
       {open && (
