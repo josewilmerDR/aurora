@@ -96,7 +96,7 @@ export default function CostCenter() {
         setLoadError(await apiErrorMessage(res, 'No se pudieron cargar los costos.'));
       }
     } catch (e) {
-      console.error(e);
+      console.debug('[costos/live]', e);
       setData(null);
       setLoadError('No se pudieron cargar los costos. Revisá tu conexión.');
     }
@@ -107,14 +107,14 @@ export default function CostCenter() {
     try {
       const res = await apiFetch('/api/costos/indirectos');
       if (res.ok) setIndirectos(await res.json());
-    } catch (e) { console.error(e); }
+    } catch (e) { console.debug('[costos/indirectos]', e); }
   }, [apiFetch]);
 
   const fetchSnapshots = useCallback(async () => {
     try {
       const res = await apiFetch('/api/costos/snapshots');
       if (res.ok) setSnapshots(await res.json());
-    } catch (e) { console.error(e); }
+    } catch (e) { console.debug('[costos/snapshots]', e); }
   }, [apiFetch]);
 
   useEffect(() => { fetchLive(); }, [fetchLive]);
