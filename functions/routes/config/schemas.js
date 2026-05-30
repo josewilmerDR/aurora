@@ -27,6 +27,18 @@ const STR_MAX = 200;
 const ALLOWED_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
+// Content-sniffing del logo: el mediaType lo declara el cliente, así que además
+// verificamos que los bytes reales correspondan al tipo declarado (magic bytes).
+// Decodifica solo la cabecera (primeros 24 chars base64 ≈ 18 bytes) para no
+// expandir los 2 MB completos. Devuelve el MIME detectado o null.
+function sniffImageType(b64) {
+  const head = Buffer.from(b64.slice(0, 24), 'base64');
+  if (head.length >= 8 && head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) return 'image/png';
+  if (head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return 'image/jpeg';
+  if (head.length >= 12 && head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
 // Rangos numéricos por clave. Son la red de seguridad del servidor: el front ya
 // valida [min, max], pero un PUT directo (o un bug) podría escribir mortalidad
 // 5000% o días negativos y envenenar proyecciones/KPIs de toda la plataforma.
@@ -123,6 +135,13 @@ const configUpdateSchema = z.object(configShape).superRefine((obj, ctx) => {
   }
   if (!ALLOWED_LOGO_TYPES.has(obj.mediaType)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['mediaType'], message: 'mediaType must be image/png, image/jpeg or image/webp' });
+    return;
+  }
+  // F5: los bytes reales deben coincidir con el mediaType declarado. Bloquea
+  // polyglots / archivos con MIME mentido (solo tiene sentido si el MIME ya
+  // pasó la whitelist de arriba).
+  if (sniffImageType(b64) !== obj.mediaType) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['logoBase64'], message: 'logo content does not match the declared image type' });
   }
 });
 
