@@ -59,6 +59,8 @@ export const ACTION_OPTIONS = [
   { value: 'purchase.receipt.void',         label: 'Recepción de mercancía anulada' },
   { value: 'income.create',                 label: 'Ingreso registrado' },
   { value: 'income.delete',                 label: 'Ingreso eliminado' },
+  { value: 'costo_indirecto.delete',        label: 'Costo indirecto eliminado' },
+  { value: 'costo_snapshot.delete',         label: 'Snapshot de costos eliminado' },
 
   // Tareas programadas (cambian responsable, fecha o stock)
   { value: 'task.complete',                 label: 'Tarea completada' },
