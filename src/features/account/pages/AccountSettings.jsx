@@ -1,88 +1,127 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiUpload, FiSave, FiX, FiImage, FiEdit2 } from 'react-icons/fi';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { FiUpload, FiSave, FiX, FiImage, FiEdit2, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import {
+  COMPANY_FIELDS, TIMING_FIELDS, EMPTY_FORM,
+  ALLOWED_LOGO_TYPES, MAX_LOGO_BYTES,
+  fromApi, getInvalidKeys, hasUnsavedChanges,
+} from '../lib/account-settings';
 import '../styles/account-settings.css';
-
-const COMPANY_FIELDS = [
-  { name: 'nombreEmpresa',      label: 'Nombre de la Empresa',  placeholder: 'Ej: Finca Aurora S.A.',          type: 'text' },
-  { name: 'identificacion',     label: 'Identificación',         placeholder: 'Ej: 3-101-123456',               type: 'text' },
-  { name: 'representanteLegal', label: 'Representante legal',    placeholder: 'Nombre del representante legal', type: 'text' },
-  { name: 'administrador',      label: 'Administrador',          placeholder: 'Nombre del administrador',       type: 'text' },
-  { name: 'direccion',          label: 'Dirección',              placeholder: 'Ej: Upala, Alajuela, Costa Rica', type: 'text' },
-  { name: 'whatsapp',           label: 'Teléfono / WhatsApp',    placeholder: 'Ej: +506 8888-8888',             type: 'text' },
-  { name: 'correo',             label: 'Correo electrónico',     placeholder: 'Ej: contacto@fincaaurora.com',   type: 'email' },
-];
-
-const EMPTY_FORM = { nombreEmpresa: '', identificacion: '', representanteLegal: '', administrador: '', direccion: '', whatsapp: '', correo: '', diasIDesarrollo: 250, diasIIDesarrollo: 215, diasPostForza: 150 };
 
 function AccountSettings() {
   const apiFetch = useApiFetch();
-  const [form, setForm]           = useState(EMPTY_FORM);
-  const [savedForm, setSavedForm] = useState(EMPTY_FORM);
-  const [logoUrl, setLogoUrl]     = useState('');
-  const [preview, setPreview]     = useState('');
-  const [logoFile, setLogoFile]   = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [editMode, setEditMode]   = useState(false);
-  const [toast, setToast]         = useState(null);
-  const fileRef                   = useRef();
+  const [form, setForm]               = useState(EMPTY_FORM);
+  const [savedForm, setSavedForm]     = useState(EMPTY_FORM);
+  const [logoUrl, setLogoUrl]         = useState('');
+  const [preview, setPreview]         = useState('');
+  const [logoFile, setLogoFile]       = useState(null);
+  const [loadingPage, setLoadingPage] = useState(true);   // carga inicial
+  const [loadError, setLoadError]     = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [editMode, setEditMode]       = useState(false);
+  const [invalidKeys, setInvalidKeys] = useState([]);
+  const [toast, setToast]             = useState(null);
+  const fileRef                       = useRef();
+  const previewUrlRef                 = useRef('');        // para revokeObjectURL
   const showToast = (message, type = 'success') => setToast({ message, type });
 
-  useEffect(() => {
-    apiFetch('/api/config')
-      .then(r => r.json())
+  const loadConfig = useCallback((signal) => {
+    setLoadingPage(true);
+    setLoadError(false);
+    return apiFetch('/api/config', signal ? { signal } : undefined)
+      .then(r => { if (!r.ok) throw new Error('config load failed'); return r.json(); })
       .then(data => {
-        const next = {
-          nombreEmpresa:    data.nombreEmpresa    || '',
-          identificacion:   data.identificacion   || '',
-          representanteLegal: data.representanteLegal || '',
-          administrador:    data.administrador    || '',
-          direccion:        data.direccion        || '',
-          whatsapp:         data.whatsapp         || '',
-          correo:           data.correo           || '',
-          diasIDesarrollo:  data.diasIDesarrollo  ?? 250,
-          diasIIDesarrollo: data.diasIIDesarrollo ?? 215,
-          diasPostForza:    data.diasPostForza    ?? 150,
-        };
-        setForm(next);
-        setSavedForm(next);
-        if (data.logoUrl) setLogoUrl(data.logoUrl);
+        setForm(fromApi(data));
+        setSavedForm(fromApi(data));
+        setLogoUrl(data.logoUrl || '');
       })
-      .catch(console.error);
+      .catch(err => {
+        if (err?.name === 'AbortError') return;
+        setLoadError(true);
+      })
+      .finally(() => { if (!signal?.aborted) setLoadingPage(false); });
+  }, [apiFetch]);
+
+  // Carga inicial; aborta en desmontaje para no setear estado sobre un
+  // componente muerto (y maneja el doble-render de StrictMode sin warning).
+  useEffect(() => {
+    const ctrl = new AbortController();
+    loadConfig(ctrl.signal);
+    return () => ctrl.abort();
+  }, [loadConfig]);
+
+  // Libera el object URL de la preview al desmontar (evita leak de memoria).
+  useEffect(() => () => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
   }, []);
+
+  const dirty = editMode && (hasUnsavedChanges(savedForm, form) || Boolean(logoFile));
+
+  // Aviso del navegador si se intenta cerrar/recargar con cambios sin guardar.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+    setInvalidKeys(prev => (prev.includes(name) ? prev.filter(k => k !== name) : prev));
+  };
+
+  const setPreviewUrl = (url) => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = url;
+    setPreview(url);
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { showToast('Solo se permiten imágenes.', 'error'); return; }
-    if (file.size > 2 * 1024 * 1024)    { showToast('El logo no puede superar 2 MB.', 'error'); return; }
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) { showToast('Formato no admitido. Usá PNG, JPG o WebP.', 'error'); return; }
+    if (file.size > MAX_LOGO_BYTES)              { showToast('El logo no puede superar 2 MB.', 'error'); return; }
     setLogoFile(file);
-    setPreview(URL.createObjectURL(file));
+    setPreviewUrl(URL.createObjectURL(file));
   };
 
   const clearLogo = () => {
     setLogoFile(null);
-    setPreview('');
+    setPreviewUrl('');
     if (fileRef.current) fileRef.current.value = '';
   };
 
   const handleEdit = () => setEditMode(true);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setForm(savedForm);
     clearLogo();
+    setInvalidKeys([]);
     setEditMode(false);
-  };
+  }, [savedForm]);
+
+  // ESC cancela la edición (cierra el "modo" innermost de la página).
+  useEffect(() => {
+    if (!editMode) return;
+    const onKey = (e) => { if (e.key === 'Escape') handleCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editMode, handleCancel]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+
+    const invalid = getInvalidKeys(form);
+    if (invalid.length > 0) {
+      setInvalidKeys(invalid);
+      showToast('Hay campos inválidos (marcados en rojo). Corregilos antes de guardar.', 'error');
+      return;
+    }
+
+    setSaving(true);
     try {
       const body = { ...form };
 
@@ -105,17 +144,48 @@ function AccountSettings() {
       if (!res.ok) throw new Error();
       const updated = await res.json();
       if (updated.logoUrl) { setLogoUrl(updated.logoUrl); clearLogo(); }
-      setSavedForm(form);
+      setSavedForm(fromApi(updated));
+      setForm(fromApi(updated));
+      setInvalidKeys([]);
       setEditMode(false);
       showToast('Configuración guardada correctamente.');
     } catch {
       showToast('Error al guardar la configuración.', 'error');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const activeLogo = preview || logoUrl;
+  // Habilitar Guardar sólo si hay cambios (o un guardado en curso, para no
+  // togglear el disabled a mitad de la petición).
+  const canSave = saving || dirty;
+
+  if (loadingPage) {
+    return (
+      <div className="lote-management-layout">
+        <div className="aur-page-loading" role="status" aria-label="Cargando configuración" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="lote-management-layout">
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        <EmptyState
+          icon={FiAlertTriangle}
+          title="No se pudo cargar la configuración"
+          subtitle="Revisá tu conexión o tus permisos e intentá de nuevo."
+          action={(
+            <button type="button" className="aur-btn-pill aur-btn-pill--sm" onClick={() => loadConfig()}>
+              Reintentar
+            </button>
+          )}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="lote-management-layout">
@@ -127,11 +197,11 @@ function AccountSettings() {
           <div className="account-form-header-actions">
             {editMode ? (
               <>
-                <button type="button" className="aur-btn-text" onClick={handleCancel} disabled={loading}>
+                <button type="button" className="aur-btn-text" onClick={handleCancel} disabled={saving}>
                   <FiX size={14} /> Cancelar
                 </button>
-                <button type="submit" className="aur-btn-pill aur-btn-pill--sm" disabled={loading}>
-                  <FiSave size={14} /> {loading ? 'Guardando…' : 'Guardar'}
+                <button type="submit" className="aur-btn-pill aur-btn-pill--sm" disabled={!canSave}>
+                  <FiSave size={14} /> {saving ? 'Guardando…' : 'Guardar'}
                 </button>
               </>
             ) : (
@@ -149,7 +219,7 @@ function AccountSettings() {
           <div className="account-logo-area">
             {activeLogo ? (
               <div className="account-logo-preview-wrap">
-                <img src={activeLogo} alt="Logo" className="account-logo-preview" />
+                <img src={activeLogo} alt="Logo de la empresa" className="account-logo-preview" />
                 {preview && editMode && (
                   <button
                     type="button"
@@ -175,13 +245,13 @@ function AccountSettings() {
                     <FiUpload size={15} />
                     {activeLogo ? 'Cambiar logo' : 'Subir logo'}
                   </button>
-                  <p className="account-logo-hint">PNG o JPG · Máx. 2 MB · Recomendado: fondo transparente</p>
+                  <p className="account-logo-hint">PNG, JPG o WebP · Máx. 2 MB · Recomendado: fondo transparente</p>
                 </>
               )}
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp"
+                accept={ALLOWED_LOGO_TYPES.join(',')}
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
               />
@@ -194,26 +264,68 @@ function AccountSettings() {
             <h3 className="aur-section-title">Datos de la empresa</h3>
           </header>
           <ul className="aur-list">
-            {COMPANY_FIELDS.map(f => (
-              <li key={f.name} className="aur-row">
-                <span className="aur-row-label">{f.label}</span>
-                {editMode ? (
-                  <input
-                    className="aur-input"
-                    id={f.name}
-                    name={f.name}
-                    type={f.type}
-                    value={form[f.name]}
-                    onChange={handleChange}
-                    placeholder={f.placeholder}
-                  />
-                ) : (
-                  <span className={`account-row-value${form[f.name] ? '' : ' account-row-value--empty'}`}>
-                    {form[f.name] || '—'}
-                  </span>
-                )}
-              </li>
-            ))}
+            {COMPANY_FIELDS.map(f => {
+              const isInvalid = invalidKeys.includes(f.name);
+              return (
+                <li key={f.name} className="aur-row">
+                  <label className="aur-row-label" htmlFor={f.name}>{f.label}</label>
+                  {editMode ? (
+                    <input
+                      className={`aur-input${isInvalid ? ' aur-input--error' : ''}`}
+                      id={f.name}
+                      name={f.name}
+                      type={f.type}
+                      value={form[f.name]}
+                      onChange={handleChange}
+                      placeholder={f.placeholder}
+                      aria-invalid={isInvalid || undefined}
+                      inputMode={f.type === 'tel' ? 'tel' : undefined}
+                    />
+                  ) : (
+                    <span className={`account-row-value${form[f.name] ? '' : ' account-row-value--empty'}`}>
+                      {form[f.name] || '—'}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section className="aur-section">
+          <header className="aur-section-header">
+            <h3 className="aur-section-title">Días de desarrollo</h3>
+          </header>
+          {editMode && (
+            <p className="account-section-note">
+              Estos días alimentan las fechas estimadas de las proyecciones de cosecha por grupo.
+            </p>
+          )}
+          <ul className="aur-list">
+            {TIMING_FIELDS.map(f => {
+              const isInvalid = invalidKeys.includes(f.name);
+              return (
+                <li key={f.name} className="aur-row">
+                  <label className="aur-row-label" htmlFor={f.name}>{f.label}</label>
+                  {editMode ? (
+                    <input
+                      className={`aur-input aur-input--num${isInvalid ? ' aur-input--error' : ''}`}
+                      id={f.name}
+                      name={f.name}
+                      type="number"
+                      min={f.min}
+                      max={f.max}
+                      step={f.step}
+                      value={form[f.name]}
+                      onChange={handleChange}
+                      aria-invalid={isInvalid || undefined}
+                    />
+                  ) : (
+                    <span className="account-row-value">{form[f.name]} días</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       </form>
