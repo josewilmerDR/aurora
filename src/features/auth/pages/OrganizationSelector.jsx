@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, ROLE_LABELS } from '../../../contexts/UserContext';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../lib/apiFetch';
@@ -9,33 +9,72 @@ import '../styles/auth.css';
 export default function OrganizationSelector() {
   const { memberships, selectFinca, firebaseUser, logout, refreshMemberships } = useUser();
   const navigate = useNavigate();
-  const [checking, setChecking] = useState(false);
+  // Si llegamos sin membresías arrancamos en "buscando" para que el primer
+  // render no parpadee el empty-state antes de que el effect reclame invitaciones.
+  const [checking, setChecking] = useState(memberships.length === 0);
+  const [error, setError] = useState(false);
+  const [enteringId, setEnteringId] = useState(null);
+  const claimedRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // Fallback: si al montar no hay membresías, intentar reclamar invitaciones pendientes.
-  // Cubre el caso en que onAuthStateChanged no pudo completar la verificación a tiempo.
-  useEffect(() => {
-    if (memberships.length > 0) return;
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  // Red de seguridad: reclamar invitaciones pendientes si llegamos sin membresías.
+  // El claim principal corre en onAuthStateChanged (UserContext); esto solo cubre
+  // que aquel haya fallado por red. A diferencia de antes, un fallo de red ahora
+  // se muestra como error en vez de disfrazarse de "no tenés organizaciones".
+  const runClaim = useCallback(async () => {
+    setError(false);
     setChecking(true);
-    apiFetch('/api/auth/claim-invitations', { method: 'POST' })
-      .then(res => res.ok ? res.json() : { memberships: [] })
-      .then(async (data) => {
-        if (data.memberships?.length > 0) {
-          await refreshMemberships();
-        }
-      })
-      .catch(() => {})
-      .finally(() => setChecking(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    try {
+      const res = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
+      if (!res.ok) throw new Error('claim failed');
+      const data = await res.json();
+      if (data.memberships?.length > 0) await refreshMemberships();
+    } catch {
+      if (mountedRef.current) setError(true);
+    } finally {
+      if (mountedRef.current) setChecking(false);
+    }
+  }, [refreshMemberships]);
+
+  useEffect(() => {
+    if (memberships.length > 0 || claimedRef.current) return;
+    claimedRef.current = true; // evita doble disparo (StrictMode / re-render)
+    runClaim();
+  }, [memberships.length, runClaim]);
+
+  // Auto-seleccionar cuando hay una sola organización: nadie debería elegir de
+  // una lista de un único elemento. Alinea el comportamiento con
+  // refreshMemberships(), que ya auto-selecciona en ese caso.
+  useEffect(() => {
+    if (memberships.length === 1) selectFinca(memberships[0].fincaId);
+  }, [memberships, selectFinca]);
 
   const ownedOrgs = memberships.filter(m => m.isOwner);
   const invitedOrgs = memberships.filter(m => !m.isOwner);
   const hasOwnOrg = ownedOrgs.length > 0;
   const noMemberships = memberships.length === 0;
 
+  const handleSelect = (fincaId) => {
+    if (enteringId) return; // bloquea doble click / selección concurrente
+    setEnteringId(fincaId);
+    selectFinca(fincaId);
+  };
+
+  const createOrgButton = (
+    <button
+      className="aur-btn-pill auth-btn-submit"
+      onClick={() => navigate('/nueva-organizacion')}
+    >
+      + Crear organización
+    </button>
+  );
+
   if (checking) {
     return (
       <AuthCard>
-        <AuthLoading />
+        <AuthLoading text="Buscando tus organizaciones..." />
       </AuthCard>
     );
   }
@@ -51,63 +90,74 @@ export default function OrganizationSelector() {
         </button>
       }
     >
-      {noMemberships ? (
-        <>
-          <p className="auth-org-empty">
-            En este momento no perteneces a ninguna organización.
-            Crea tu primera organización e invita a otras personas a unirse a ella.
-          </p>
-          <button
-            className="aur-btn-pill auth-btn-submit"
-            onClick={() => navigate('/nueva-organizacion')}
-          >
-            + Crear organización
-          </button>
-        </>
-      ) : (
-        <>
-          {hasOwnOrg && (
-            <div className="auth-org-section">
-              <span className="auth-org-section-title">Tu organización</span>
-              {ownedOrgs.map(m => (
-                <button
-                  key={m.fincaId}
-                  className="auth-org-item auth-org-item--own"
-                  onClick={() => selectFinca(m.fincaId)}
-                >
-                  <span className="auth-org-item-name">Ir a {m.fincaNombre}</span>
-                  <span className="aur-badge aur-badge--green">Tuya</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {!hasOwnOrg && (
-            <button
-              className="aur-btn-pill auth-btn-submit"
-              onClick={() => navigate('/nueva-organizacion')}
-            >
-              + Crear organización
+      <div className="auth-org-body" aria-live="polite">
+        {error ? (
+          <>
+            <p className="auth-error" role="alert">
+              No pudimos cargar tus organizaciones. Revisá tu conexión e intentá de nuevo.
+            </p>
+            <button className="aur-btn-pill auth-btn-submit" onClick={runClaim}>
+              Reintentar
             </button>
-          )}
+          </>
+        ) : noMemberships ? (
+          <>
+            <p className="auth-org-empty">
+              En este momento no perteneces a ninguna organización.
+              Crea tu primera organización e invita a otras personas a unirse a ella.
+            </p>
+            {createOrgButton}
+          </>
+        ) : (
+          <>
+            {hasOwnOrg && (
+              <section className="auth-org-section">
+                <h3 className="auth-org-section-title">Tu organización</h3>
+                <ul className="auth-org-list" role="list">
+                  {ownedOrgs.map(m => (
+                    <li key={m.fincaId}>
+                      <button
+                        className="auth-org-item auth-org-item--own"
+                        onClick={() => handleSelect(m.fincaId)}
+                        disabled={!!enteringId}
+                      >
+                        <span className="auth-org-item-name">{m.fincaNombre}</span>
+                        <span className="aur-badge aur-badge--green">
+                          {enteringId === m.fincaId ? 'Entrando…' : 'Tuya'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
-          {invitedOrgs.length > 0 && (
-            <div className="auth-org-section">
-              <span className="auth-org-section-title">Otras organizaciones</span>
-              {invitedOrgs.map(m => (
-                <button
-                  key={m.fincaId}
-                  className="auth-org-item"
-                  onClick={() => selectFinca(m.fincaId)}
-                >
-                  <span className="auth-org-item-name">{m.fincaNombre}</span>
-                  <span className="auth-org-item-rol">{ROLE_LABELS[m.rol] || m.rol}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+            {!hasOwnOrg && createOrgButton}
+
+            {invitedOrgs.length > 0 && (
+              <section className="auth-org-section">
+                <h3 className="auth-org-section-title">Otras organizaciones</h3>
+                <ul className="auth-org-list" role="list">
+                  {invitedOrgs.map(m => (
+                    <li key={m.fincaId}>
+                      <button
+                        className="auth-org-item"
+                        onClick={() => handleSelect(m.fincaId)}
+                        disabled={!!enteringId}
+                      >
+                        <span className="auth-org-item-name">{m.fincaNombre}</span>
+                        <span className="aur-badge aur-badge--gray">
+                          {enteringId === m.fincaId ? 'Entrando…' : (ROLE_LABELS[m.rol] || 'Miembro')}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </AuthCard>
   );
 }

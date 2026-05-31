@@ -108,8 +108,18 @@ export function UserProvider({ children }) {
       return;
     }
     apiFetch('/api/auth/me', {}, activeFincaId)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setCurrentUser(data))
+      .then(async (res) => {
+        if (res.ok) {
+          setCurrentUser(await res.json());
+        } else {
+          // Perfil inaccesible (membresía revocada o finca borrada entre que se
+          // listó y se seleccionó): limpiar la selección para volver al selector
+          // en vez de quedar colgados en el spinner de ProtectedRoute.
+          setCurrentUser(null);
+          setActiveFincaId(null);
+          localStorage.removeItem(ACTIVE_FINCA_KEY);
+        }
+      })
       .catch(() => setCurrentUser(null));
   }, [firebaseUser, activeFincaId]);
 
@@ -162,8 +172,6 @@ export function UserProvider({ children }) {
   const isLoggedIn = !!firebaseUser && !!currentUser;
   const needsOrgSelection = !!firebaseUser && !activeFincaId && !isLoading;
   const needsSetup = !!firebaseUser && memberships.length === 0 && !isLoading;
-  // kept for Register.jsx compatibility
-  const needsFincaSelection = !!firebaseUser && memberships.length > 1 && !activeFincaId;
 
   return (
     <UserContext.Provider value={{
@@ -180,7 +188,6 @@ export function UserProvider({ children }) {
       isLoggedIn,
       isLoading,
       needsOrgSelection,
-      needsFincaSelection,
       needsSetup,
     }}>
       {children}

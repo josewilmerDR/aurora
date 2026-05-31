@@ -2,9 +2,19 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import AuthCard from '../components/AuthCard';
 import AuthLoading from '../components/AuthLoading';
 import '../styles/auth.css';
+
+// Mismo contrato de validación que el paso 2 de Register, para que ambos
+// formularios de creación de organización se comporten igual.
+function validate(form) {
+  const errs = {};
+  if (!(form.fincaNombre || '').trim()) errs.fincaNombre = 'Requerido.';
+  if (!(form.nombreAdmin || '').trim()) errs.nombreAdmin = 'Requerido.';
+  return errs;
+}
 
 export default function NewOrganization() {
   const navigate = useNavigate();
@@ -14,6 +24,7 @@ export default function NewOrganization() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
 
   useEffect(() => {
     if (!isLoading && !firebaseUser) navigate('/login', { replace: true });
@@ -26,6 +37,7 @@ export default function NewOrganization() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateAll({ fincaNombre, nombreAdmin })) return;
     setSubmitting(true);
     setError('');
     try {
@@ -65,26 +77,34 @@ export default function NewOrganization() {
           <input
             id="finca-nombre"
             type="text"
-            className="aur-input"
+            className={inputClass('fincaNombre')}
             value={fincaNombre}
-            onChange={(e) => setFincaNombre(e.target.value)}
+            onChange={(e) => { setFincaNombre(e.target.value); clearField('fincaNombre'); }}
+            onBlur={() => blurField('fincaNombre', { fincaNombre, nombreAdmin })}
             placeholder="Ej: Hacienda El Sol"
             disabled={submitting}
             required
           />
+          {fieldErrors.fincaNombre && (
+            <span className="aur-field-error">{fieldErrors.fincaNombre}</span>
+          )}
         </div>
         <div className="aur-field">
           <label htmlFor="nombre-admin" className="aur-field-label">Tu nombre</label>
           <input
             id="nombre-admin"
             type="text"
-            className="aur-input"
+            className={inputClass('nombreAdmin')}
             value={nombreAdmin}
-            onChange={(e) => setNombreAdmin(e.target.value)}
+            onChange={(e) => { setNombreAdmin(e.target.value); clearField('nombreAdmin'); }}
+            onBlur={() => blurField('nombreAdmin', { fincaNombre, nombreAdmin })}
             placeholder="Ej: Carlos Mendoza"
             disabled={submitting}
             required
           />
+          {fieldErrors.nombreAdmin && (
+            <span className="aur-field-error">{fieldErrors.nombreAdmin}</span>
+          )}
         </div>
         {error && <p className="auth-error">{error}</p>}
         <button
