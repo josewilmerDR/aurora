@@ -7,15 +7,47 @@ const { getAnthropicClient } = require('../../lib/clients');
 const { authenticate } = require('../../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { hasMinRoleBE } = require('../../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const router = Router();
 
+// Límites de entrada del scan. Se redefinen locales (en vez de importar de
+// monitoring/helpers.js) para no acoplar el dominio planting con monitoring —
+// mismo criterio que plots.js con UNSAFE_TEXT_CHARS. Valores alineados con el
+// escáner hermano /api/muestreos/escanear-formulario.
+const MAX_SCAN_IMAGE_BASE64 = 8 * 1024 * 1024; // ~6MB de imagen binaria
+const MEDIA_TYPES_IMG = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+// Anti prompt-injection: los nombres de lote/material del catálogo se
+// interpolan en el prompt. Aunque son del propio tenant, un nombre con
+// instrucciones embebidas podría desviar al modelo. Solo letras/números +
+// puntuación común, truncado a 40 chars. Espejo de sampling.js.
+const sanitizeForPrompt = (s) => String(s ?? '').replace(/[^\p{L}\p{N} _\-./%()]/gu, '').slice(0, 40);
+
 router.post('/api/siembras/escanear', authenticate, rateLimit('siembras_scan', 'ai_medium'), async (req, res) => {
   try {
+    // H2: el único consumidor legítimo es el form de Siembra (gated a
+    // encargado+). Sin este gate, un trabajador autenticado podía invocar el
+    // escáner IA y, en la respuesta, recibir el catálogo `materiales` completo
+    // —que GET /api/materiales-siembra le niega (403)— además de gastar
+    // presupuesto de IA. Alineado con el resto del dominio siembras.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can scan siembra forms.', 403);
+    }
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'imageBase64 and mediaType are required.', 400);
+    }
+    // H1: cap de tamaño + allowlist de mediaType. El body de Express admite
+    // hasta 15MB; sin estos checks, un autenticado podía empujar ~15MB de
+    // base64 a Anthropic por request (amplificación de costo) y un media_type
+    // arbitrario viajaba crudo al campo `media_type` de la API → 500 opaco.
+    if (typeof imageBase64 !== 'string' || imageBase64.length > MAX_SCAN_IMAGE_BASE64) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Image exceeds max size.', 413);
+    }
+    if (!MEDIA_TYPES_IMG.includes(mediaType)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Unsupported image type. Use jpeg, png, gif or webp.', 400);
     }
 
     const [lotesSnap, matsSnap] = await Promise.all([
@@ -33,11 +65,14 @@ router.post('/api/siembras/escanear', authenticate, rateLimit('siembras_scan', '
 
     const client = getAnthropicClient();
 
+    // H3: los nombres del catálogo (user-controlled) se sanitizan SOLO para el
+    // prompt. El id es un doc id de Firestore (alfanumérico, seguro). Las
+    // respuestas al cliente más abajo devuelven el catálogo original sin tocar.
     const lotesTexto = lotes.length
-      ? lotes.map(l => `- ID: "${l.id}" | Nombre: "${l.nombre}"`).join('\n')
+      ? lotes.map(l => `- ID: "${l.id}" | Nombre: "${sanitizeForPrompt(l.nombre)}"`).join('\n')
       : '(sin lotes registrados)';
     const matsTexto = materiales.length
-      ? materiales.map(m => `- ID: "${m.id}" | Nombre: "${m.nombre}" | RangoPesos: "${m.rangoPesos}" | Variedad: "${m.variedad}"`).join('\n')
+      ? materiales.map(m => `- ID: "${m.id}" | Nombre: "${sanitizeForPrompt(m.nombre)}" | RangoPesos: "${sanitizeForPrompt(m.rangoPesos)}" | Variedad: "${sanitizeForPrompt(m.variedad)}"`).join('\n')
       : '(sin materiales registrados)';
 
     const prompt = `Eres un asistente agrícola. Analiza este formulario físico de registro de siembra de piña.

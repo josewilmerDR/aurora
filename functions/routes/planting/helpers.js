@@ -20,6 +20,29 @@ async function getResponsableFromUid(uid, fincaId) {
   return { id: snap.docs[0].id, nombre: snap.docs[0].data().nombre || '' };
 }
 
+// FK guard: returns true if the siembra is currently a bloque in any grupo of
+// the finca. Used before deleting a siembra so we never leave a dangling
+// siembraId inside grupos.bloques[] (mirrors the lote/material FK guards in
+// plots.js / materiales.js). Scoped to the finca — only same-finca grupos are
+// scanned. Uses the (fincaId, bloques array-contains) composite index; falls
+// back to a full-finca grupos scan if the index isn't live yet, same defensive
+// posture as findBlockOrigins in groups.js.
+async function isSiembraInGrupo(fincaId, siembraId) {
+  if (!fincaId || !siembraId) return false;
+  try {
+    const snap = await db.collection('grupos')
+      .where('fincaId', '==', fincaId)
+      .where('bloques', 'array-contains', siembraId)
+      .limit(1)
+      .get();
+    return !snap.empty;
+  } catch (err) {
+    console.warn('[isSiembraInGrupo] array-contains failed, falling back to full scan:', err?.message || err);
+    const snap = await db.collection('grupos').where('fincaId', '==', fincaId).get();
+    return snap.docs.some(d => Array.isArray(d.data().bloques) && d.data().bloques.includes(siembraId));
+  }
+}
+
 // Returns the canonical, serialized siembra record (timestamps → ISO strings)
 // so PUT can hand the client back the authoritative post-update state and the
 // UI doesn't have to blind-merge form input.
@@ -39,4 +62,5 @@ async function readSiembra(id) {
 module.exports = {
   getResponsableFromUid,
   readSiembra,
+  isSiembraInGrupo,
 };
