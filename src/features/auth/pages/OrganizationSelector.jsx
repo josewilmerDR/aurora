@@ -17,7 +17,14 @@ export default function OrganizationSelector() {
   const claimedRef = useRef(false);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // Reseteamos en el montaje (no solo en el desmontaje): bajo StrictMode en dev
+  // el ciclo monta→desmonta→remonta deja mountedRef en false para siempre si
+  // solo se setea en el cleanup, y entonces el `finally` de runClaim nunca
+  // limpia `checking` → spinner "Buscando tus organizaciones…" infinito.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Red de seguridad: reclamar invitaciones pendientes si llegamos sin membresías.
   // El claim principal corre en onAuthStateChanged (UserContext); esto solo cubre
