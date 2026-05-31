@@ -355,7 +355,28 @@ router.delete('/api/users/:id', authenticate, requireAdmin, rateLimit('users_wri
       );
     }
 
-    await db.collection('users').doc(id).delete();
+    // Delete the user doc AND its membership atomically. A person with system
+    // access who has logged in at least once owns a membership (uid__fincaId);
+    // without removing it here the "deleted" user keeps full access — every
+    // authenticate() call still finds the membership and lets them in until
+    // their Firebase token happens to expire. Mirrors the revoke-access
+    // side-effect (users-facets.js), but transactional so we never leave a
+    // dangling membership if the second write fails. Lookup is by (fincaId,
+    // email) because that's how claim-invitations materialized it.
+    await db.runTransaction(async (tx) => {
+      let memRef = null;
+      if (targetEmail) {
+        const memSnap = await tx.get(
+          db.collection('memberships')
+            .where('fincaId', '==', req.fincaId)
+            .where('email', '==', targetEmail)
+            .limit(1)
+        );
+        if (!memSnap.empty) memRef = memSnap.docs[0].ref;
+      }
+      tx.delete(db.collection('users').doc(id));
+      if (memRef) tx.delete(memRef);
+    });
 
     writeAuditEvent({
       fincaId: req.fincaId,

@@ -49,6 +49,12 @@ export function UserProvider({ children }) {
   const [activeFincaId, setActiveFincaId] = useState(() => localStorage.getItem(ACTIVE_FINCA_KEY));
   // currentUser: user profile in the active finca { nombre, rol, telefono, ... }
   const [currentUser, setCurrentUser] = useState(null);
+  // membershipsLoadFailed: true when we could NOT get a definitive answer about
+  // the user's memberships (both the GET and the claim failed — offline, backend
+  // down). Distinguishes "confirmed 0 memberships" from "couldn't load", so a
+  // transient error does not route a user who actually has orgs into the
+  // create-organization flow. See needsSetup below.
+  const [membershipsLoadFailed, setMembershipsLoadFailed] = useState(false);
 
   // Loads memberships + claims invitations + active-finca profile for an
   // authenticated, email-verified user. Extracted so onAuthStateChanged and
@@ -57,19 +63,25 @@ export function UserProvider({ children }) {
     // Load memberships BEFORE setting firebaseUser to avoid an intermediate render
     // where memberships=[] and needsSetup=true would redirect to /register
     let membershipsData = [];
+    // Track whether at least one endpoint gave a definitive answer. If both
+    // fail we must NOT conclude "0 memberships" (that would trigger needsSetup
+    // and push a user with orgs into /register on a transient network blip).
+    let loadOk = false;
     try {
       const res = await apiFetch('/api/auth/memberships');
       if (res.ok) {
         const data = await res.json();
         membershipsData = data.memberships || [];
+        loadOk = true;
       }
-    } catch { /* leave membershipsData empty */ }
+    } catch { /* leave membershipsData empty, loadOk false */ }
 
     // Always claim email invitations — regardless of whether GET /memberships succeeded.
     // Covers first login (no memberships by UID) and users added to another org by an admin.
     try {
       const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
       if (claimRes.ok) {
+        loadOk = true;
         const claimData = await claimRes.json();
         const claimed = claimData.memberships || [];
         // Append only memberships not already in the list (dedupe)
@@ -78,6 +90,7 @@ export function UserProvider({ children }) {
       }
     } catch { /* silently fail */ }
 
+    setMembershipsLoadFailed(!loadOk);
     setMemberships(membershipsData);
 
     // If a stored active finca exists, load the profile BEFORE revealing the
@@ -101,6 +114,7 @@ export function UserProvider({ children }) {
         setFirebaseUser(null);
         setEmailVerified(true);
         setMemberships([]);
+        setMembershipsLoadFailed(false);
         setCurrentUser(null);
         setActiveFincaId(null);
         localStorage.removeItem(ACTIVE_FINCA_KEY);
@@ -114,6 +128,7 @@ export function UserProvider({ children }) {
       // arrives verified, so this only gates the email/password path.
       if (!fbUser.emailVerified) {
         setMemberships([]);
+        setMembershipsLoadFailed(false);
         setCurrentUser(null);
         setEmailVerified(false);
         setFirebaseUser(fbUser);
@@ -221,7 +236,11 @@ export function UserProvider({ children }) {
   const needsEmailVerification = !!firebaseUser && !emailVerified && !isLoading;
   const isLoggedIn = !!firebaseUser && emailVerified && !!currentUser;
   const needsOrgSelection = !!firebaseUser && emailVerified && !activeFincaId && !isLoading;
-  const needsSetup = !!firebaseUser && emailVerified && memberships.length === 0 && !isLoading;
+  // Gated on a successful load: if we couldn't determine memberships (offline /
+  // backend down), we don't claim the user has none — that would misroute a
+  // user with orgs into /register. They fall to needsOrgSelection instead,
+  // where OrganizationSelector re-attempts the fetch/claim.
+  const needsSetup = !!firebaseUser && emailVerified && memberships.length === 0 && !membershipsLoadFailed && !isLoading;
 
   return (
     <UserContext.Provider value={{

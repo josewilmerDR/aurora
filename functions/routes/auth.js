@@ -235,27 +235,48 @@ router.post('/api/auth/claim-invitations', authenticateOnly, rateLimit('auth_wri
       .get();
     if (usersSnap.empty) return res.status(200).json({ memberships: [] });
 
-    const batch = db.batch();
-    const newMemberships = [];
+    // Fail-closed: only materialize a membership for people EXPLICITLY granted
+    // system access. A users doc represents a *person*; tieneAcceso=true is the
+    // single flag that turns that person into a login. We require `=== true`
+    // (not "!== false") so a legacy/partial/corrupted doc with a missing flag
+    // cannot silently grant access — this matches how the rest of the users
+    // domain reads the flag (`=== true` in /lite, grant/revoke, etc.). Docs
+    // without a fincaId, and payroll-only people, never get a membership.
+    const candidates = usersSnap.docs.filter((d) => {
+      const u = d.data();
+      return u.fincaId && u.tieneAcceso === true;
+    });
 
-    for (const userDoc of usersSnap.docs) {
-      const userData = userDoc.data();
-      const { fincaId, nombre, rol, telefono } = userData;
-      if (!fincaId) continue;
-      // A users doc represents a *person*, not necessarily a system user.
-      // People with tieneAcceso=false are payroll-only and must not have a
-      // membership materialized for them — that would grant them login.
-      if (userData.tieneAcceso === false) continue;
-
+    // Read phase, parallelized. The previous version did two sequential round
+    // trips per candidate (membership lookup + finca get), up to
+    // MAX_USER_DOCS_PER_CLAIM of them — under fail-open rate limiting that was a
+    // read-amplification lever. Fan the reads out with Promise.all; the result
+    // array preserves candidate order, so newMemberships order is unchanged.
+    const reads = await Promise.all(candidates.map(async (userDoc) => {
+      const { fincaId } = userDoc.data();
       // Check for existing membership by query first, to stay compatible with
       // pre-existing auto-id memberships. Only new memberships are created
       // with a deterministic id (uid__fincaId) so concurrent claims cannot
       // materialize duplicates.
-      const existingSnap = await db.collection('memberships')
-        .where('uid', '==', uid)
-        .where('fincaId', '==', fincaId)
-        .limit(1)
-        .get();
+      const [existingSnap, fincaDoc] = await Promise.all([
+        db.collection('memberships')
+          .where('uid', '==', uid)
+          .where('fincaId', '==', fincaId)
+          .limit(1)
+          .get(),
+        db.collection('fincas').doc(fincaId).get(),
+      ]);
+      return { userDoc, existingSnap, fincaDoc };
+    }));
+
+    // Write phase — assemble the batch from the resolved reads.
+    const batch = db.batch();
+    const newMemberships = [];
+
+    for (const { userDoc, existingSnap, fincaDoc } of reads) {
+      const userData = userDoc.data();
+      const { fincaId, nombre, rol, telefono } = userData;
+
       if (!existingSnap.empty) {
         newMemberships.push({ id: existingSnap.docs[0].id, ...existingSnap.docs[0].data() });
         continue;
@@ -264,8 +285,6 @@ router.post('/api/auth/claim-invitations', authenticateOnly, rateLimit('auth_wri
       const membershipId = membershipDocId(uid, fincaId);
       const membershipRef = db.collection('memberships').doc(membershipId);
 
-      // Fetch finca name
-      const fincaDoc = await db.collection('fincas').doc(fincaId).get();
       const fincaNombre = fincaDoc.exists ? fincaDoc.data().nombre : fincaId;
 
       // Whitelist-validate the role materialized from the users doc. Anything

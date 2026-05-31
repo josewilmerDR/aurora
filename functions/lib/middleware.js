@@ -10,10 +10,11 @@ const { writeAuditEvent, ACTIONS, SEVERITY } = require('./auditLog');
 //   authenticateOnly — token only. Used by pre-finca endpoints (registration,
 //                      membership claim, listing memberships).
 //
-// Forward-compatibility: we reject tokens whose email is explicitly NOT
-// verified. Google OAuth always sets email_verified=true, so this is a no-op
-// today but blocks any future auth provider that lets users register with an
-// unverified address.
+// Email gate: we reject tokens that carry no email claim, and tokens whose
+// email is explicitly NOT verified. Aurora identity is email-based end to end
+// (see rejectInvalidEmail), and only email/password + Google are enabled, so
+// today this rejects nothing legitimate — but it closes the door on anonymous
+// tokens / future providers that could authenticate without a verified email.
 //
 // Revocation: we pass `checkRevoked=true` to verifyIdToken. This costs one
 // extra Admin-SDK RPC per authenticated request (~50–100ms latency) but lets
@@ -22,11 +23,20 @@ const { writeAuditEvent, ACTIONS, SEVERITY } = require('./auditLog');
 // stop working on the next hit. Without this flag, revocation had no effect
 // until the natural token expiry (~1h).
 
-function rejectUnverifiedEmail(decoded) {
-  // If the token carries an email, it must be verified. Tokens without an
-  // email (some identity providers) are allowed through because rejecting
-  // them here would break legitimate flows.
-  if (decoded.email && decoded.email_verified === false) {
+function rejectInvalidEmail(decoded) {
+  // Aurora identity is email-based end to end: memberships are keyed/looked up
+  // by email, claim-invitations needs it, and /me resolves the users doc by it.
+  // Only email/password and Google sign-in are enabled — no anonymous auth and
+  // no custom tokens (verified by audit) — and both always carry a verified
+  // email. A token with NO email claim is therefore never legitimate here, and
+  // letting one through reaches endpoints that assume an email exists (e.g.
+  // register-finca would mint an org with email:''). Reject it. A present email
+  // must additionally be verified — this also blocks any future provider that
+  // lets users register with an unverified address.
+  if (!decoded.email) {
+    return 'Token has no email address.';
+  }
+  if (decoded.email_verified === false) {
     return 'Email address is not verified.';
   }
   return null;
@@ -123,7 +133,7 @@ const authenticate = async (req, res, next) => {
   try {
     const uid = decoded.uid;
 
-    const emailProblem = rejectUnverifiedEmail(decoded);
+    const emailProblem = rejectInvalidEmail(decoded);
     if (emailProblem) {
       return sendApiError(res, ERROR_CODES.UNAUTHORIZED, emailProblem, 401);
     }
@@ -177,7 +187,7 @@ const authenticateOnly = async (req, res, next) => {
   try {
     const decoded = await admin.auth().verifyIdToken(token, true);
 
-    const emailProblem = rejectUnverifiedEmail(decoded);
+    const emailProblem = rejectInvalidEmail(decoded);
     if (emailProblem) {
       return sendApiError(res, ERROR_CODES.UNAUTHORIZED, emailProblem, 401);
     }
