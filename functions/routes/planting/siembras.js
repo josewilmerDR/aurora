@@ -10,7 +10,7 @@ const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
-const { getResponsableFromUid, readSiembra } = require('./helpers');
+const { getResponsableFromUid, readSiembra, isSiembraInGrupo } = require('./helpers');
 const {
   buildSiembraCreateDoc,
   buildSiembraUpdateDoc,
@@ -305,6 +305,14 @@ router.delete('/api/siembras/:id', authenticate, rateLimit('siembras_write', 'wr
     // that a worker shouldn't be able to wipe historical records via the API).
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only a supervisor can delete siembra records.', 403);
+    }
+    // H4 — FK guard: a siembra that is a bloque in a grupo cannot be deleted, or
+    // its id would dangle inside grupos.bloques[]. Mirrors the linked-siembras
+    // guard on lote-delete (plots.js) and the referenced-material guard on
+    // material-delete (materiales.js). The user must remove it from the grupo
+    // first. RESOURCE_REFERENCED → 409, mapped to Spanish by the frontend.
+    if (await isSiembraInGrupo(req.fincaId, req.params.id)) {
+      return sendApiError(res, ERROR_CODES.RESOURCE_REFERENCED, 'Siembra is a bloque in a grupo; remove it from the grupo before deleting.', 409);
     }
     const prev = doc.data();
     await doc.ref.delete();
