@@ -13,8 +13,11 @@
   content: '';
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(51, 255, 153, 0.2);
-  border-top-color: var(--aurora-green);
+  /* Mismos tokens que .auth-spinner (auth.css) para que el loader de
+     ProtectedRoute y el del splash de auth se vean idénticos en la frontera de
+     sesión; --aur-accent además adapta al tema claro (--aurora-green no). */
+  border: 3px solid var(--aur-accent-tint-2);
+  border-top-color: var(--aur-accent);
   border-radius: 50%;
   animation: app-loading-spin 0.75s linear infinite;
 }
