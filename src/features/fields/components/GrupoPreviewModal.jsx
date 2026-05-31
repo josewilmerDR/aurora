@@ -54,6 +54,16 @@ export default function GrupoPreviewModal({
   const configLoaded  = !!empresaConfig?.id;
   const fechaCosecha  = configLoaded ? calcFechaCosecha(grupo, empresaConfig) : null;
 
+  // Defensa en profundidad en el sink: logoUrl se genera server-side desde
+  // Firebase Storage (siempre https://; el backend descarta cualquier logoUrl
+  // del body — ver config/schemas.js, no está en el whitelist). Aun así, ante
+  // un doc legacy con un valor inesperado solo cargamos http(s) en el <img>
+  // que viaja al PDF compartido/impreso — bloquea javascript:/data:/otros
+  // esquemas usados como tracking pixel o exfil al imprimir.
+  const safeLogoUrl = /^https?:\/\//i.test(empresaConfig?.logoUrl || '')
+    ? empresaConfig.logoUrl
+    : null;
+
   const totalHa      = bloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
   const totalPlantas = bloques.reduce((s, b) => s + (b.plantas || 0), 0);
   const kgPorPlanta  = getKgPorPlanta(empresaConfig);
@@ -120,8 +130,8 @@ export default function GrupoPreviewModal({
 
           <div className="gp-doc-header">
             <div className="gp-doc-brand">
-              {empresaConfig.logoUrl
-                ? <img src={empresaConfig.logoUrl} alt="Logo" className="gp-doc-logo-img" referrerPolicy="no-referrer" />
+              {safeLogoUrl
+                ? <img src={safeLogoUrl} alt="Logo" className="gp-doc-logo-img" referrerPolicy="no-referrer" />
                 : <div className="gp-doc-logo">AU</div>}
               <div className="gp-doc-brand-info">
                 <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>

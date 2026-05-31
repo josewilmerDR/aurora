@@ -51,6 +51,11 @@ export default function GrupoHub({
   onEdit,
   onDelete,
   onPreview,
+  // Eliminar grupo exige supervisor+ en el backend (borra cédulas/tasks
+  // pendientes + revierte inventario). El padre resuelve el rol y nos pasa
+  // este flag; cuando es false ocultamos el botón Eliminar — el roleo real
+  // lo hace la API, esto solo evita ofrecer una acción que daría 403.
+  canDelete = false,
   // True mientras el delete-check del padre está en vuelo. Deshabilita
   // el botón Trash para evitar dobles disparos cuando la red está lenta
   // (~500ms entre el click y el modal aparecer).
@@ -112,17 +117,19 @@ export default function GrupoHub({
             <FiEdit size={16} aria-hidden="true" />
             <span className="hub-action-label">Editar</span>
           </button>
-          <button
-            onClick={() => onDelete(grupo)}
-            className="aur-icon-btn aur-icon-btn--danger hub-action-btn"
-            title="Eliminar"
-            aria-label="Eliminar grupo"
-            disabled={checkingDelete}
-            aria-busy={checkingDelete}
-          >
-            <FiTrash2 size={16} aria-hidden="true" />
-            <span className="hub-action-label">{checkingDelete ? 'Verificando…' : 'Eliminar'}</span>
-          </button>
+          {canDelete && (
+            <button
+              onClick={() => onDelete(grupo)}
+              className="aur-icon-btn aur-icon-btn--danger hub-action-btn"
+              title="Eliminar"
+              aria-label="Eliminar grupo"
+              disabled={checkingDelete}
+              aria-busy={checkingDelete}
+            >
+              <FiTrash2 size={16} aria-hidden="true" />
+              <span className="hub-action-label">{checkingDelete ? 'Verificando…' : 'Eliminar'}</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -25,6 +25,13 @@ const ERROR_CODES = {
   // unhook those first.
   RESOURCE_REFERENCED: 'RESOURCE_REFERENCED',
   USER_HAS_HR_HISTORY: 'USER_HAS_HR_HISTORY',
+  // Borrado de grupo bloqueado por cédulas en estado terminal/intermedio.
+  // CEDULA_APLICADA: hay cédulas ya aplicadas en campo (registro
+  // fitosanitario, no se eliminan). CEDULA_EN_TRANSITO: hay cédulas en
+  // "Mezcla lista" que deben resolverse (aplicar o anular) antes de borrar.
+  // El frontend los mapea a mensajes en español (src/lib/errorMessages.js).
+  CEDULA_APLICADA: 'CEDULA_APLICADA',
+  CEDULA_EN_TRANSITO: 'CEDULA_EN_TRANSITO',
   // El usuario alcanzó el tope de organizaciones que puede crear (no es un
   // error de validación de input: el payload es válido, pero la cuota está
   // agotada → 409 Conflict).
