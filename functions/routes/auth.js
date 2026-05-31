@@ -36,14 +36,36 @@ function membershipDocId(uid, fincaId) {
   return `${uid}__${fincaId}`;
 }
 
+// Reject control characters and the Unicode bidi/zero-width codepoints that
+// enable RTL-override and homoglyph spoofing in names we later render in the
+// org selector and persist into the audit log. We blocklist the dangerous
+// ranges instead of whitelisting so legitimate international names (accents,
+// ñ, etc.) still pass.
+const UNSAFE_NAME_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/;
+
+const safeName = (max) =>
+  z.string()
+    .trim()
+    .min(2)
+    .max(max)
+    .refine((v) => !UNSAFE_NAME_CHARS.test(v), 'contains control or bidirectional characters');
+
 // Zod schema for finca registration — single source of truth for the payload
 // (replaces the previous hand-rolled cleanString checks, per code-standards §3).
 // trim() runs before the length checks, so whitespace-only values are rejected
 // and over-long names error out instead of being silently truncated.
 const registerFincaSchema = z.object({
-  fincaNombre: z.string().trim().min(1).max(120),
-  nombreAdmin: z.string().trim().min(1).max(80),
+  fincaNombre: safeName(120),
+  nombreAdmin: safeName(80),
 });
+
+// Normalized form used as the natural idempotency key for an owner's fincas:
+// case- and whitespace-insensitive. Two near-identical submits (double-click,
+// two tabs) collapse to the same key so we return the existing org instead of
+// creating a duplicate.
+function normalizeFincaName(name) {
+  return String(name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
 
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
@@ -117,14 +139,52 @@ router.post('/api/auth/register-finca', authenticateOnly, rateLimit('auth_write'
     }
     const { fincaNombre, nombreAdmin } = parsed.data;
 
-    // Per-user cap on owned fincas. Ownership is tracked by fincas.adminUid,
-    // which matches the uid that created the org. A user can still be member
-    // of many fincas they did not create — that is a different limit.
-    const ownedSnap = await db.collection('fincas')
+    // register-finca has no natural idempotency key and is NOT idempotent on its
+    // own (auto-id doc per call), so a double-submit (double-click, two tabs,
+    // client retry) would mint duplicate orgs. We run the cap check, the
+    // dedup, and both writes inside one transaction so they are atomic:
+    //   - cap check + create can't race two concurrent calls past the limit;
+    //   - (adminUid, normalized name) acts as the idempotency key — a repeat
+    //     submit returns the existing org instead of creating another.
+    // Cap is 10, so all owned fincas fit in the limit(+1) window and the dedup
+    // scan is exhaustive.
+    const ownedQuery = db.collection('fincas')
       .where('adminUid', '==', req.uid)
-      .limit(MAX_FINCAS_PER_USER + 1)
-      .get();
-    if (ownedSnap.size >= MAX_FINCAS_PER_USER) {
+      .limit(MAX_FINCAS_PER_USER + 1);
+
+    const outcome = await db.runTransaction(async (tx) => {
+      const ownedSnap = await tx.get(ownedQuery);
+
+      const targetName = normalizeFincaName(fincaNombre);
+      const existing = ownedSnap.docs.find(
+        (d) => normalizeFincaName(d.data().nombre) === targetName,
+      );
+      if (existing) return { fincaId: existing.id, created: false };
+
+      if (ownedSnap.size >= MAX_FINCAS_PER_USER) return { capReached: true };
+
+      const fincaRef = db.collection('fincas').doc();
+      tx.set(fincaRef, {
+        nombre: fincaNombre,
+        adminUid: req.uid,
+        plan: 'basic',
+        creadoEn: Timestamp.now(),
+      });
+      const membershipRef = db.collection('memberships').doc(membershipDocId(req.uid, fincaRef.id));
+      tx.set(membershipRef, {
+        uid: req.uid,
+        fincaId: fincaRef.id,
+        fincaNombre,
+        email: req.userEmail || '',
+        nombre: nombreAdmin,
+        telefono: '',
+        rol: 'administrador',
+        creadoEn: Timestamp.now(),
+      });
+      return { fincaId: fincaRef.id, created: true };
+    });
+
+    if (outcome.capReached) {
       return sendApiError(
         res,
         ERROR_CODES.MAX_FINCAS_REACHED,
@@ -133,40 +193,26 @@ router.post('/api/auth/register-finca', authenticateOnly, rateLimit('auth_write'
       );
     }
 
-    const fincaRef = db.collection('fincas').doc();
-    const batch = db.batch();
-    batch.set(fincaRef, {
-      nombre: fincaNombre,
-      adminUid: req.uid,
-      plan: 'basic',
-      creadoEn: Timestamp.now(),
-    });
-    const membershipRef = db.collection('memberships').doc(membershipDocId(req.uid, fincaRef.id));
-    batch.set(membershipRef, {
-      uid: req.uid,
-      fincaId: fincaRef.id,
-      fincaNombre,
-      email: req.userEmail || '',
-      nombre: nombreAdmin,
-      telefono: '',
-      rol: 'administrador',
-      creadoEn: Timestamp.now(),
-    });
-    await batch.commit();
-
     // Creating a finca is a high-trust event: it spawns an administrator
     // membership from scratch. Severity `warning` so admin dashboards flag
-    // it without burying it in the info stream.
-    writeAuditEvent({
-      fincaId: fincaRef.id,
-      actor: { uid: req.uid, email: req.userEmail, role: 'administrador' },
-      action: ACTIONS.FINCA_CREATE,
-      target: { type: 'finca', id: fincaRef.id },
-      metadata: { nombre: fincaNombre, nombreAdmin },
-      severity: SEVERITY.WARNING,
-    });
+    // it without burying it in the info stream. Awaited so the event is durably
+    // written before we respond (the call swallows its own errors internally).
+    // Skipped on an idempotent hit — no new org was created.
+    if (outcome.created) {
+      await writeAuditEvent({
+        fincaId: outcome.fincaId,
+        actor: { uid: req.uid, email: req.userEmail, role: 'administrador' },
+        action: ACTIONS.FINCA_CREATE,
+        target: { type: 'finca', id: outcome.fincaId },
+        metadata: { nombre: fincaNombre, nombreAdmin },
+        severity: SEVERITY.WARNING,
+      });
+    }
 
-    res.status(201).json({ fincaId: fincaRef.id, code: 'FINCA_CREATED' });
+    res.status(outcome.created ? 201 : 200).json({
+      fincaId: outcome.fincaId,
+      code: outcome.created ? 'FINCA_CREATED' : 'FINCA_EXISTS',
+    });
   } catch (error) {
     console.error('[AUTH] Error creating finca:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create organization.', 500);
