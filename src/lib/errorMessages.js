@@ -24,6 +24,7 @@ export const ERROR_MESSAGES = {
   CONFLICT: 'Conflicto con el estado actual del recurso.',
   RESOURCE_REFERENCED: 'No se puede eliminar: aún hay registros que lo referencian. Quítalo de ellos antes de borrarlo.',
   USER_HAS_HR_HISTORY: 'No se puede eliminar: la persona tiene historial laboral. Usa "Rescindir contrato" y/o "Quitar acceso" en su lugar.',
+  MAX_FINCAS_REACHED: 'Alcanzaste el máximo de organizaciones que puedes crear.',
   // Grupos: bloqueo de eliminación por cédulas asociadas (ver functions/routes/groups.js).
   // El DELETE estándar puede toparse con estos estados en una race entre el
   // delete-check y el confirm; sin traducción, el toast mostraba el mensaje

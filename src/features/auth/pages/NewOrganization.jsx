@@ -1,67 +1,88 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../../lib/apiFetch';
+import { FiArrowLeft } from 'react-icons/fi';
+import { apiFetchJson } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
-import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import AuthCard from '../components/AuthCard';
 import AuthLoading from '../components/AuthLoading';
+import FincaForm from '../components/FincaForm';
 import '../styles/auth.css';
 
-// Mismo contrato de validación que el paso 2 de Register, para que ambos
-// formularios de creación de organización se comporten igual.
-function validate(form) {
-  const errs = {};
-  if (!(form.fincaNombre || '').trim()) errs.fincaNombre = 'Requerido.';
-  if (!(form.nombreAdmin || '').trim()) errs.nombreAdmin = 'Requerido.';
-  return errs;
-}
+// Si tras crear la org el perfil no carga (/api/auth/me falla por cold start,
+// red, etc.), isLoggedIn nunca resuelve y el spinner quedaría colgado para
+// siempre. Pasado este tiempo mostramos una salida manual.
+const STUCK_TIMEOUT_MS = 10000;
 
 export default function NewOrganization() {
   const navigate = useNavigate();
   const { firebaseUser, isLoading, isLoggedIn, selectFinca, refreshMemberships } = useUser();
-  const [fincaNombre, setFincaNombre] = useState('');
-  const [nombreAdmin, setNombreAdmin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [stuck, setStuck] = useState(false);
   const [error, setError] = useState('');
-  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
 
+  // Solo bloqueamos el acceso de usuarios sin sesión. La ruta es pública: un
+  // usuario logueado SIN finca activa cae en OrganizationSelector vía
+  // ProtectedRoute, así que necesita esta ruta para crear su primera org.
   useEffect(() => {
     if (!isLoading && !firebaseUser) navigate('/login', { replace: true });
   }, [isLoading, firebaseUser, navigate]);
 
-  // Navegar al panel principal cuando el contexto termine de cargar tras crear la org
+  // Navegar al panel cuando el contexto termine de cargar el perfil tras crear
+  // la org; si nunca resuelve, destrabar con el fallback (ver STUCK_TIMEOUT_MS).
   useEffect(() => {
-    if (submitted && isLoggedIn) navigate('/', { replace: true });
+    if (!submitted) return;
+    if (isLoggedIn) {
+      navigate('/', { replace: true });
+      return;
+    }
+    const t = setTimeout(() => setStuck(true), STUCK_TIMEOUT_MS);
+    return () => clearTimeout(t);
   }, [submitted, isLoggedIn, navigate]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateAll({ fincaNombre, nombreAdmin })) return;
+  const handleCreate = async ({ fincaNombre, nombreAdmin }) => {
     setSubmitting(true);
     setError('');
-    try {
-      const res = await apiFetch('/api/auth/register-finca', {
-        method: 'POST',
-        body: JSON.stringify({ fincaNombre, nombreAdmin }),
-      });
-      if (!res.ok) {
-        let msg = 'Error al crear la organización. Intenta de nuevo.';
-        try { msg = (await res.json()).message || msg; } catch { /* non-JSON response */ }
-        throw new Error(msg);
-      }
-      const data = await res.json();
-      await refreshMemberships();
-      selectFinca(data.fincaId);
-      setSubmitted(true);
-      // Mantener submitting=true — el useEffect navegará cuando isLoggedIn resuelva
-    } catch (err) {
-      setError(err.message || 'Error al crear la organización.');
+    const result = await apiFetchJson('/api/auth/register-finca', {
+      method: 'POST',
+      body: JSON.stringify({ fincaNombre, nombreAdmin }),
+    });
+    if (!result.ok) {
+      setError(result.error); // ya traducido al español por translateApiError
       setSubmitting(false);
+      return;
     }
+    // Seleccionar la finca recién creada ANTES de refrescar: dispara la carga
+    // de perfil en UserContext sin depender de cuántas membresías haya.
+    selectFinca(result.data.fincaId);
+    await refreshMemberships();
+    setSubmitted(true);
+    // Mantener submitting=true — el useEffect navega cuando isLoggedIn resuelva.
   };
 
+  // Carga inicial mientras el contexto resuelve la sesión, para no parpadear el
+  // formulario antes del posible redirect a /login.
+  if (isLoading) {
+    return (
+      <AuthCard>
+        <AuthLoading />
+      </AuthCard>
+    );
+  }
+
   if (submitted) {
+    if (stuck && !isLoggedIn) {
+      return (
+        <AuthCard title="Tu organización está lista" subtitle="No pudimos abrir el panel automáticamente.">
+          <button
+            className="aur-btn-pill auth-btn-submit"
+            onClick={() => navigate('/', { replace: true })}
+          >
+            Ir a mi organización
+          </button>
+        </AuthCard>
+      );
+    }
     return (
       <AuthCard>
         <AuthLoading text="Preparando tu organización..." />
@@ -71,53 +92,15 @@ export default function NewOrganization() {
 
   return (
     <AuthCard title="Nueva organización" subtitle="Configura tu espacio de trabajo">
-      <form onSubmit={handleSubmit} className="auth-form">
-        <div className="aur-field">
-          <label htmlFor="finca-nombre" className="aur-field-label">Nombre de la organización</label>
-          <input
-            id="finca-nombre"
-            type="text"
-            className={inputClass('fincaNombre')}
-            value={fincaNombre}
-            onChange={(e) => { setFincaNombre(e.target.value); clearField('fincaNombre'); }}
-            onBlur={() => blurField('fincaNombre', { fincaNombre, nombreAdmin })}
-            placeholder="Ej: Hacienda El Sol"
-            disabled={submitting}
-            required
-          />
-          {fieldErrors.fincaNombre && (
-            <span className="aur-field-error">{fieldErrors.fincaNombre}</span>
-          )}
-        </div>
-        <div className="aur-field">
-          <label htmlFor="nombre-admin" className="aur-field-label">Tu nombre</label>
-          <input
-            id="nombre-admin"
-            type="text"
-            className={inputClass('nombreAdmin')}
-            value={nombreAdmin}
-            onChange={(e) => { setNombreAdmin(e.target.value); clearField('nombreAdmin'); }}
-            onBlur={() => blurField('nombreAdmin', { fincaNombre, nombreAdmin })}
-            placeholder="Ej: Carlos Mendoza"
-            disabled={submitting}
-            required
-          />
-          {fieldErrors.nombreAdmin && (
-            <span className="aur-field-error">{fieldErrors.nombreAdmin}</span>
-          )}
-        </div>
-        {error && <p className="auth-error">{error}</p>}
-        <button
-          type="submit"
-          className="aur-btn-pill auth-btn-submit"
-          disabled={submitting || !fincaNombre || !nombreAdmin}
-        >
-          {submitting ? 'Creando...' : 'Crear organización'}
-        </button>
-      </form>
+      <FincaForm
+        onSubmit={handleCreate}
+        submitting={submitting}
+        error={error}
+        onDirty={() => { if (error) setError(''); }}
+      />
 
-      <button className="aur-btn-text" onClick={() => navigate(-1)}>
-        ← Volver
+      <button type="button" className="auth-back-btn" onClick={() => navigate('/')}>
+        <FiArrowLeft size={14} /> Volver
       </button>
     </AuthCard>
   );

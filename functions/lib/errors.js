@@ -25,6 +25,10 @@ const ERROR_CODES = {
   // unhook those first.
   RESOURCE_REFERENCED: 'RESOURCE_REFERENCED',
   USER_HAS_HR_HISTORY: 'USER_HAS_HR_HISTORY',
+  // El usuario alcanzó el tope de organizaciones que puede crear (no es un
+  // error de validación de input: el payload es válido, pero la cuota está
+  // agotada → 409 Conflict).
+  MAX_FINCAS_REACHED: 'MAX_FINCAS_REACHED',
 
   // Input
   VALIDATION_FAILED: 'VALIDATION_FAILED',

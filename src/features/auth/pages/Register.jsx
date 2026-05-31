@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../../firebase';
-import { apiFetch } from '../../../lib/apiFetch';
+import { apiFetch, apiFetchJson } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { isValidEmail } from '../../../lib/validators';
@@ -11,6 +11,7 @@ import AuthCard from '../components/AuthCard';
 import GoogleButton from '../components/GoogleButton';
 import AuthLoading from '../components/AuthLoading';
 import PasswordInput from '../components/PasswordInput';
+import FincaForm from '../components/FincaForm';
 import '../styles/auth.css';
 
 // Tras Google en step 1 mantenemos el spinner esperando a que UserContext
@@ -40,13 +41,6 @@ function validateAccountStep(form) {
   return errs;
 }
 
-function validateFincaStep(form) {
-  const errs = {};
-  if (!(form.fincaNombre || '').trim()) errs.fincaNombre = 'Requerido.';
-  if (!(form.nombreAdmin || '').trim()) errs.nombreAdmin = 'Requerido.';
-  return errs;
-}
-
 export default function Register() {
   const navigate = useNavigate();
   const { refreshMemberships, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
@@ -55,19 +49,14 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [fincaNombre, setFincaNombre] = useState('');
-  const [nombreAdmin, setNombreAdmin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Dos hooks separados — uno por paso del wizard — para que validateAll
-  // del paso 2 no falle por errores que viven en el paso 1 (email vacío
-  // queda invisible una vez que el usuario avanzó).
+  // Validación on-blur del paso de cuenta. El paso de finca usa <FincaForm>,
+  // que trae su propia validación (la misma que /nueva-organizacion).
   const accountForm = { email, password, confirm };
   const accountValidation = useBlurValidation(validateAccountStep);
-  const fincaForm = { fincaNombre, nombreAdmin };
-  const fincaValidation = useBlurValidation(validateFincaStep);
 
   // Navigate to dashboard once login is complete (currentUser loaded),
   // or to OrganizationSelector if the user has memberships but no active finca
@@ -122,10 +111,9 @@ export default function Register() {
     setStep(2);
   };
 
-  // Step 2: create the finca in the backend
-  const handleFincaStep = async (e) => {
-    e.preventDefault();
-    if (!fincaValidation.validateAll(fincaForm)) return;
+  // Step 2: create the finca in the backend. <FincaForm> ya validó y trimeó los
+  // valores y nos los pasa como argumento.
+  const handleFincaStep = async ({ fincaNombre, nombreAdmin }) => {
     setSubmitting(true);
     setError('');
     try {
@@ -145,15 +133,11 @@ export default function Register() {
         }
       }
       // No invitations → create the requested organization
-      const res = await apiFetch('/api/auth/register-finca', {
+      const result = await apiFetchJson('/api/auth/register-finca', {
         method: 'POST',
         body: JSON.stringify({ fincaNombre, nombreAdmin }),
       });
-      if (!res.ok) {
-        let msg = 'Error al crear la finca. Intenta de nuevo.';
-        try { msg = (await res.json()).message || msg; } catch { /* response is not JSON (emulator cold start) */ }
-        throw new Error(msg);
-      }
+      if (!result.ok) throw new Error(result.error); // error ya traducido al español
       // Reload memberships so UserContext knows there is a finca → isLoggedIn = true
       // Navigation is handled by the useEffect that watches isLoggedIn
       await refreshMemberships();
@@ -281,50 +265,12 @@ export default function Register() {
       )}
 
       {step === 2 && (
-        <form onSubmit={handleFincaStep} className="auth-form">
-          <div className="aur-field">
-            <label htmlFor="finca-nombre" className="aur-field-label">Nombre de tu organización</label>
-            <input
-              id="finca-nombre"
-              type="text"
-              className={fincaValidation.inputClass('fincaNombre')}
-              value={fincaNombre}
-              onChange={(e) => { setFincaNombre(e.target.value); fincaValidation.clearField('fincaNombre'); }}
-              onBlur={() => fincaValidation.blurField('fincaNombre', fincaForm)}
-              placeholder="Ej: Hacienda El Sol"
-              disabled={submitting}
-              required
-            />
-            {fincaValidation.fieldErrors.fincaNombre && (
-              <span className="aur-field-error">{fincaValidation.fieldErrors.fincaNombre}</span>
-            )}
-          </div>
-          <div className="aur-field">
-            <label htmlFor="nombre-admin" className="aur-field-label">Tu nombre</label>
-            <input
-              id="nombre-admin"
-              type="text"
-              className={fincaValidation.inputClass('nombreAdmin')}
-              value={nombreAdmin}
-              onChange={(e) => { setNombreAdmin(e.target.value); fincaValidation.clearField('nombreAdmin'); }}
-              onBlur={() => fincaValidation.blurField('nombreAdmin', fincaForm)}
-              placeholder="Ej: Carlos Mendoza"
-              disabled={submitting}
-              required
-            />
-            {fincaValidation.fieldErrors.nombreAdmin && (
-              <span className="aur-field-error">{fincaValidation.fieldErrors.nombreAdmin}</span>
-            )}
-          </div>
-          {error && <p className="auth-error" role="alert">{error}</p>}
-          <button
-            type="submit"
-            className="aur-btn-pill auth-btn-submit"
-            disabled={submitting || !fincaNombre || !nombreAdmin}
-          >
-            {submitting ? 'Creando cuenta...' : 'Crear organización'}
-          </button>
-        </form>
+        <FincaForm
+          onSubmit={handleFincaStep}
+          submitting={submitting}
+          error={error}
+          onDirty={() => { if (error) setError(''); }}
+        />
       )}
     </AuthCard>
   );
