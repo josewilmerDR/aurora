@@ -48,8 +48,9 @@
        / auth-rule-ok / -fail         contraseña (Register).
      · auth-org-section / -title    — agrupación de orgs ("Tu org" vs
                                        "Otras") en OrganizationSelector.
-     · auth-org-item / -name / -rol — row clickable tipo menu-item para
-       / auth-org-item--own           selección de organización. aur-row
+     · auth-org-item / -name        — row clickable tipo menu-item para
+       / auth-org-item--own           selección de organización (el badge de
+                                       rol usa el primitive .aur-badge). aur-row
                                        es label/control, no menu-item.
      · auth-org-empty               — mensaje vacío cuando user no
                                        pertenece a ninguna organización.
@@ -477,14 +478,6 @@
   font-size: var(--aur-fs-body);
   font-weight: 600;
   color: var(--aur-text);
-}
-
-.auth-org-item-rol {
-  font-size: var(--aur-fs-caption);
-  color: var(--aur-accent);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .auth-org-item--own {

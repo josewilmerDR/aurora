@@ -52,6 +52,10 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  // Error del flujo de Google, separado del error de cuenta/finca: se pinta
+  // justo debajo del botón que lo origina (mismo principio que Login), no
+  // enterrado al fondo del form bajo campos no relacionados.
+  const [googleError, setGoogleError] = useState('');
 
   const emailRef = useRef(null);
   const rulesRef = useRef(null);
@@ -175,6 +179,7 @@ export default function Register() {
   // Register with Google (goes directly to step 2)
   const handleGoogle = async () => {
     setGoogleLoading(true);
+    setGoogleError('');
     setError('');
     try {
       await signInWithPopup(auth, googleProvider);
@@ -183,14 +188,14 @@ export default function Register() {
       setGoogleLoading(false);
       // El usuario cerró/canceló el popup: no es un error que mostrar.
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
-      setError(authErrorMessage(err.code, 'No se pudo continuar con Google.'));
+      setGoogleError(authErrorMessage(err.code, 'No se pudo continuar con Google.'));
     }
   };
 
   if (step === 1 && googleLoading) {
     return (
       <AuthCard>
-        <AuthLoading />
+        <AuthLoading text="Conectando con Google…" />
       </AuthCard>
     );
   }
@@ -211,6 +216,10 @@ export default function Register() {
         <>
           <GoogleButton onClick={handleGoogle} disabled={googleLoading} loading={googleLoading} />
 
+          {/* Error de Google: justo debajo del botón que lo origina, no
+              enterrado al fondo del form bajo campos no relacionados. */}
+          {googleError && <p className="auth-error" role="alert">{googleError}</p>}
+
           <div className="auth-divider"><span>o</span></div>
 
           <form onSubmit={handleAccountStep} className="auth-form" noValidate>
@@ -222,7 +231,7 @@ export default function Register() {
                 type="email"
                 className={accountValidation.inputClass('email')}
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); accountValidation.clearField('email'); }}
+                onChange={(e) => { setEmail(e.target.value); accountValidation.clearField('email'); if (googleError) setGoogleError(''); }}
                 onBlur={() => accountValidation.blurField('email', accountForm)}
                 placeholder="tu@correo.com"
                 autoComplete="email"

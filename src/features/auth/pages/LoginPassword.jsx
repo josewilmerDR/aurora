@@ -81,7 +81,7 @@ export default function LoginPassword() {
             aria-invalid={!!error}
             aria-describedby={error ? 'password-error' : undefined}
           />
-          <Link to="/forgot-password" state={{ email: emailFromState }} className="auth-forgot-link">¿Olvidaste tu contraseña?</Link>
+          <Link to="/forgot-password" state={{ email: emailFromState, from }} className="auth-forgot-link">¿Olvidaste tu contraseña?</Link>
         </div>
 
         {error && <p id="password-error" className="auth-error" role="alert">{error}</p>}

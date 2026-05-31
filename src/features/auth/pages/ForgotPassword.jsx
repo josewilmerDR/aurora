@@ -20,8 +20,12 @@ export default function ForgotPassword() {
   const location = useLocation();
   // Prefill: si el usuario llegó desde la pantalla de contraseña, ya tipeó el
   // email ahí — lo arrastramos para no pedírselo de nuevo (LoginPassword pasa
-  // state={{ email }} en el Link).
+  // state={{ email, from }} en el Link).
   const [email, setEmail] = useState(location.state?.email || '');
+  // `from` (deep-link de retorno) se arrastra a los enlaces de vuelta a /login
+  // para no romper la cadena: si el usuario llegó por un deep-link y pasó por
+  // "olvidé mi contraseña", tras reautenticarse vuelve a donde quería ir.
+  const from = location.state?.from;
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -76,7 +80,7 @@ export default function ForgotPassword() {
       subtitle={sent ? undefined : 'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.'}
       footer={!sent && (
         <p className="auth-register-link">
-          <Link to="/login">Volver al inicio de sesión</Link>
+          <Link to="/login" state={from ? { from } : undefined}>Volver al inicio de sesión</Link>
         </p>
       )}
     >
@@ -86,7 +90,7 @@ export default function ForgotPassword() {
             Te enviamos un enlace a <strong>{email.trim()}</strong>. Revisa tu bandeja de entrada
             (y la carpeta de spam por si acaso).
           </p>
-          <Link to="/login" className="aur-btn-pill auth-btn-submit">
+          <Link to="/login" state={from ? { from } : undefined} className="aur-btn-pill auth-btn-submit">
             Volver al inicio de sesión
           </Link>
           <button type="button" className="auth-back-btn" onClick={() => setSent(false)}>
