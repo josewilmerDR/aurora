@@ -4,6 +4,7 @@ import { FiArrowLeft } from 'react-icons/fi';
 import { sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../../firebase';
 import { useUser } from '../../../contexts/UserContext';
+import { isValidEmail } from '../../../lib/validators';
 import { useAuthRedirect, safeRedirectPath } from '../hooks/useAuthRedirect';
 import { authErrorMessage } from '../lib/authErrors';
 import AuthCard from '../components/AuthCard';
@@ -18,16 +19,22 @@ export default function LoginPassword() {
   const emailFromState = location.state?.email || '';
   const from = safeRedirectPath(location.state?.from);
 
+  // El email viene de location.state (lo setea Login.jsx, que ya lo valida).
+  // Re-validamos el formato acá como defensa en profundidad: una navegación
+  // directa a /login/contrasena con state forjado no debe llegar al submit con
+  // un email arbitrario. Si no es un email válido, tratamos igual que "sin email".
+  const hasValidEmail = !!emailFromState && isValidEmail(emailFromState);
+
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Llegada sin email (URL directa o refresh, que borra el state del history):
-  // no hay nada a lo que pedir contraseña → volvemos a /login. El guard de
-  // render (más abajo) evita pintar la card con email vacío por un frame.
+  // Llegada sin email válido (URL directa o refresh, que borra el state del
+  // history; o state forjado): no hay nada a lo que pedir contraseña → volvemos
+  // a /login. El guard de render (más abajo) evita pintar la card por un frame.
   useEffect(() => {
-    if (!emailFromState) navigate('/login', { replace: true });
-  }, [emailFromState, navigate]);
+    if (!hasValidEmail) navigate('/login', { replace: true });
+  }, [hasValidEmail, navigate]);
 
   useAuthRedirect(from);
 
@@ -66,7 +73,7 @@ export default function LoginPassword() {
     if (error) setError(''); // limpiar el error al corregir, no esperar al submit
   };
 
-  if (!emailFromState) return null;
+  if (!hasValidEmail) return null;
 
   return (
     <AuthCard title="Ingresa tu contraseña">

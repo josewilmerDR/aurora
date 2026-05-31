@@ -26,6 +26,7 @@ export const ACTION_OPTIONS = [
   { value: 'user.update',                   label: 'Actualización de usuario' },
   { value: 'user.delete',                   label: 'Eliminación de usuario' },
   { value: 'user.role.change',              label: 'Cambio de rol' },
+  { value: 'user.uid.rebind',               label: 'Reasignación de identidad' },
   { value: 'user.restrictedTo.change',      label: 'Cambio de restricciones' },
   { value: 'user.access.grant',             label: 'Acceso al sistema concedido' },
   { value: 'user.access.revoke',            label: 'Acceso al sistema revocado' },
