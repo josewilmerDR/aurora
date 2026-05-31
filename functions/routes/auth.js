@@ -125,9 +125,9 @@ router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
     if (ownedSnap.size >= MAX_FINCAS_PER_USER) {
       return sendApiError(
         res,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.MAX_FINCAS_REACHED,
         `Maximum of ${MAX_FINCAS_PER_USER} organizations per user reached.`,
-        429,
+        409,
       );
     }
 
