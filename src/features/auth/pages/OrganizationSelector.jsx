@@ -7,7 +7,7 @@ import AuthLoading from '../components/AuthLoading';
 import '../styles/auth.css';
 
 export default function OrganizationSelector() {
-  const { memberships, selectFinca, firebaseUser, logout, refreshMemberships } = useUser();
+  const { memberships, selectFinca, firebaseUser, logout, refreshMemberships, activeFincaId } = useUser();
   const navigate = useNavigate();
   // Si llegamos sin membresías arrancamos en "buscando" para que el primer
   // render no parpadee el empty-state antes de que el effect reclame invitaciones.
@@ -38,6 +38,14 @@ export default function OrganizationSelector() {
     try {
       const res = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
       if (!res.ok) {
+        // 401/403 = the token was rejected (session revoked, account disabled,
+        // email no longer verified). Retrying the claim will keep failing, so
+        // instead of offering a useless "Reintentar" we sign the user out;
+        // onAuthStateChanged then sends them back to /login to re-authenticate.
+        if (res.status === 401 || res.status === 403) {
+          await logout();
+          return;
+        }
         // Reached the server but it refused: distinguish rate-limiting from a
         // generic server-side failure. Network failures throw and land in the
         // catch below with the connectivity message.
@@ -57,7 +65,16 @@ export default function OrganizationSelector() {
     } finally {
       if (mountedRef.current) setChecking(false);
     }
-  }, [refreshMemberships]);
+  }, [refreshMemberships, logout]);
+
+  // Liberar el bloqueo "Entrando…" si la selección no prospera. handleSelect fija
+  // enteringId y selectFinca pone activeFincaId; si el perfil falla (membresía
+  // revocada o finca borrada entre listar y entrar) UserContext limpia
+  // activeFincaId y volvemos al selector. Sin esto los botones quedarían
+  // deshabilitados a la espera de un remount que no está garantizado.
+  useEffect(() => {
+    if (!activeFincaId) setEnteringId(null);
+  }, [activeFincaId]);
 
   useEffect(() => {
     if (memberships.length > 0 || claimedRef.current) return;
