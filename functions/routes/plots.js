@@ -25,9 +25,19 @@ const MAX_CODIGO_LOTE = 16;
 const MAX_NOMBRE_LOTE = 32;
 const MAX_HECTAREAS = 1_000_000; // sanity cap; en la práctica fincas son <1k ha
 
+// Caracteres de control + bidi/zero-width que habilitan spoofing visual
+// (RTL-override, homoglyphs, caracteres invisibles) en valores que luego
+// renderizamos en listas, banners y, sobre todo, en las cédulas/PDF
+// fitosanitarios (registro legal). Mismo blocklist que auth.js (UNSAFE_NAME_
+// CHARS, no exportado allá); se redefine local para no acoplar dominios.
+const UNSAFE_TEXT_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/;
+
 const loteCreateSchema = z.object({
-  codigoLote: z.string().trim().min(1).max(MAX_CODIGO_LOTE),
-  nombreLote: z.string().trim().max(MAX_NOMBRE_LOTE).optional().default(''),
+  codigoLote: z.string().trim().min(1).max(MAX_CODIGO_LOTE)
+    .refine((v) => !UNSAFE_TEXT_CHARS.test(v), 'codigoLote contains control or bidirectional characters'),
+  nombreLote: z.string().trim().max(MAX_NOMBRE_LOTE)
+    .refine((v) => !UNSAFE_TEXT_CHARS.test(v), 'nombreLote contains control or bidirectional characters')
+    .optional().default(''),
   fechaCreacion: z.string().refine((s) => !isNaN(new Date(s).getTime()), {
     message: 'fechaCreacion must be a valid ISO date string.',
   }).refine((s) => {
@@ -76,15 +86,42 @@ function buildLoteUpdatePayload(body) {
 // que el budget del dominio quede compartido. El listing es liviano pero un
 // autenticado podía polearlo para enumerar la estructura productiva de la
 // finca (códigos, hectáreas, fincaId).
+//
+// A diferencia de los reads hermanos del módulo (packages/grupos/siembras/
+// config son encargado+), este endpoint NO se gatea a encargado: lo consume
+// el registro de horímetro, que es minRole 'trabajador' (Sidebar.jsx) — un
+// trabajador necesita la lista de lotes para etiquetar el uso de maquinaria.
+// Pero solo necesita identificar el lote: por eso a < encargado le devolvemos
+// una proyección {id, codigoLote, nombreLote} y le ocultamos hectáreas y
+// cualquier otro campo de la estructura productiva que el UI no le muestra.
 router.get('/api/lotes', authenticate, rateLimit('lotes_read', 'public_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('lotes').where('fincaId', '==', req.fincaId).get();
-    const lotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const full = hasMinRoleBE(req.userRole, 'encargado');
+    const lotes = snapshot.docs.map(doc => {
+      if (full) return { id: doc.id, ...doc.data() };
+      const { codigoLote, nombreLote } = doc.data();
+      return { id: doc.id, codigoLote, ...(nombreLote ? { nombreLote } : {}) };
+    });
     res.status(200).json(lotes);
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch lotes.', 500);
   }
 });
+
+// Unicidad de codigoLote dentro de la finca. Firestore no tiene unique
+// constraints, así que la verificamos en el handler (POST siempre; PUT solo
+// cuando el código cambia). `excludeId` evita que un PUT choque consigo mismo.
+// Dos filtros de igualdad no requieren índice compuesto (zigzag merge de los
+// índices de campo único).
+async function codigoLoteTaken(codigoLote, fincaId, excludeId = null) {
+  const snap = await db.collection('lotes')
+    .where('fincaId', '==', fincaId)
+    .where('codigoLote', '==', codigoLote)
+    .limit(2)
+    .get();
+  return snap.docs.some(d => d.id !== excludeId);
+}
 
 router.post('/api/lotes', authenticate, rateLimit('lotes_write', 'write'), async (req, res) => {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
@@ -101,6 +138,14 @@ router.post('/api/lotes', authenticate, rateLimit('lotes_write', 'write'), async
     // resuelve cuando el usuario agrupe los bloques y le asigne paquete a
     // cada grupo. Por eso este handler no genera scheduled_tasks.
     try {
+        // Unicidad del código en la finca. También cierra el doble-submit del
+        // form (dos POST rápidos antes del re-render que deshabilita el botón):
+        // el segundo encuentra el lote recién creado y devuelve 409 en vez de
+        // duplicar. No es atómico ante dos requests simultáneos exactos, pero
+        // cubre el caso real (doble-click) y la colisión entre dos usuarios.
+        if (await codigoLoteTaken(codigoLote, req.fincaId)) {
+            return sendApiError(res, ERROR_CODES.LOTE_CODIGO_EXISTS, 'A lote with this codigoLote already exists in this finca.', 409);
+        }
         const loteRef = await db.collection('lotes').add({
             codigoLote,
             ...(nombreLote ? { nombreLote } : {}),
@@ -133,6 +178,14 @@ router.put('/api/lotes/:id', authenticate, rateLimit('lotes_write', 'write'), as
         const loteData = { ...validated.data };
         const originalData = ownership.doc.data();
 
+        // Unicidad: solo si el PUT cambia el código. excludeId = este lote para
+        // que no choque consigo mismo.
+        if (loteData.codigoLote !== undefined && loteData.codigoLote !== originalData.codigoLote) {
+            if (await codigoLoteTaken(loteData.codigoLote, req.fincaId, id)) {
+                return sendApiError(res, ERROR_CODES.LOTE_CODIGO_EXISTS, 'A lote with this codigoLote already exists in this finca.', 409);
+            }
+        }
+
         // Normaliza fechaCreacion a Timestamp para Firestore. Zod ya validó
         // que es ISO string parseable y no futura.
         if (loteData.fechaCreacion) {
@@ -150,9 +203,16 @@ router.put('/api/lotes/:id', authenticate, rateLimit('lotes_write', 'write'), as
                 db.collection('monitoreos').where('fincaId', '==', req.fincaId).where('loteId', '==', id).get(),
             ]);
             const allDocs = [...siembrasSnap.docs, ...monitoreosSnap.docs];
-            if (allDocs.length > 0) {
+            // Firestore limita un batch a 500 ops. Un lote con muchas siembras +
+            // monitoreos rebasaba ese tope y el commit entero lanzaba — y como el
+            // doc del lote YA se actualizó arriba, devolvíamos 500 dejando la
+            // propagación a medias (lote renombrado, hijos con el nombre viejo).
+            // Chunkeamos a 450 para dejar margen.
+            const PROPAGATE_CHUNK = 450;
+            for (let i = 0; i < allDocs.length; i += PROPAGATE_CHUNK) {
                 const propagateBatch = db.batch();
-                allDocs.forEach(doc => propagateBatch.update(doc.ref, { loteNombre: newNombre }));
+                allDocs.slice(i, i + PROPAGATE_CHUNK)
+                    .forEach(doc => propagateBatch.update(doc.ref, { loteNombre: newNombre }));
                 await propagateBatch.commit();
             }
         }
@@ -213,6 +273,21 @@ router.delete('/api/lotes/:id', authenticate, rateLimit('lotes_write', 'write'),
             return sendApiError(res, ownership.code, ownership.message, ownership.status);
         }
         const prevData = ownership.doc.data();
+
+        // Invariante de integridad referencial: no borrar un lote con siembras
+        // vinculadas — quedarían huérfanas apuntando a un loteId inexistente.
+        // El front ya bloquea este caso, pero esto es defensa de servidor: un
+        // PUT/DELETE directo por API (o un front con datos viejos) no puede
+        // saltarse la regla. RESOURCE_REFERENCED → 409, el front lo traduce.
+        const linkedSiembra = await db.collection('siembras')
+            .where('fincaId', '==', req.fincaId)
+            .where('loteId', '==', id)
+            .limit(1)
+            .get();
+        if (!linkedSiembra.empty) {
+            return sendApiError(res, ERROR_CODES.RESOURCE_REFERENCED, 'Lote has linked siembras; reassign or delete them first.', 409);
+        }
+
         const tasksQuery = db.collection('scheduled_tasks').where('loteId', '==', id);
         const tasksSnapshot = await tasksQuery.get();
         // Defensa en profundidad: filtro in-memory por fincaId tras el read.

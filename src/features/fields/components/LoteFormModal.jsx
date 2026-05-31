@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FiPlusCircle, FiEdit, FiAlertTriangle, FiClock } from 'react-icons/fi';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
@@ -60,6 +60,12 @@ function LoteFormModal({
 
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Guard de reentrada SINCRÓNICO. `submitting` (state) no alcanza: setSubmitting
+  // es asíncrono, así que dos clicks muy rápidos en "Crear" entran ambos al
+  // handler antes del re-render que deshabilita el botón → dos POST → lotes
+  // duplicados. El ref se actualiza al instante y corta el segundo. (El backend
+  // también valida unicidad de código como red de seguridad.)
+  const submittingRef = useRef(false);
   const [error, setError] = useState('');
 
   // Sidebar muestra un indicador de "tienes borrador" basado en el flag
@@ -110,6 +116,10 @@ function LoteFormModal({
     if (nombreLote.length > MAX_NOMBRE_LEN) { setError(`El nombre es demasiado largo (máx. ${MAX_NOMBRE_LEN}).`); return; }
     if (!fechaCreacion || !/^\d{4}-\d{2}-\d{2}$/.test(fechaCreacion)) { setError('Fecha inválida.'); return; }
 
+    // Reentrada: si ya hay un submit en vuelo, ignorar. Va después de las
+    // validaciones para que un early-return de validación no deje el ref pegado.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const url = isEditing ? `/api/lotes/${loteToEdit.id}` : '/api/lotes';
@@ -140,6 +150,7 @@ function LoteFormModal({
       setError('Error de conexión. Intente nuevamente.');
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 
