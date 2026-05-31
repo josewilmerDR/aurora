@@ -262,3 +262,101 @@ Datos de negocio — perderlos es irrecuperable:
 - `autopilot_*`, `meta_*`, `strategy/*`, `annualPlans`, `scenarios`
 - `financial_profile_snapshots`, `credit_products`, `eligibility_analyses`, `debt_simulations`
 - `feed`, `reminders`, `push_subscriptions`, `counters`
+
+---
+
+## 4. Identity Platform — flujos de auth (login / registro / reset de contraseña)
+
+Las páginas de `src/features/auth/*` (`Login`, `LoginPassword`, `Register`,
+`ForgotPassword`) **no pegan al backend `api`**: llaman directo al SDK cliente de
+Firebase Auth, que va contra la API gestionada de Google Identity Toolkit. Por eso
+App Check sobre la Cloud Function (sección 1) **no** protege estos flujos, y no hay
+ruta/servicio/repo/regla Firestore propia que endurecer. Los controles viven en la
+configuración de **Identity Platform** (consola GCP) y son acción manual del admin.
+
+Surface auditada: [src/features/auth/pages/ForgotPassword.jsx](../src/features/auth/pages/ForgotPassword.jsx)
+→ `sendPasswordResetEmail(auth, email, { url })`.
+
+### 4.1 Protección contra enumeración de cuentas *(HIGH)*
+
+El cliente ya enmascara la enumeración en la UI: `auth/user-not-found` se trata como
+éxito (mismo mensaje exista o no la cuenta). **Pero eso solo oculta la diferencia en
+la pantalla, no en la red**: si Identity Platform devuelve `EMAIL_NOT_FOUND` vs.
+éxito, un atacante que observe el tráfico (DevTools/proxy) enumera emails válidos
+igual. El mismo gap aplica a login (`signInWithPassword`) y registro.
+
+Activar la protección a nivel servidor, que iguala las respuestas de red:
+
+1. Abrir https://console.cloud.google.com/customer-identity/settings (proyecto `aurora-7dc9b`)
+   — o Firebase Console → Authentication → *Settings* → *User actions*.
+2. Activar **Email enumeration protection**.
+3. Verificar que login/registro/reset siguen funcionando (los códigos de error que
+   devuelve el SDK cambian a `auth/invalid-credential` genéricos — el código cliente
+   ya cae al mensaje genérico, no hace falta tocarlo).
+
+### 4.2 App Check / reCAPTCHA para operaciones de contraseña *(HIGH)*
+
+Sin App Check sobre Identity Platform, los endpoints de auth son anónimos y abusables:
+**email-bombing** (disparar resets repetidos a la dirección de una víctima) y fuerza
+bruta de login. El throttling propio de Firebase por IP/email es débil sin reCAPTCHA.
+La sección 1 solo cubre `/api/*`, **no** Identity Platform.
+
+1. Firebase Console → App Check → *APIs* → habilitar **Authentication** (además de
+   Cloud Functions). Reusa la misma site key de reCAPTCHA Enterprise de la sección 1(a).
+2. En Identity Platform → *Settings* → *Security*, activar **reCAPTCHA Enterprise**
+   para las operaciones de contraseña (`EMAIL_PASSWORD_PROVIDER` / password reset).
+3. Modo **Audit** primero (registra sin bloquear), luego **Enforce** tras validar que
+   no rompe tráfico legítimo — mismo patrón de rollout que App Check (sección 1.3).
+
+> El botón de envío ya está deshabilitado durante el submit
+> ([ForgotPassword.jsx:122](../src/features/auth/pages/ForgotPassword.jsx#L122)) y la
+> operación es idempotente; esto es defensa secundaria, el control real es reCAPTCHA.
+
+### 4.3 Auditar Authorized Domains *(LOW)*
+
+`ForgotPassword` construye el `continueUrl` del correo como
+`${window.location.origin}/login` ([ForgotPassword.jsx:52](../src/features/auth/pages/ForgotPassword.jsx#L52)).
+No es open-redirect explotable porque Firebase valida el dominio contra la allowlist,
+pero esa allowlist es la única línea de defensa:
+
+1. Firebase Console → Authentication → *Settings* → *Authorized domains*.
+2. Dejar **solo** dominios de producción (`aurora-7dc9b.web.app`,
+   `aurora-7dc9b.firebaseapp.com`, dominio custom). Eliminar dominios de staging /
+   pruebas olvidados.
+
+### 4.4 Trazabilidad del reset de contraseña *(MEDIUM)*
+
+Como el reset es 100% cliente↔Google, el backend de Aurora nunca se entera y **no hay
+`writeAuditEvent` propio**. Un reset es un evento de seguridad de primer orden
+(account-takeover) y conviene tener rastro.
+
+**Decisión adoptada: usar Cloud Logging como fuente de verdad** (no construir un
+endpoint backend que envuelva el reset — Aurora no tiene infra de email propia y
+perderíamos las plantillas/throttling nativos de Firebase). Acción:
+
+1. Verificar en Cloud Logging que el log `identitytoolkit.googleapis.com` capture
+   `SendOobCode` / `ResetPassword`. Activar *Data Access audit logs* para Identity
+   Platform si no están: https://console.cloud.google.com/iam-admin/audit
+   (servicio *Identity Toolkit API* → marcar *Admin Read* / *Data Write*).
+2. Opcional: una alerta de Cloud Monitoring sobre volumen anómalo de `SendOobCode`
+   (señal de email-bombing).
+
+### 4.5 Lo que ya está resuelto en código (no requiere acción)
+
+- **Anti-enumeración en UI**: `auth/user-not-found` → éxito
+  ([ForgotPassword.jsx:59-60](../src/features/auth/pages/ForgotPassword.jsx#L59-L60)).
+- **XSS**: el email se renderiza con interpolación de React (escapado), sin
+  `dangerouslySetInnerHTML`.
+- **PII**: el email viaja en `location.state` (memoria), nunca en query string ni
+  localStorage; sin `console.log`.
+- **Open-redirect del deep-link `from`**: saneado por `safeRedirectPath`
+  ([useAuthRedirect.js:9-13](../src/features/auth/hooks/useAuthRedirect.js#L9-L13))
+  en todos los puntos de consumo (`Login.jsx`, `LoginPassword.jsx`).
+
+### 4.6 Checklist Identity Platform
+
+- [ ] *Email enumeration protection* activado (4.1).
+- [ ] App Check + reCAPTCHA Enterprise habilitado para *Authentication* y operaciones
+      de contraseña, en modo *Enforce* tras rollout (4.2).
+- [ ] *Authorized domains* contiene solo dominios de producción (4.3).
+- [ ] *Data Access audit logs* de Identity Toolkit activos en Cloud Logging (4.4).
