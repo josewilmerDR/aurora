@@ -282,13 +282,21 @@ router.post('/api/auth/claim-invitations', authenticateOnly, rateLimit('auth_wri
         rawRestricted.filter(v => typeof v === 'string' && VALID_MODULE_IDS.has(v))
       )].sort();
 
+      // Type-check + length-bound the free-text fields copied from the users
+      // doc (unlike rol/restrictedTo, which are whitelisted above). A corrupted
+      // or malicious users row with a non-string nombre/telefono — or an
+      // unbounded one — must not propagate verbatim into the membership we
+      // render in the org selector and persist to the audit log.
+      const safeNombre = typeof nombre === 'string' ? nombre.trim().slice(0, 80) : '';
+      const safeTelefono = typeof telefono === 'string' ? telefono.trim().slice(0, 30) : '';
+
       const membershipData = {
         uid,
         fincaId,
         fincaNombre,
         email: userEmail,
-        nombre: nombre || '',
-        telefono: telefono || '',
+        nombre: safeNombre,
+        telefono: safeTelefono,
         rol: safeRol,
         restrictedTo: safeRestricted,
         creadoEn: Timestamp.now(),
