@@ -519,6 +519,19 @@ html[data-theme="light"] {
   margin: 0;
 }
 
+/* Hit-area táctil: en dispositivos de puntero grueso (touch) garantizamos ≥44px
+   de alto en los controles de formulario para que el dedo no falle el target.
+   Solo aplica a touch — el desktop conserva su densidad. .aur-textarea queda
+   fuera (ya define su propio min-height mayor). */
+@media (pointer: coarse) {
+  .aur-input,
+  .aur-select,
+  .aur-btn-pill,
+  .aur-btn-text {
+    min-height: 44px;
+  }
+}
+
 .aur-select {
   appearance: none;
   -webkit-appearance: none;

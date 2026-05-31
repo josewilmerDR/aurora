@@ -51,7 +51,7 @@ export default function FincaForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="auth-form" noValidate>
+    <form onSubmit={handleSubmit} className="auth-form" noValidate aria-busy={submitting}>
       <div className="aur-field">
         <label htmlFor="finca-nombre" className="aur-field-label">Nombre de tu organización</label>
         <input

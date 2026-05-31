@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../../firebase';
@@ -43,7 +43,7 @@ function validateAccountStep(form) {
 
 export default function Register() {
   const navigate = useNavigate();
-  const { refreshMemberships, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
+  const { refreshMemberships, selectFinca, isLoggedIn, needsSetup, needsOrgSelection } = useUser();
 
   const [step, setStep] = useState(1); // 1: account, 2: finca data
   const [email, setEmail] = useState('');
@@ -53,10 +53,20 @@ export default function Register() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const emailRef = useRef(null);
+  const rulesRef = useRef(null);
+
   // Validación on-blur del paso de cuenta. El paso de finca usa <FincaForm>,
   // que trae su propia validación (la misma que /nueva-organizacion).
   const accountForm = { email, password, confirm };
   const accountValidation = useBlurValidation(validateAccountStep);
+
+  // Foco inicial en el primer campo del paso 1 (igual que ForgotPassword/
+  // LoginPassword). No corre con el spinner de Google; el paso 2 lo maneja
+  // <FincaForm>, que enfoca su propio primer campo al montar.
+  useEffect(() => {
+    if (step === 1 && !googleLoading) emailRef.current?.focus();
+  }, [step, googleLoading]);
 
   // Navigate to dashboard once login is complete (currentUser loaded),
   // or to OrganizationSelector if the user has memberships but no active finca
@@ -94,32 +104,35 @@ export default function Register() {
     return () => clearTimeout(t);
   }, [step, googleLoading]);
 
-  const passwordValid = PASSWORD_RULES.every(r => r.test(password));
+  const passwordResults = PASSWORD_RULES.map((r) => r.test(password));
+  const passwordValid = passwordResults.every(Boolean);
 
-  // Step 1: create account with email/password
+  // Step 1: validar cuenta y avanzar. La cuenta de Firebase se crea recién en el
+  // paso 2 (a propósito): mantener al usuario sin autenticar durante el wizard
+  // evita que needsOrgSelection lo redirija al OrganizationSelector antes de
+  // tiempo. "Correo ya registrado" se detecta al crear la cuenta en el paso 2.
   const handleAccountStep = (e) => {
     e.preventDefault();
-    // Per-field errors (email format, confirm matches password) — el rule
-    // list cubre password aparte, así que su validez sigue siendo gate
-    // separado.
     if (!accountValidation.validateAll(accountForm)) return;
     if (!passwordValid) {
-      setError('La contraseña no cumple los requisitos de seguridad.');
+      // La checklist ya muestra qué falta; movemos el foco ahí en vez de
+      // duplicar el feedback con un error de página redundante.
+      rulesRef.current?.focus();
       return;
     }
     setError('');
     setStep(2);
   };
 
-  // Step 2: create the finca in the backend. <FincaForm> ya validó y trimeó los
-  // valores y nos los pasa como argumento.
+  // Step 2: create the email/password account (if not already authenticated via
+  // Google) and the finca. <FincaForm> ya validó y trimeó los valores.
   const handleFincaStep = async ({ fincaNombre, nombreAdmin }) => {
     setSubmitting(true);
     setError('');
     try {
       // Only create email/password account if the user is NOT already authenticated (e.g. via Google)
       if (!auth.currentUser) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
       }
       // Check for pending invitations BEFORE creating a new organization.
       // If the user was previously added by an admin, they should not create a new org.
@@ -138,14 +151,18 @@ export default function Register() {
         body: JSON.stringify({ fincaNombre, nombreAdmin }),
       });
       if (!result.ok) throw new Error(result.error); // error ya traducido al español
-      // Reload memberships so UserContext knows there is a finca → isLoggedIn = true
-      // Navigation is handled by the useEffect that watches isLoggedIn
+      // Seleccionar la finca recién creada ANTES de refrescar dispara la carga
+      // de perfil en UserContext (igual que /nueva-organizacion); navegación a
+      // cargo del useEffect que observa isLoggedIn.
+      selectFinca(result.data.fincaId);
       await refreshMemberships();
     } catch (err) {
       const code = err.code;
       console.error('[Register] error code:', code, 'message:', err.message);
       if (code === 'auth/email-already-in-use') {
-        setError('Este correo ya está registrado.');
+        // La cuenta ya existe: no tiene sentido crear una org, debe iniciar
+        // sesión. Volvemos al paso 1 con el correo intacto.
+        setError('Este correo ya está registrado. Inicia sesión.');
         setStep(1);
       } else {
         setError(err.message || 'Error al crear la cuenta. Intenta de nuevo.');
@@ -182,22 +199,25 @@ export default function Register() {
     <AuthCard
       title="Crear cuenta"
       subtitle={step === 1 ? 'Ingresa tus credenciales' : 'Configura tu organización'}
-      footer={
+      footer={step === 1 && (
         <p className="auth-register-link">
           ¿Ya tienes cuenta? <Link to="/login">Iniciar sesión</Link>
         </p>
-      }
+      )}
     >
+      <p className="auth-step">Paso {step} de 2</p>
+
       {step === 1 && (
         <>
-          <GoogleButton onClick={handleGoogle} disabled={submitting} loading={googleLoading} />
+          <GoogleButton onClick={handleGoogle} disabled={googleLoading} loading={googleLoading} />
 
           <div className="auth-divider"><span>o</span></div>
 
-          <form onSubmit={handleAccountStep} className="auth-form">
+          <form onSubmit={handleAccountStep} className="auth-form" noValidate>
             <div className="aur-field">
               <label htmlFor="email" className="aur-field-label">Correo electrónico</label>
               <input
+                ref={emailRef}
                 id="email"
                 type="email"
                 className={accountValidation.inputClass('email')}
@@ -206,10 +226,12 @@ export default function Register() {
                 onBlur={() => accountValidation.blurField('email', accountForm)}
                 placeholder="tu@correo.com"
                 autoComplete="email"
+                aria-invalid={!!accountValidation.fieldErrors.email}
+                aria-describedby={accountValidation.fieldErrors.email ? 'email-error' : undefined}
                 required
               />
               {accountValidation.fieldErrors.email && (
-                <span className="aur-field-error">{accountValidation.fieldErrors.email}</span>
+                <span id="email-error" className="aur-field-error">{accountValidation.fieldErrors.email}</span>
               )}
             </div>
 
@@ -224,10 +246,20 @@ export default function Register() {
                 required
               />
               {password && (
-                <ul className="auth-password-rules">
-                  {PASSWORD_RULES.map(r => (
-                    <li key={r.id} className={r.test(password) ? 'auth-rule-ok' : 'auth-rule-fail'}>
-                      {r.test(password) ? '✓' : '✗'} {r.label}
+                <ul
+                  className="auth-password-rules"
+                  ref={rulesRef}
+                  tabIndex={-1}
+                  aria-live="polite"
+                  aria-label="Requisitos de la contraseña"
+                >
+                  {PASSWORD_RULES.map((r, i) => (
+                    <li
+                      key={r.id}
+                      className={passwordResults[i] ? 'auth-rule-ok' : 'auth-rule-fail'}
+                      aria-label={`${passwordResults[i] ? 'Cumple' : 'Falta'}: ${r.label}`}
+                    >
+                      {passwordResults[i] ? '✓' : '✗'} {r.label}
                     </li>
                   ))}
                 </ul>
@@ -244,10 +276,12 @@ export default function Register() {
                 className={accountValidation.inputClass('confirm')}
                 placeholder="Repite la contraseña"
                 autoComplete="new-password"
+                aria-invalid={!!accountValidation.fieldErrors.confirm}
+                aria-describedby={accountValidation.fieldErrors.confirm ? 'confirm-error' : undefined}
                 required
               />
               {accountValidation.fieldErrors.confirm && (
-                <span className="aur-field-error">{accountValidation.fieldErrors.confirm}</span>
+                <span id="confirm-error" className="aur-field-error">{accountValidation.fieldErrors.confirm}</span>
               )}
             </div>
 
@@ -258,7 +292,7 @@ export default function Register() {
               className="aur-btn-pill auth-btn-submit"
               disabled={!email || !password || !confirm}
             >
-              Siguiente
+              Continuar
             </button>
           </form>
         </>
