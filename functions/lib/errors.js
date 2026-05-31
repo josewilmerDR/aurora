@@ -25,6 +25,11 @@ const ERROR_CODES = {
   // unhook those first.
   RESOURCE_REFERENCED: 'RESOURCE_REFERENCED',
   USER_HAS_HR_HISTORY: 'USER_HAS_HR_HISTORY',
+  // codigoLote ya en uso dentro de la finca. Firestore no tiene unique
+  // constraints, así que la unicidad se verifica en el handler de lotes
+  // (POST / PUT). Código dedicado para que el frontend muestre un mensaje
+  // específico ("ya existe un lote con ese código") en vez del genérico.
+  LOTE_CODIGO_EXISTS: 'LOTE_CODIGO_EXISTS',
   // Borrado de grupo bloqueado por cédulas en estado terminal/intermedio.
   // CEDULA_APLICADA: hay cédulas ya aplicadas en campo (registro
   // fitosanitario, no se eliminan). CEDULA_EN_TRANSITO: hay cédulas en
