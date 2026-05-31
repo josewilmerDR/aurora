@@ -12,7 +12,9 @@ export default function OrganizationSelector() {
   // Si llegamos sin membresías arrancamos en "buscando" para que el primer
   // render no parpadee el empty-state antes de que el effect reclame invitaciones.
   const [checking, setChecking] = useState(memberships.length === 0);
-  const [error, setError] = useState(false);
+  // null = no error; otherwise a user-facing (Spanish) message. We branch by
+  // HTTP status so a 429/5xx isn't disguised as a connectivity problem.
+  const [error, setError] = useState(null);
   const [enteringId, setEnteringId] = useState(null);
   const claimedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -31,15 +33,27 @@ export default function OrganizationSelector() {
   // que aquel haya fallado por red. A diferencia de antes, un fallo de red ahora
   // se muestra como error en vez de disfrazarse de "no tenés organizaciones".
   const runClaim = useCallback(async () => {
-    setError(false);
+    setError(null);
     setChecking(true);
     try {
       const res = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
-      if (!res.ok) throw new Error('claim failed');
+      if (!res.ok) {
+        // Reached the server but it refused: distinguish rate-limiting from a
+        // generic server-side failure. Network failures throw and land in the
+        // catch below with the connectivity message.
+        if (mountedRef.current) {
+          setError(res.status === 429
+            ? 'Demasiadas solicitudes. Esperá un momento e intentá de nuevo.'
+            : 'No pudimos cargar tus organizaciones. Intentá de nuevo en unos minutos.');
+        }
+        return;
+      }
       const data = await res.json();
       if (data.memberships?.length > 0) await refreshMemberships();
     } catch {
-      if (mountedRef.current) setError(true);
+      if (mountedRef.current) {
+        setError('No pudimos cargar tus organizaciones. Revisá tu conexión e intentá de nuevo.');
+      }
     } finally {
       if (mountedRef.current) setChecking(false);
     }
@@ -101,7 +115,7 @@ export default function OrganizationSelector() {
         {error ? (
           <>
             <p className="auth-error" role="alert">
-              No pudimos cargar tus organizaciones. Revisá tu conexión e intentá de nuevo.
+              {error}
             </p>
             <button className="aur-btn-pill auth-btn-submit" onClick={runClaim}>
               Reintentar

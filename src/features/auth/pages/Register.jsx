@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithPopup, sendEmailVerification } from 'firebase/auth';
 import { auth, googleProvider } from '../../../firebase';
 import { apiFetch, apiFetchJson } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
@@ -111,11 +111,15 @@ export default function Register() {
   const passwordResults = PASSWORD_RULES.map((r) => r.test(password));
   const passwordValid = passwordResults.every(Boolean);
 
-  // Step 1: validar cuenta y avanzar. La cuenta de Firebase se crea recién en el
-  // paso 2 (a propósito): mantener al usuario sin autenticar durante el wizard
-  // evita que needsOrgSelection lo redirija al OrganizationSelector antes de
-  // tiempo. "Correo ya registrado" se detecta al crear la cuenta en el paso 2.
-  const handleAccountStep = (e) => {
+  // Step 1: validar la cuenta, crearla y enviar el correo de verificación.
+  // A diferencia del flujo de Google (que llega ya verificado y pasa al paso 2
+  // para crear la organización), el correo/contraseña debe verificar el email
+  // ANTES de poder hablar con el backend (el gate email_verified rechaza el
+  // token). Por eso aquí creamos la cuenta, disparamos la verificación y
+  // mandamos al usuario a /verificar-correo; la organización se crea después de
+  // verificar, vía el OrganizationSelector. "Correo ya registrado" se detecta
+  // de inmediato al crear la cuenta.
+  const handleAccountStep = async (e) => {
     e.preventDefault();
     if (!accountValidation.validateAll(accountForm)) return;
     if (!passwordValid) {
@@ -125,19 +129,33 @@ export default function Register() {
       return;
     }
     setError('');
-    setStep(2);
+    setSubmitting(true);
+    try {
+      const cleanEmail = email.trim();
+      await createUserWithEmailAndPassword(auth, cleanEmail, password);
+      await sendEmailVerification(auth.currentUser, {
+        url: `${window.location.origin}/verificar-correo`,
+      });
+      navigate('/verificar-correo', { state: { email: cleanEmail } });
+    } catch (err) {
+      if (err.code === 'auth/email-already-in-use') {
+        // La cuenta ya existe: debe iniciar sesión, no registrarse.
+        setError('Este correo ya está registrado. Inicia sesión.');
+      } else {
+        setError(authErrorMessage(err.code, 'No se pudo crear la cuenta. Intenta de nuevo.'));
+      }
+      setSubmitting(false);
+    }
   };
 
-  // Step 2: create the email/password account (if not already authenticated via
-  // Google) and the finca. <FincaForm> ya validó y trimeó los valores.
+  // Step 2: create the finca. Only reached by Google sign-up (which arrives
+  // already authenticated + email-verified); the email/password path creates
+  // its account in step 1 and finishes org creation after verification, so the
+  // user is always authenticated here. <FincaForm> ya validó y trimeó los valores.
   const handleFincaStep = async ({ fincaNombre, nombreAdmin }) => {
     setSubmitting(true);
     setError('');
     try {
-      // Only create email/password account if the user is NOT already authenticated (e.g. via Google)
-      if (!auth.currentUser) {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
-      }
       // Check for pending invitations BEFORE creating a new organization.
       // If the user was previously added by an admin, they should not create a new org.
       const claimRes = await apiFetch('/api/auth/claim-invitations', { method: 'POST' });
@@ -299,9 +317,9 @@ export default function Register() {
             <button
               type="submit"
               className="aur-btn-pill auth-btn-submit"
-              disabled={!email || !password || !confirm}
+              disabled={!email || !password || !confirm || submitting}
             >
-              Continuar
+              {submitting ? 'Creando cuenta…' : 'Continuar'}
             </button>
           </form>
         </>

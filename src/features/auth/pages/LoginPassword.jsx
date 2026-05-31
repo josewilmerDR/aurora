@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FiArrowLeft } from 'react-icons/fi';
+import { sendEmailVerification } from 'firebase/auth';
+import { auth } from '../../../firebase';
 import { useUser } from '../../../contexts/UserContext';
 import { useAuthRedirect, safeRedirectPath } from '../hooks/useAuthRedirect';
 import { authErrorMessage } from '../lib/authErrors';
@@ -36,6 +38,20 @@ export default function LoginPassword() {
     setError('');
     try {
       await login(emailFromState, password);
+      // Cuenta sin verificar (creada antes de existir la verificación, o cuyo
+      // correo nunca se confirmó): el backend rechazaría su token, así que la
+      // mandamos a verificar en vez de dejarla colgada. Reenviamos el correo de
+      // una vez; si Firebase nos throttlea, la pantalla de verificación ofrece
+      // reenviar con cooldown.
+      if (auth.currentUser && !auth.currentUser.emailVerified) {
+        try {
+          await sendEmailVerification(auth.currentUser, {
+            url: `${window.location.origin}/verificar-correo`,
+          });
+        } catch { /* throttled — la pantalla de verificación permite reenviar */ }
+        navigate('/verificar-correo', { state: { email: emailFromState } });
+        return;
+      }
       // No reseteamos submitting en éxito: la navegación la hace useAuthRedirect
       // cuando el context resuelve (currentUser carga async vía /api/auth/me).
       // Mantener el botón en loading evita el flicker "Entrar" y el doble submit.
