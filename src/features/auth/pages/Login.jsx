@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { FiArrowRight } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
 import { useAuthRedirect, safeRedirectPath } from '../hooks/useAuthRedirect';
+import { authErrorMessage } from '../lib/authErrors';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { isValidEmail } from '../../../lib/validators';
 import AuthCard from '../components/AuthCard';
@@ -67,11 +68,9 @@ export default function Login() {
       // Keep loading state — useAuthRedirect navigates when the context resolves
     } catch (err) {
       setGoogleLoading(false);
-      if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
-        setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
-      } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setError('No se pudo iniciar sesión con Google.');
-      }
+      // El usuario cerró/canceló el popup: no es un error que mostrar.
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
+      setError(authErrorMessage(err.code, 'No se pudo iniciar sesión con Google.'));
     }
   };
 

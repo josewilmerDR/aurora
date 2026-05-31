@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { FiArrowLeft } from 'react-icons/fi';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../../firebase';
@@ -17,7 +17,11 @@ function validate(form) {
 }
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  // Prefill: si el usuario llegó desde la pantalla de contraseña, ya tipeó el
+  // email ahí — lo arrastramos para no pedírselo de nuevo (LoginPassword pasa
+  // state={{ email }} en el Link).
+  const [email, setEmail] = useState(location.state?.email || '');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');

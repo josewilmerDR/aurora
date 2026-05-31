@@ -6,6 +6,7 @@ import { apiFetch } from '../../../lib/apiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { isValidEmail } from '../../../lib/validators';
+import { authErrorMessage } from '../lib/authErrors';
 import AuthCard from '../components/AuthCard';
 import GoogleButton from '../components/GoogleButton';
 import AuthLoading from '../components/AuthLoading';
@@ -179,11 +180,9 @@ export default function Register() {
       // Keep loading state — useEffect will navigate or go to step 2 when needsSetup resolves
     } catch (err) {
       setGoogleLoading(false);
-      if (err.code === 'auth/account-exists-with-different-credential' || err.code === 'auth/email-already-in-use') {
-        setError('Este correo ya tiene contraseña. Ingresa con correo y contraseña, luego vincula Google desde Mi perfil.');
-      } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setError('No se pudo continuar con Google.');
-      }
+      // El usuario cerró/canceló el popup: no es un error que mostrar.
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
+      setError(authErrorMessage(err.code, 'No se pudo continuar con Google.'));
     }
   };
 
