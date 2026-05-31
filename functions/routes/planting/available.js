@@ -8,10 +8,15 @@ const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE } = require('../../lib/helpers');
+const { rateLimit } = require('../../lib/rateLimit');
 
 const router = Router();
 
-router.get('/api/siembras/disponibles', authenticate, async (req, res) => {
+// costly_read: cada request escanea 3 colecciones completas de la finca
+// (siembras + grupos + scheduled_tasks). Sin el rate limit, un encargado
+// autenticado podía martillar este endpoint y amplificar el costo de lecturas
+// Firestore. Tier holgado para el uso real (abrir el form de grupo).
+router.get('/api/siembras/disponibles', authenticate, rateLimit('siembras_disponibles', 'costly_read'), async (req, res) => {
   try {
     // Único consumidor legítimo es el form de creación/edición de grupo
     // (GrupoManagement, gated a encargado+ en ROUTE_MIN_ROLE). El endpoint

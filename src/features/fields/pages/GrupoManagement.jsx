@@ -12,6 +12,7 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import EmptyState from '../../../components/ui/EmptyState';
 import PageHeader from '../../../components/PageHeader';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { translateApiError } from '../../../lib/errorMessages';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -32,6 +33,12 @@ import { translateApiError } from '../../../lib/errorMessages';
 function GrupoManagement() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
+  const { currentUser } = useUser();
+  // Eliminar grupo (DELETE / anular-y-eliminar) exige supervisor+ en el
+  // backend: borra cédulas/tasks pendientes y revierte inventario. Ocultamos
+  // el botón para roles inferiores como defensa secundaria — el endpoint es
+  // la frontera real, esto solo evita ofrecer una acción que daría 403.
+  const canDelete = hasMinRole(currentUser?.rol, 'supervisor');
   const [grupos,            setGrupos]            = useState([]);
   const [siembras,          setSiembras]          = useState([]);
   const [bloquesDisponibles, setBloquesDisponibles] = useState([]);
@@ -245,6 +252,7 @@ function GrupoManagement() {
   };
 
   const handleDeleteConfirm = async () => {
+    if (deleting) return; // re-entry guard: Enter/doble-click antes del re-render
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/grupos/${confirmModal.grupoId}`, { method: 'DELETE' });
@@ -267,6 +275,7 @@ function GrupoManagement() {
   // transaccionales. Reemplaza el flujo previo de N PUT /anular + 1 DELETE
   // que dejaba estado parcialmente mutado si fallaba a mitad.
   const handleAnularYEliminar = async () => {
+    if (deleting) return; // re-entry guard: doble-click antes del re-render
     setDeleting(true);
     try {
       const res = await apiFetch(`/api/grupos/${deleteModal.grupoId}/anular-y-eliminar`, { method: 'POST' });
@@ -328,6 +337,7 @@ function GrupoManagement() {
         onEdit={handleEdit}
         onDelete={handleDeleteClick}
         onPreview={setPreviewGrupo}
+        canDelete={canDelete}
         checkingDelete={checkingDeleteId === selectedGrupo.id}
       />
     );

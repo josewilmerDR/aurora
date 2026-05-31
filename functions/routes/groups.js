@@ -153,6 +153,15 @@ const MAX_CATALOG_LEN   = 32;
 const MAX_FUTURE_DAYS   = 15;
 const MAX_BLOQUES       = 500;
 
+// Rechaza caracteres de control (C0/C1) y overrides/aislamientos
+// bidireccionales (U+202A–U+202E, U+2066–U+2069). nombreGrupo/cosecha/etapa
+// se renderean en el PDF e impresión del grupo y viajan en el nombre de
+// archivo + título de navigator.share (GrupoPreviewModal); un nombre con
+// RTL-override o saltos de línea puede spoofear o romper esa salida. El
+// schema solo valida longitud/tipo — sin esto, un control char persiste.
+// Alineado con el safeName anti control/bidi de register-finca.
+const CONTROL_BIDI_RE = /[\u0000-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/;
+
 // Reject the request if any siembraId in bloques[] does not belong to fincaId.
 // Without this, an encargado could persist foreign-finca siembraIds inside
 // their own grupos.bloques[] (and into block_transitions.bloquesDescritos),
@@ -175,6 +184,20 @@ async function validateBloquesOwnership(fincaId, bloqueIds) {
   return { ok: true };
 }
 
+// Tenant guard for a paquete reference (technical or muestreo). Returns true
+// ONLY when the id points to a doc that exists but belongs to ANOTHER finca —
+// the cross-tenant case we must reject. A non-existent id resolves to false
+// (tolerated: persisted as-is and generates no tasks, same as the existing
+// task-gen guard) so editing a grupo whose same-finca package was deleted
+// doesn't start failing. Without this, an encargado could persist another
+// finca's paqueteId/paqueteMuestreoId into grupos.* via a direct API call.
+// Mirrors validateBloquesOwnership for bloques.
+async function isForeignPaquete(collection, id, fincaId) {
+  if (!id) return false;
+  const doc = await db.collection(collection).doc(id).get();
+  return doc.exists && doc.data().fincaId !== fincaId;
+}
+
 // Shape + range validation for the grupo payload (Zod, CLAUDE.md §3). All
 // fields are optional here so the same schema serves create and update; the
 // `requireFields` branch in validateGrupoBody enforces presence for POST.
@@ -185,12 +208,15 @@ const grupoBodySchema = z.object({
     // nombreGrupo cap is on the trimmed length, mirroring the handler's .trim().
     nombreGrupo: z.string('nombreGrupo must be a string.')
         .refine(s => s.trim().length <= MAX_NOMBRE_LEN, `nombreGrupo max ${MAX_NOMBRE_LEN} characters.`)
+        .refine(s => !CONTROL_BIDI_RE.test(s), 'nombreGrupo contains invalid control characters.')
         .optional(),
     cosecha: z.string('cosecha must be a string.')
         .max(MAX_CATALOG_LEN, `cosecha max ${MAX_CATALOG_LEN} characters.`)
+        .refine(s => !CONTROL_BIDI_RE.test(s), 'cosecha contains invalid control characters.')
         .optional(),
     etapa: z.string('etapa must be a string.')
         .max(MAX_CATALOG_LEN, `etapa max ${MAX_CATALOG_LEN} characters.`)
+        .refine(s => !CONTROL_BIDI_RE.test(s), 'etapa contains invalid control characters.')
         .optional(),
     fechaCreacion: z.union([z.string(), z.date()])
         .refine(v => !isNaN(new Date(v).getTime()), 'fechaCreacion is not a valid date.')
@@ -231,10 +257,16 @@ function validateGrupoBody(body, { requireFields = false } = {}) {
 }
 
 // --- API ENDPOINTS: GRUPOS ---
-// Todos los endpoints requieren rol `encargado` o superior. Sin este gate, un
-// trabajador autenticado podía enumerar/crear/modificar/borrar grupos vía API
-// directa, saltándose el RoleRoute del frontend. Alineado con `/api/siembras`
-// que ya tenía el mismo gate explícito.
+// Los endpoints de lectura/creación/edición requieren rol `encargado` o
+// superior. Sin este gate, un trabajador autenticado podía enumerar/crear/
+// modificar grupos vía API directa, saltándose el RoleRoute del frontend.
+// Alineado con `/api/siembras` que ya tenía el mismo gate explícito.
+//
+// Las operaciones DESTRUCTIVAS e irreversibles (DELETE /api/grupos/:id y
+// POST /api/grupos/:id/anular-y-eliminar) exigen `supervisor` o superior:
+// borran cédulas/scheduled_tasks pendientes y revierten inventario
+// (stockActual + movimientos compensatorios), así que pesan más que un
+// borrado rutinario. Mismo floor que DELETE /api/siembras/:id.
 router.get('/api/grupos', authenticate, async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
@@ -267,6 +299,16 @@ router.post('/api/grupos', authenticate, rateLimit('grupos_write', 'write'), asy
         const ownershipCheck = await validateBloquesOwnership(req.fincaId, incomingBloques);
         if (!ownershipCheck.ok) {
             return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'One or more bloques do not belong to this finca.', 400);
+        }
+
+        // Tenant boundary check for package references (see isForeignPaquete).
+        // validateGrupoBody only checks they are strings; without this a caller
+        // could persist another finca's paqueteId/paqueteMuestreoId here.
+        if (await isForeignPaquete('packages', paqueteId, req.fincaId)) {
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'paqueteId does not belong to this finca.', 400);
+        }
+        if (await isForeignPaquete('monitoreo_paquetes', paqueteMuestreoId, req.fincaId)) {
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'paqueteMuestreoId does not belong to this finca.', 400);
         }
 
         // Detect blocks that currently belong to another grupo so we can
@@ -425,6 +467,17 @@ router.put('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), 
             transitions = await findBlockOrigins(req.fincaId, grupoData.bloques, id);
         }
 
+        // Tenant boundary check for package references (see isForeignPaquete).
+        // Only runs when the field is present in the payload (partial update).
+        if (grupoData.paqueteId !== undefined
+            && await isForeignPaquete('packages', grupoData.paqueteId, req.fincaId)) {
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'paqueteId does not belong to this finca.', 400);
+        }
+        if (grupoData.paqueteMuestreoId !== undefined
+            && await isForeignPaquete('monitoreo_paquetes', grupoData.paqueteMuestreoId, req.fincaId)) {
+            return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'paqueteMuestreoId does not belong to this finca.', 400);
+        }
+
         await db.collection('grupos').doc(id).update(grupoData);
 
         if (transitions.length > 0) {
@@ -560,7 +613,7 @@ router.put('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), 
 // los conteos completed/total por contexto, aunque el frontend ya los
 // tiene de /api/siembras/disponibles, así el modal no tiene que cruzar
 // dos fuentes.
-router.get('/api/grupos/:id/aplicaciones-pendientes', authenticate, async (req, res) => {
+router.get('/api/grupos/:id/aplicaciones-pendientes', authenticate, rateLimit('grupos_aplic_pendientes', 'costly_read'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read grupo applications.', 403);
@@ -614,7 +667,7 @@ router.get('/api/grupos/:id/aplicaciones-pendientes', authenticate, async (req, 
     }
 });
 
-router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
+router.get('/api/grupos/:id/delete-check', authenticate, rateLimit('grupos_delete_check', 'costly_read'), async (req, res) => {
     try {
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
             return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can check grupo dependencies.', 403);
@@ -666,8 +719,8 @@ router.get('/api/grupos/:id/delete-check', authenticate, async (req, res) => {
 
 router.delete('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'), async (req, res) => {
     try {
-        if (!hasMinRoleBE(req.userRole, 'encargado')) {
-            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete grupos.', 403);
+        if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can delete grupos.', 403);
         }
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
@@ -698,8 +751,8 @@ router.delete('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'
                     .get();
                 for (const doc of cSnap.docs) {
                     const s = doc.data().status;
-                    if (s === 'aplicada_en_campo') return sendApiError(res, 'CEDULA_APLICADA', 'There are cedulas applied in the field.', 409);
-                    if (s === 'en_transito')      return sendApiError(res, 'CEDULA_EN_TRANSITO', 'There are cedulas in "Mezcla lista" state.', 409);
+                    if (s === 'aplicada_en_campo') return sendApiError(res, ERROR_CODES.CEDULA_APLICADA, 'There are cedulas applied in the field.', 409);
+                    if (s === 'en_transito')      return sendApiError(res, ERROR_CODES.CEDULA_EN_TRANSITO, 'There are cedulas in "Mezcla lista" state.', 409);
                 }
             }
         }
@@ -787,8 +840,8 @@ router.delete('/api/grupos/:id', authenticate, rateLimit('grupos_write', 'write'
 // el flujo se completa sin re-revertir inventario.
 router.post('/api/grupos/:id/anular-y-eliminar', authenticate, rateLimit('grupos_write', 'write'), async (req, res) => {
     try {
-        if (!hasMinRoleBE(req.userRole, 'encargado')) {
-            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete grupos.', 403);
+        if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+            return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can delete grupos.', 403);
         }
         const { id } = req.params;
         const ownership = await verifyOwnership('grupos', id, req.fincaId);
@@ -822,7 +875,7 @@ router.post('/api/grupos/:id/anular-y-eliminar', authenticate, rateLimit('grupos
                 for (const doc of cSnap.docs) {
                     const d = doc.data();
                     if (d.status === 'aplicada_en_campo') {
-                        return sendApiError(res, 'CEDULA_APLICADA',
+                        return sendApiError(res, ERROR_CODES.CEDULA_APLICADA,
                             `Cannot delete: cedula ${d.consecutivo || doc.id} already applied in field.`, 409);
                     }
                     cedulasAsociadas.push(doc);
