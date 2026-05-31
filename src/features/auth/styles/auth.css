@@ -118,6 +118,9 @@
   color: var(--aur-text-2);
   margin: 0 0 16px 0;
   text-align: center;
+  /* el subtítulo del OrganizationSelector es el email del usuario: cortar
+     palabras largas para que no desborde la card en viewports angostos */
+  word-break: break-word;
 }
 
 .auth-email-display {
@@ -315,6 +318,15 @@
   color: var(--aur-text);
 }
 
+/* Hit-area táctil ≥40px para los botones de texto del splash (cerrar sesión,
+   volver). El primitive .aur-btn-text usa padding 8/16 y queda algo por debajo
+   del mínimo táctil; lo ampliamos solo dentro del card, sin tocar el global. */
+.auth-card .aur-btn-text {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* ── Loading state (spinner + texto durante OAuth) ───────────────────────── */
 .auth-loading {
   display: flex;
@@ -368,6 +380,15 @@
   margin: 8px 0 16px 0;
 }
 
+/* Wrapper aria-live de todo el contenido del selector (mantiene el ancho
+   completo del card al intercambiar empty / error / lista de orgs). */
+.auth-org-body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .auth-org-section {
   width: 100%;
   display: flex;
@@ -376,13 +397,24 @@
   margin-top: 8px;
 }
 
+/* heading semántico (<h3>); reset de margen para anular el default del browser */
 .auth-org-section-title {
   font-size: var(--aur-fs-caption);
   font-weight: 700;
   color: var(--aur-text-3);
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-bottom: 2px;
+  margin: 0 0 2px 0;
+}
+
+/* Lista de orgs: <ul role=list> sin estilos de lista, mismo gap que la sección */
+.auth-org-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .auth-org-item {
