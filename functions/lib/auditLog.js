@@ -52,6 +52,11 @@ const ACTIONS = Object.freeze({
   USER_UPDATE: 'user.update',
   USER_DELETE: 'user.delete',
   USER_ROLE_CHANGE: 'user.role.change',
+  // A users doc's auth uid was re-pointed during invitation claim (the email
+  // had previously been linked to a different account, then re-claimed by a
+  // new one). This is a security-relevant identity change, so it is audited
+  // even though the claiming token's email is verified.
+  USER_UID_REBIND: 'user.uid.rebind',
   USER_RESTRICTED_TO_CHANGE: 'user.restrictedTo.change',
   USER_ACCESS_GRANT: 'user.access.grant',
   USER_ACCESS_REVOKE: 'user.access.revoke',

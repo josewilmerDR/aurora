@@ -11,6 +11,7 @@ import LoginPassword from './features/auth/pages/LoginPassword';
 import Register from './features/auth/pages/Register';
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import OrganizationSelector from './features/auth/pages/OrganizationSelector';
+import VerifyEmail from './features/auth/pages/VerifyEmail';
 import NewOrganization from './features/auth/pages/NewOrganization';
 import Dashboard from './features/dashboard/pages/Dashboard';
 import TaskTracking from './features/tasks/pages/TaskTracking';
@@ -115,9 +116,13 @@ import './App.css';
 
 // --- Route guards ---
 const ProtectedRoute = ({ children }) => {
-  const { isLoggedIn, isLoading, needsOrgSelection, firebaseUser, activeFincaId, currentUser } = useUser();
+  const { isLoggedIn, isLoading, needsEmailVerification, needsOrgSelection, firebaseUser, activeFincaId, currentUser } = useUser();
   const location = useLocation();
   if (isLoading) return <div className="app-loading" />;
+  // Authenticated but email not verified: the backend rejects this session's
+  // token, so route to the verification screen before anything that needs a
+  // usable token (org selection, profile load). Must come first.
+  if (needsEmailVerification) return <Navigate to="/verificar-correo" replace />;
   // Finca selected but profile still loading: show spinner instead of redirecting to /login
   if (firebaseUser && activeFincaId && !currentUser) return <div className="app-loading" />;
   if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
@@ -327,6 +332,7 @@ function App() {
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/login/contrasena" element={<LoginPassword />} />
+            <Route path="/verificar-correo" element={<VerifyEmail />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/nueva-organizacion" element={<NewOrganization />} />

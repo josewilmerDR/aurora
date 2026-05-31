@@ -5,6 +5,8 @@ const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { ROLE_LEVELS_BE } = require('../lib/helpers');
 const { MODULE_PREFIXES } = require('../lib/moduleMap');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
+const { rateLimit } = require('../lib/rateLimit');
+const { z } = require('zod');
 
 const router = Router();
 
@@ -34,19 +36,19 @@ function membershipDocId(uid, fincaId) {
   return `${uid}__${fincaId}`;
 }
 
-// Length-bounded string with trim. Returns null if the value is not a string
-// or becomes empty after trimming (so callers can reject missing fields).
-function cleanString(value, { maxLength }) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return null;
-  return trimmed.slice(0, maxLength);
-}
+// Zod schema for finca registration — single source of truth for the payload
+// (replaces the previous hand-rolled cleanString checks, per code-standards §3).
+// trim() runs before the length checks, so whitespace-only values are rejected
+// and over-long names error out instead of being silently truncated.
+const registerFincaSchema = z.object({
+  fincaNombre: z.string().trim().min(1).max(120),
+  nombreAdmin: z.string().trim().min(1).max(80),
+});
 
 // --- API ENDPOINTS: AUTH / MULTI-TENANT ---
 
 // GET /api/auth/memberships — list the authenticated user's fincas
-router.get('/api/auth/memberships', authenticateOnly, async (req, res) => {
+router.get('/api/auth/memberships', authenticateOnly, rateLimit('auth_read', 'costly_read'), async (req, res) => {
   try {
     const snap = await db.collection('memberships')
       .where('uid', '==', req.uid)
@@ -70,7 +72,7 @@ router.get('/api/auth/memberships', authenticateOnly, async (req, res) => {
 });
 
 // GET /api/auth/me — user profile in the active finca
-router.get('/api/auth/me', authenticate, async (req, res) => {
+router.get('/api/auth/me', authenticate, rateLimit('auth_read', 'costly_read'), async (req, res) => {
   try {
     const snap = await db.collection('memberships')
       .where('uid', '==', req.uid)
@@ -107,13 +109,13 @@ router.get('/api/auth/me', authenticate, async (req, res) => {
 });
 
 // POST /api/auth/register-finca — create a new finca and its initial admin
-router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
+router.post('/api/auth/register-finca', authenticateOnly, rateLimit('auth_write', 'write'), async (req, res) => {
   try {
-    const fincaNombre = cleanString(req.body?.fincaNombre, { maxLength: 120 });
-    const nombreAdmin = cleanString(req.body?.nombreAdmin, { maxLength: 80 });
-    if (!fincaNombre || !nombreAdmin) {
+    const parsed = registerFincaSchema.safeParse(req.body);
+    if (!parsed.success) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fincaNombre and nombreAdmin are required (non-empty strings).', 400);
     }
+    const { fincaNombre, nombreAdmin } = parsed.data;
 
     // Per-user cap on owned fincas. Ownership is tracked by fincas.adminUid,
     // which matches the uid that created the org. A user can still be member
@@ -172,7 +174,7 @@ router.post('/api/auth/register-finca', authenticateOnly, async (req, res) => {
 });
 
 // POST /api/auth/claim-invitations — link the user to fincas where they were added by email
-router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) => {
+router.post('/api/auth/claim-invitations', authenticateOnly, rateLimit('auth_write', 'write'), async (req, res) => {
   try {
     const { uid, userEmail } = req;
     if (!userEmail) {
@@ -246,6 +248,21 @@ router.post('/api/auth/claim-invitations', authenticateOnly, async (req, res) =>
         creadoEn: Timestamp.now(),
       };
       batch.set(membershipRef, membershipData);
+
+      // Identity rebind: this users doc was previously linked to a different
+      // auth uid (e.g. an admin reassigned the email to another account).
+      // Re-pointing it is a security-relevant identity change, so leave a
+      // forensic trail even though the claiming token's email is verified.
+      if (userData.uid && userData.uid !== uid) {
+        writeAuditEvent({
+          fincaId,
+          actor: { uid, email: userEmail, role: safeRol },
+          action: ACTIONS.USER_UID_REBIND,
+          target: { type: 'user', id: userDoc.id },
+          metadata: { previousUid: userData.uid, newUid: uid },
+          severity: SEVERITY.WARNING,
+        });
+      }
 
       // Update the user doc with the uid for future reference
       batch.update(userDoc.ref, { uid });
