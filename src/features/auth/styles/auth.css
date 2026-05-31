@@ -63,6 +63,16 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
+  /* En viewports de poca altura (landscape mobile, teclado abierto) el card
+     puede superar el alto; permitir scroll en vez de clipear el contenido
+     centrado verticalmente. */
+  overflow-y: auto;
+}
+
+@media (max-height: 720px) {
+  .auth-page {
+    align-items: flex-start;
+  }
 }
 
 .auth-card {
@@ -128,6 +138,16 @@
   color: var(--aur-text-2);
   margin-bottom: 20px;
   word-break: break-all;
+}
+
+/* Indicador de paso del wizard de registro ("Paso 1 de 2"). */
+.auth-step {
+  font-size: var(--aur-fs-caption);
+  font-weight: 700;
+  color: var(--aur-text-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 4px 0;
 }
 
 /* ── Form layout ─────────────────────────────────────────────────────────── */
