@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 
 // Validación a nivel de campo, single source of truth para los dos formularios
@@ -33,15 +33,30 @@ export default function FincaForm({
   const [fincaNombre, setFincaNombre] = useState('');
   const [nombreAdmin, setNombreAdmin] = useState('');
   const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validateFincaStep);
+  // Lock síncrono anti doble-submit. El prop `submitting` no se actualiza entre
+  // dos clics en el mismo tick, así que dos disparos rápidos podían pasar ambos
+  // el guard y emitir dos requests. El ref bloquea en el primer clic. El backend
+  // ya dedupea register-finca (idempotencia transaccional), pero esto evita el
+  // request redundante en origen.
+  const inFlightRef = useRef(false);
 
   const form = { fincaNombre, nombreAdmin };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (submitting) return; // guard anti doble-submit: register-finca NO es idempotente
+    if (submitting || inFlightRef.current) return;
     const trimmed = { fincaNombre: fincaNombre.trim(), nombreAdmin: nombreAdmin.trim() };
     if (!validateAll(trimmed)) return;
-    onSubmit(trimmed);
+    inFlightRef.current = true;
+    try {
+      onSubmit(trimmed);
+    } finally {
+      // onSubmit es async pero no lo esperamos aquí; el padre controla `submitting`
+      // para el resto del ciclo. Liberamos el lock en el próximo tick para cubrir
+      // solo la ráfaga de clics sincrónicos sin quedar trabados si onSubmit lanza
+      // de forma síncrona.
+      setTimeout(() => { inFlightRef.current = false; }, 0);
+    }
   };
 
   const handleChange = (setter, field) => (e) => {

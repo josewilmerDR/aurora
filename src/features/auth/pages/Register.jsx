@@ -172,7 +172,15 @@ export default function Register() {
         method: 'POST',
         body: JSON.stringify({ fincaNombre, nombreAdmin }),
       });
-      if (!result.ok) throw new Error(result.error); // error ya traducido al español
+      if (!result.ok) {
+        // Marcamos el error como ya-traducido para que el catch lo muestre tal
+        // cual. Cualquier OTRO throw (error de red crudo del apiFetch de claim,
+        // fallo inesperado) NO lleva el flag y cae al mensaje genérico, evitando
+        // pintarle al usuario un "Failed to fetch" en inglés.
+        const e = new Error(result.error);
+        e.translated = true;
+        throw e;
+      }
       // Seleccionar la finca recién creada ANTES de refrescar dispara la carga
       // de perfil en UserContext (igual que /nueva-organizacion); navegación a
       // cargo del useEffect que observa isLoggedIn.
@@ -180,14 +188,16 @@ export default function Register() {
       await refreshMemberships();
     } catch (err) {
       const code = err.code;
-      console.error('[Register] error code:', code, 'message:', err.message);
+      if (import.meta.env.DEV) console.error('[Register] error code:', code, 'message:', err.message);
       if (code === 'auth/email-already-in-use') {
         // La cuenta ya existe: no tiene sentido crear una org, debe iniciar
         // sesión. Volvemos al paso 1 con el correo intacto.
         setError('Este correo ya está registrado. Inicia sesión.');
         setStep(1);
       } else {
-        setError(err.message || 'Error al crear la cuenta. Intenta de nuevo.');
+        // Solo confiamos en err.message si viene de un throw deliberado ya
+        // traducido al español; el resto es ruido interno/inglés → genérico.
+        setError(err.translated ? err.message : 'Error al crear la cuenta. Intenta de nuevo.');
       }
     } finally {
       setSubmitting(false);
