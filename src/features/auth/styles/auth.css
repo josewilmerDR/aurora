@@ -125,8 +125,8 @@
 
 .auth-email-display {
   font-weight: 500;
-  opacity: 0.75;
-  margin-bottom: 1.25rem;
+  color: var(--aur-text-2);
+  margin-bottom: 20px;
   word-break: break-all;
 }
 
@@ -177,6 +177,19 @@
 
 .auth-input-action:hover {
   color: var(--aur-text);
+}
+
+.auth-input-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Aviso de Bloq Mayús bajo el campo de contraseña (PasswordInput). */
+.auth-capslock-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
 }
 
 /* ── Botón flecha submit dentro del campo email (Login) ──────────────────── */
@@ -290,14 +303,16 @@
   display: block;
   margin-top: 6px;
   font-size: var(--aur-fs-footnote);
-  color: var(--aur-text-3);
+  /* text-2, no text-3: a text-3 (40% alpha) no se leía como link clickeable. */
+  color: var(--aur-text-2);
   text-decoration: none;
   text-align: right;
   transition: color 0.2s;
 }
 
 .auth-forgot-link:hover {
-  color: var(--aur-text);
+  color: var(--aur-accent);
+  text-decoration: underline;
 }
 
 .auth-back-btn {
@@ -309,8 +324,10 @@
   color: var(--aur-text-3);
   font-size: var(--aur-fs-footnote);
   cursor: pointer;
-  margin-top: 1rem;
-  padding: 4px 0;
+  margin-top: 12px;
+  /* Hit-area táctil ≥40px (antes padding 4px 0 → ~22px). */
+  min-height: 40px;
+  padding: 8px 4px;
   transition: color 0.2s;
 }
 
