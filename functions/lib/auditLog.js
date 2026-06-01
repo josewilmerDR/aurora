@@ -114,6 +114,10 @@ const ACTIONS = Object.freeze({
   PURCHASE_RECEIPT: 'purchase.receipt',
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
   INCOME_CREATE: 'income.create',
+  // UPDATE de un ingreso cambia montos, comprador o el estado/fecha de cobro de
+  // un registro financiero — forensicamente relevante igual que budget.update
+  // (va como INFO). Las lecturas no se auditan.
+  INCOME_UPDATE: 'income.update',
   INCOME_DELETE: 'income.delete',
   // Compradores (buyers). Solo DELETE: es un borrado duro irreversible que
   // elimina términos de crédito + PII de contacto y deja huérfanas las
