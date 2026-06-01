@@ -14,6 +14,7 @@ import DebtSimulationDetail from '../components/DebtSimulationDetail';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney, formatPct } from '../../../lib/formatMoney';
 import { formatShortDate } from '../../../lib/formatDate';
+import { translateApiError } from '../../../lib/errorMessages';
 import { RECOMMENDATION_VARIANT } from '../lib/recommendation';
 import '../../planting/styles/siembra.css';
 import '../../planting/styles/siembra-historial.css';
@@ -108,7 +109,7 @@ function DebtSimulations() {
     if (detail?.id === simId) return; // ya cargada (p.ej. recién simulada)
     let cancelled = false;
     setDetailLoading(true);
-    apiFetch(`/api/financing/debt-simulations/${simId}`)
+    apiFetch(`/api/financing/debt-simulations/${encodeURIComponent(simId)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error('No se pudo cargar la simulación.');
         return res.json();
@@ -143,8 +144,10 @@ function DebtSimulations() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
+        // Traducimos el código de error del backend a un mensaje en español;
+        // nunca mostramos el devMessage interno (inglés) ni detalles del envelope.
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'La simulación falló.');
+        throw new Error(translateApiError(err, 'La simulación falló.'));
       }
       const data = await res.json();
       await loadSims();
@@ -185,7 +188,14 @@ function DebtSimulations() {
   }, [snapshots.length, offers.length]);
 
   const exportCSV = useCallback(() => {
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Neutraliza inyección de fórmulas: una celda que empieza con = + - @ (tab
+    // o CR incluidos) la interpreta Excel/Sheets como fórmula. Prefijamos con
+    // comilla simple para forzar texto antes de entrecomillar el campo.
+    const esc = (v) => {
+      let s = String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const headers = ['Fecha', 'Proveedor', 'Monto', 'Plazo (m)', 'APR %', 'Δ Margen', 'Recomendación'];
     const rows = displayRef.current.map((r) => [
       esc(r.createdAt ? String(r.createdAt).slice(0, 10) : ''),
