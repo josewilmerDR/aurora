@@ -557,3 +557,26 @@
   color: var(--aur-text-3);
   margin-left: auto;
 }
+
+/* ── Ofertas de crédito ───────────────────────────────────────────────────── */
+/* Indicador de "tiene notas" junto al nombre del proveedor. Las notas no tienen
+   columna propia; este ícono las hace descubribles (title = el texto completo). */
+.co-note-icon {
+  margin-left: 6px;
+  color: var(--aur-text-3);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Caption de tabla visualmente oculta, accesible para lectores de pantalla. */
+.co-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
