@@ -60,6 +60,9 @@ export const ACTION_OPTIONS = [
   { value: 'purchase.receipt.void',         label: 'Recepción de mercancía anulada' },
   { value: 'income.create',                 label: 'Ingreso registrado' },
   { value: 'income.delete',                 label: 'Ingreso eliminado' },
+  { value: 'budget.create',                 label: 'Presupuesto creado' },
+  { value: 'budget.update',                 label: 'Presupuesto actualizado' },
+  { value: 'budget.delete',                 label: 'Presupuesto eliminado' },
   { value: 'costo_indirecto.delete',        label: 'Costo indirecto eliminado' },
   { value: 'costo_snapshot.delete',         label: 'Snapshot de costos eliminado' },
 
