@@ -1,27 +1,15 @@
-import { useEffect, useState } from 'react';
 import { FiCheckSquare } from 'react-icons/fi';
-import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { Link } from 'react-router-dom';
+import { useFinanceResource } from '../../hooks/useFinanceResource';
+import { formatMoney } from '../../lib/format';
+import { formatShortDate } from '../../../../lib/formatDate';
 import WidgetSkeleton from './WidgetSkeleton';
-
-const fmtMoney = (n) => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-};
-
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-  } catch { return iso; }
-};
+import WidgetError from './WidgetError';
 
 const SCORE_BADGE_VARIANT = {
-  ok:    { label: 'Elegible',    cls: 'aur-badge--green' },
-  warn:  { label: 'Revisar',     cls: 'aur-badge--yellow' },
-  bad:   { label: 'No elegible', cls: 'aur-badge--gray' },
+  ok:   { label: 'Elegible',    cls: 'aur-badge--green' },
+  warn: { label: 'Revisar',     cls: 'aur-badge--yellow' },
+  bad:  { label: 'No elegible', cls: 'aur-badge--gray' },
 };
 
 function scoreBadge(score) {
@@ -32,59 +20,73 @@ function scoreBadge(score) {
 }
 
 function EligibilityWidget() {
-  const apiFetch = useApiFetch();
-  const [analyses, setAnalyses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    apiFetch('/api/financing/eligibility')
-      .then(r => r.json())
-      .then(data => setAnalyses(Array.isArray(data) ? data : []))
-      .catch(() => setError('No se pudieron cargar los análisis.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch]);
-
+  const { data, loading, error, reload } = useFinanceResource(
+    '/api/financing/eligibility',
+    { errorMessage: 'No se pudieron cargar los análisis.' }
+  );
+  const analyses = Array.isArray(data) ? data : [];
   const top = analyses.slice(0, 5);
 
+  const isEmptyState = !loading && !error && analyses.length === 0;
+  const sectionCls = `aur-section${isEmptyState ? ' fin-widget--empty' : ''}`;
+
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
-        <span className="aur-section-num"><FiCheckSquare size={14} /></span>
+        <span className="aur-section-num"><FiCheckSquare size={14} aria-hidden="true" /></span>
         <h3 className="aur-section-title">Análisis de elegibilidad</h3>
-        {analyses.length ? <span className="aur-section-count">{analyses.length} recientes</span> : null}
+        {analyses.length > 0 && <span className="aur-section-count">{analyses.length} recientes</span>}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando análisis de elegibilidad…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && (
         <>
-          {top.length === 0 ? (
-            <div className="fin-widget-empty">
-              Sin análisis aún. Un administrador puede lanzar uno desde un snapshot financiero.
+          {analyses.length === 0 ? (
+            <div className="fin-widget-empty-state">
+              <FiCheckSquare size={28} className="fin-widget-empty-icon" />
+              <p className="fin-widget-empty-text">
+                Sin análisis aún. La elegibilidad se calcula sobre un snapshot
+                financiero: generá tu perfil para poder evaluarla.
+              </p>
+              <Link
+                to="/finance/financing"
+                className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta aur-touch-target"
+              >
+                Ir al perfil financiero
+              </Link>
             </div>
           ) : (
-            <div className="fin-recent-list">
-              {top.map(a => {
-                const badge = scoreBadge(a.topScore);
-                return (
-                  <div key={a.id} className="fin-recent-row">
-                    <div className="fin-recent-row-text">
-                      <strong>{fmtMoney(a.targetAmount)}</strong>
-                      <span className="fin-widget-sub">
-                        {a.targetUse || 'sin uso especificado'} · {fmtDate(a.createdAt)}
-                      </span>
-                    </div>
-                    {badge && (
-                      <span className={`aur-badge ${badge.cls}`}>
-                        {badge.label} · {(a.topScore * 100).toFixed(0)}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <div className="fin-recent-list">
+                {top.map((a) => {
+                  const badge = scoreBadge(a.topScore);
+                  return (
+                    <Link
+                      key={a.id}
+                      to={`/finance/financing/snapshots/${a.snapshotId}`}
+                      className="fin-recent-row fin-recent-row--link"
+                    >
+                      <div className="fin-recent-row-text">
+                        <strong>{formatMoney(a.targetAmount)}</strong>
+                        <span className="fin-widget-sub">
+                          {a.targetUse || 'sin uso especificado'} · {formatShortDate(a.createdAt)}
+                        </span>
+                      </div>
+                      {badge && (
+                        <span className={`aur-badge ${badge.cls}`}>
+                          {badge.label} · {(a.topScore * 100).toFixed(0)}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+              {analyses.length > top.length && (
+                <div className="fin-commits-more">+{analyses.length - top.length} análisis más</div>
+              )}
+            </>
           )}
         </>
       )}

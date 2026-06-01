@@ -57,10 +57,14 @@
 }
 .fin-dashboard-row--liquidity { grid-template-columns: 2fr 1fr; }
 .fin-dashboard-row--profit    { grid-template-columns: 1fr 1fr; }
+/* Par simétrico — lo usa el dashboard de Financiamiento (4 widgets de igual
+   peso en dos filas de dos). */
+.fin-dashboard-row--pair      { grid-template-columns: 1fr 1fr; }
 
 @media (max-width: 960px) {
   .fin-dashboard-row--liquidity,
-  .fin-dashboard-row--profit { grid-template-columns: 1fr; }
+  .fin-dashboard-row--profit,
+  .fin-dashboard-row--pair { grid-template-columns: 1fr; }
 }
 
 /* Altura mínima + layout de los widgets, compartido por el row nuevo y la
@@ -123,6 +127,13 @@ html[data-theme="light"] .fin-widget--empty {
 .fin-dashboard-section--liquidity .fin-dashboard-row > .aur-section:nth-child(2) { animation-delay:  60ms; }
 .fin-dashboard-section--profit    .fin-dashboard-row > .aur-section:nth-child(1) { animation-delay: 120ms; }
 .fin-dashboard-section--profit    .fin-dashboard-row > .aur-section:nth-child(2) { animation-delay: 180ms; }
+/* Dashboard de Financiamiento — mismas tandas de stagger top→bottom,
+   left→right. Antes este dashboard usaba .fin-dashboard-grid (sin estos
+   anchors) y la animación nunca corría. */
+.fin-dashboard-section--fin-profile  .fin-dashboard-row > .aur-section:nth-child(1) { animation-delay:   0ms; }
+.fin-dashboard-section--fin-profile  .fin-dashboard-row > .aur-section:nth-child(2) { animation-delay:  60ms; }
+.fin-dashboard-section--fin-analysis .fin-dashboard-row > .aur-section:nth-child(1) { animation-delay: 120ms; }
+.fin-dashboard-section--fin-analysis .fin-dashboard-row > .aur-section:nth-child(2) { animation-delay: 180ms; }
 
 @media (prefers-reduced-motion: reduce) {
   .fin-dashboard-row > .aur-section {

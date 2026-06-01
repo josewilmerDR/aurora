@@ -1,137 +1,146 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { FiFileText, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
+import Toast from '../../../../components/Toast';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../../contexts/UserContext';
+import { useFinanceResource } from '../../hooks/useFinanceResource';
+import { formatMoney, FUNCTIONAL_CURRENCY } from '../../lib/format';
+import { formatShortDate } from '../../../../lib/formatDate';
 import WidgetSkeleton from './WidgetSkeleton';
+import WidgetError from './WidgetError';
 
-const fmtMoney = (n) => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-};
-
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch { return iso; }
-};
-
-// Widget del perfil financiero. Muestra los últimos snapshots y expone un
-// botón para generar uno nuevo (solo administrador).
+// Widget del perfil financiero. Muestra los últimos snapshots inmutables y, para
+// administrador, permite generar uno nuevo. El detalle de cada snapshot vive en
+// /finance/financing/snapshots/:id (SnapshotDetail).
 function FinancialProfileWidget() {
   const apiFetch = useApiFetch();
   const { currentUser } = useUser();
   const canGenerate = hasMinRole(currentUser?.rol || 'trabajador', 'administrador');
 
-  const [snapshots, setSnapshots] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data, loading, error, reload } = useFinanceResource(
+    '/api/financing/profile/snapshots',
+    { errorMessage: 'No se pudieron cargar los snapshots.' }
+  );
+  const snapshots = Array.isArray(data) ? data : [];
+  const latest = snapshots[0];
+
+  const [toast, setToast] = useState(null);
   const [generating, setGenerating] = useState(false);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    apiFetch('/api/financing/profile/snapshots')
-      .then(r => r.json())
-      .then(data => setSnapshots(Array.isArray(data) ? data : []))
-      .catch(() => setError('No se pudieron cargar los snapshots.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch]);
-
-  useEffect(() => { load(); }, [load]);
 
   const handleGenerate = async () => {
     setGenerating(true);
     try {
+      // El error de esta acción va a un toast, NO al error de carga: así un
+      // fallo transitorio no desmonta la lista ni el botón (el usuario puede
+      // reintentar sin recargar la página).
       const res = await apiFetch('/api/financing/profile/snapshot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error();
-      await load();
+      setToast({ type: 'success', message: 'Snapshot generado.' });
+      reload();
     } catch {
-      setError('No se pudo generar el snapshot.');
+      setToast({ type: 'error', message: 'No se pudo generar el snapshot.' });
     } finally {
       setGenerating(false);
     }
   };
 
-  const latest = snapshots[0];
+  const isEmptyState = !loading && !error && snapshots.length === 0;
+  const sectionCls = `aur-section${isEmptyState ? ' fin-widget--empty' : ''}`;
 
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
-        <span className="aur-section-num"><FiFileText size={14} /></span>
+        <span className="aur-section-num"><FiFileText size={14} aria-hidden="true" /></span>
         <h3 className="aur-section-title">Perfil financiero</h3>
-        <span className="aur-section-count">Snapshots inmutables</span>
+        {snapshots.length > 0 && (
+          <span className="aur-section-count">{snapshots.length} cortes</span>
+        )}
+        {latest && (
+          <Link
+            className="fin-widget-header-cta aur-touch-target"
+            to={`/finance/financing/snapshots/${latest.id}`}
+          >
+            Ver último →
+          </Link>
+        )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando perfil financiero…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && (
         <>
           {latest ? (
             <>
               <div>
-                <div className="fin-widget-primary">{fmtMoney(latest.totalAssets)}</div>
-                <div className="fin-widget-sub">Activos totales — corte {latest.asOf}</div>
+                <div className="fin-widget-primary">{formatMoney(latest.totalAssets, FUNCTIONAL_CURRENCY)}</div>
+                <div className="fin-widget-sub">Activos totales — corte {formatShortDate(latest.asOf)}</div>
               </div>
               <div className="fin-widget-stats">
                 <div>
                   <span>Patrimonio</span>
-                  <strong>{fmtMoney(latest.totalEquity)}</strong>
+                  <strong>{formatMoney(latest.totalEquity)}</strong>
                 </div>
                 <div>
                   <span>Revenue 12m</span>
-                  <strong>{fmtMoney(latest.revenue)}</strong>
-                </div>
-                <div>
-                  <span>Snapshots</span>
-                  <strong>{snapshots.length}</strong>
+                  <strong>{formatMoney(latest.revenue)}</strong>
                 </div>
               </div>
               <div className="fin-recent-list">
-                {snapshots.slice(0, 3).map(s => (
-                  <div key={s.id} className="fin-recent-row">
-                    <span>{fmtDate(s.generatedAt)}</span>
-                    <span className="aur-badge aur-badge--gray">corte {s.asOf}</span>
-                  </div>
+                {snapshots.slice(0, 3).map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/finance/financing/snapshots/${s.id}`}
+                    className="fin-recent-row fin-recent-row--link"
+                  >
+                    <span>{formatShortDate(s.generatedAt)}</span>
+                    <span className="aur-badge aur-badge--gray">corte {formatShortDate(s.asOf)}</span>
+                  </Link>
                 ))}
               </div>
+
+              {canGenerate && (
+                <div className="fin-widget-cta-row">
+                  <button
+                    type="button"
+                    className="aur-btn-pill aur-touch-target"
+                    onClick={handleGenerate}
+                    disabled={generating}
+                    aria-busy={generating}
+                  >
+                    <FiRefreshCw size={14} aria-hidden="true" /> {generating ? 'Generando…' : 'Generar snapshot'}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
-            <div className="fin-widget-empty">
-              Aún no hay snapshots. Genera el primero para tener un corte auditable.
-            </div>
-          )}
-
-          {canGenerate && (
-            <div className="fin-widget-cta-row">
-              <button
-                type="button"
-                className="aur-btn-pill"
-                onClick={handleGenerate}
-                disabled={generating}
-              >
-                <FiRefreshCw size={14} /> {generating ? 'Generando…' : 'Generar snapshot'}
-              </button>
-              {latest && (
-                <Link
-                  to={`/finance/financing/snapshots/${latest.id}`}
-                  className="aur-btn-text"
+            <div className="fin-widget-empty-state">
+              <FiFileText size={28} className="fin-widget-empty-icon" />
+              <p className="fin-widget-empty-text">
+                Aún no hay snapshots. Generá el primero para tener un corte
+                financiero auditable que alimente todo el análisis.
+              </p>
+              {canGenerate && (
+                <button
+                  type="button"
+                  className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta aur-touch-target"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  aria-busy={generating}
                 >
-                  Ver último
-                </Link>
+                  <FiRefreshCw size={12} aria-hidden="true" /> {generating ? 'Generando…' : 'Generar snapshot'}
+                </button>
               )}
             </div>
           )}
         </>
       )}
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </section>
   );
 }
