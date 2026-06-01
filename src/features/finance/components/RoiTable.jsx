@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { formatPct } from '../../../lib/formatMoney';
 
 const SUB_TABS = [
   { id: 'general', label: 'General' },
@@ -10,7 +11,7 @@ const SUB_TABS = [
 
 const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const fmtKg = (n) => (n == null ? '—' : Number(n).toLocaleString('es-CR', { maximumFractionDigits: 0 }));
-const fmtPct = (n) => (n == null ? '—' : `${Number(n).toFixed(1)}%`);
+const fmtPct = (n) => formatPct(n);
 
 function tone(v) {
   if (v == null) return '';

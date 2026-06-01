@@ -51,13 +51,10 @@
   .siembra-table-historial tbody tr.row-recent td { animation: none; }
 }
 
-/* ── Layout — mirror del patrón grupo-page--selected ────────────────────── */
-.budgets-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
+/* ── Layout master-detail ───────────────────────────────────────────────
+   El wrapper raíz es .lote-page (primitiva compartida); acá solo viven los
+   modificadores específicos de Budgets (--selected/--form) y el grid de la
+   lista de períodos. Antes había un .budgets-page que duplicaba .lote-page. */
 @media (min-width: 769px) {
   .budgets-page--selected .lote-management-layout {
     display: grid;
@@ -88,10 +85,10 @@
 
 /* La fila de período es un <button> real (accesible por teclado) que llena el
    <li>. El <li> cede su padding al botón para no duplicarlo. */
-.budgets-page .lote-list-item {
+.budgets-page--selected .lote-list-item {
   padding: 0;
 }
-.budgets-page .lote-list-item-btn {
+.budgets-page--selected .lote-list-item-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -106,25 +103,10 @@
   text-align: left;
   cursor: pointer;
 }
-.budgets-page .lote-list-item-btn:focus-visible {
+.budgets-page--selected .lote-list-item-btn:focus-visible {
   outline: 2px solid var(--aur-accent);
   outline-offset: -2px;
 }
-
-/* CTA compacta cuando el período activo no tiene presupuestos asignados
-   (el panel de ejecución sigue arriba mostrando lo ejecutado real). */
-.budgets-period-empty {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px dashed var(--aur-divider);
-  border-radius: var(--aur-r-input);
-}
-.budgets-period-empty .fin-page-empty-hint { margin: 0; }
 
 .budgets-period-section-title {
   margin: 0 0 6px 0;
@@ -149,13 +131,6 @@
   font-size: var(--aur-fs-caption);
   padding: 0;
   align-self: flex-start;
-}
-
-.fin-page-intro {
-  margin: 0 0 6px 0;
-  text-align: left;
-  color: var(--aur-text-3);
-  font-size: var(--aur-fs-footnote);
 }
 
 .fin-page-empty-hint {
@@ -549,19 +524,6 @@
   vertical-align: middle;
 }
 
-/* Utilidad screen-reader-only del feature finance. */
-.fin-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* En pantallas chicas ocultamos las columnas secundarias (Apertura, Neto) para
    que Entradas/Salidas/Cierre — lo que el usuario realmente mira — entren sin
    scroll horizontal. */
@@ -692,17 +654,4 @@
   color: var(--aur-text-3);
   vertical-align: middle;
   flex-shrink: 0;
-}
-
-/* Caption de tabla visualmente oculta, accesible para lectores de pantalla. */
-.co-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }

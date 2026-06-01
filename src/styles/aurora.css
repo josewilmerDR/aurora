@@ -17,6 +17,21 @@
    scope padre. Tokens accesibles desde cualquier componente.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── Utilidad: contenido solo para lectores de pantalla ──────────────────────
+   Única utilidad sr-only de la app. Antes el módulo finance definía DOS copias
+   idénticas (.fin-sr-only y .co-sr-only); ambas se reemplazaron por esta. */
+.aur-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 :root {
   /* ── Surfaces (dark theme) ─────────────────────────────────────────────── */
   --aur-bg:            rgba(255, 255, 255, 0.025);
@@ -347,6 +362,20 @@ html[data-theme="light"] {
   line-height: 1.5;
   letter-spacing: -0.01em;
 }
+/* Breadcrumb "← Padre" sobre el título (PageHeader backLink). Inline-flex con
+   width fit para no estirarse a todo el ancho del header-text. */
+.aur-sheet-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 0 6px 0;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-2);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.aur-sheet-back-link:hover { color: var(--aur-text); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SECTION — bloque numerado dentro de un sheet

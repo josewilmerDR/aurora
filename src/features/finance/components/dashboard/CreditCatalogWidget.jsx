@@ -48,7 +48,7 @@ function CreditCatalogWidget() {
         <h3 className="aur-section-title">Ofertas de crédito</h3>
         {products.length > 0 && <span className="aur-section-count">{products.length} activas</span>}
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/financing/ofertas">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/financing/offers">
             Ver todas →
           </Link>
         )}
@@ -67,7 +67,7 @@ function CreditCatalogWidget() {
                 hayas recibido de bancos o cooperativas.
               </p>
               <Link
-                to="/finance/financing/ofertas"
+                to="/finance/financing/offers"
                 className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta aur-touch-target"
               >
                 Registrar ofertas
@@ -78,7 +78,7 @@ function CreditCatalogWidget() {
               {top.map((p) => (
                 <Link
                   key={p.id}
-                  to="/finance/financing/ofertas"
+                  to="/finance/financing/offers"
                   className="fin-recent-row fin-recent-row--link"
                 >
                   <div className="fin-recent-row-text">

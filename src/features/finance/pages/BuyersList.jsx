@@ -72,7 +72,7 @@ function getColVal(r, key) {
 const limitLabel = (r) =>
   r.creditLimit === null || r.creditLimit === undefined || r.creditLimit === ''
     ? '—'
-    : formatMoney(r.creditLimit, r.currency, { decimals: 0 });
+    : formatMoney(r.creditLimit, r.currency);
 
 // Extrae el mensaje en español del cuerpo de error del backend, con fallback.
 async function apiErrorMessage(res, fallback) {

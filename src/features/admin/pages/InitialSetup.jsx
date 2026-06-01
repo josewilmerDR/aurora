@@ -223,7 +223,7 @@ const ENTIDADES = [
     descripcion: 'Compradores de cosecha — idénticos al submódulo Compradores de Contabilidad y Finanzas.',
     icon: FiShoppingCart,
     endpoint: '/api/buyers',
-    adminPath: '/finance/compradores',
+    adminPath: '/finance/buyers',
     excelHeaders: [
       'Nombre', 'Cédula / RUC', 'Teléfono', 'Email', 'Dirección',
       'Tipo de Pago', 'Días de Crédito', 'Moneda',

@@ -19,7 +19,7 @@ async function listBuyers(req, res) {
 async function createBuyer(req, res) {
   try {
     // Buyers carry credit limit + payment terms; gate writes to encargado+
-    // (the /finance/compradores page floor). listBuyers stays open for selectors.
+    // (the /finance/buyers page floor). listBuyers stays open for selectors.
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create buyers.', 403);
     }

@@ -23,6 +23,8 @@
 //   - subtitle      string | ReactNode  · opcional, párrafo bajo el título
 //   - icon          ReactNode           · opcional, va dentro del h, antes del título
 //   - actions       ReactNode           · opcional, botón/botones a la derecha
+//   - backLink      { to, label }        · opcional, link "← label" sobre el título
+//                                          (breadcrumb a la vista padre)
 //   - level         1 | 2               · h1 (default) o h2
 //   - className     string              · clases extra en el <header>
 //   - titleClassName string             · clases extra en el h
@@ -40,11 +42,15 @@
 //     actions={<button …>Nuevo paquete</button>}
 //   />
 
+import { Link } from 'react-router-dom';
+import { FiArrowLeft } from 'react-icons/fi';
+
 export default function PageHeader({
   title,
   subtitle,
   icon,
   actions,
+  backLink,
   level = 1,
   className = '',
   titleClassName = '',
@@ -56,6 +62,11 @@ export default function PageHeader({
   return (
     <header className={headerClass}>
       <div className="aur-sheet-header-text">
+        {backLink && (
+          <Link to={backLink.to} className="aur-sheet-back-link aur-touch-target">
+            <FiArrowLeft size={12} aria-hidden="true" /> {backLink.label}
+          </Link>
+        )}
         <Heading className={titleClass}>
           {icon}
           {icon && ' '}

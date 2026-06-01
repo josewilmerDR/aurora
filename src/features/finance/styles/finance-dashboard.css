@@ -1,21 +1,5 @@
 @import './finance.css';
 
-/* ── Header con subtítulo de período ────────────────────────────────────
-   El page-header default no es flex; cuando contiene .fin-dashboard-subtitle
-   lo apilamos verticalmente para que el subtítulo (mes actual + leyenda
-   "vista en tiempo real") quede pegado debajo del h2. */
-.fin-dashboard-header {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.fin-dashboard-subtitle {
-  margin: 0;
-  color: var(--aur-text-3);
-  font-size: var(--aur-fs-caption);
-  letter-spacing: 0.02em;
-}
-
 /* ── Grid de widgets ──────────────────────────────────────────────────────
    Layout legacy: la grid plana 2x2. Se mantiene la regla porque podría
    reusarse en el futuro y no rompe nada. La page del dashboard ahora usa

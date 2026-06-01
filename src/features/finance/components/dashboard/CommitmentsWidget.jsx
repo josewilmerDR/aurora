@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { FiCalendar } from 'react-icons/fi';
-import { formatMoney, formatDateShort } from '../../lib/format';
+import { formatMoney } from '../../lib/format';
+import { formatShortDate } from '../../../../lib/formatDate';
 import WidgetSkeleton from './WidgetSkeleton';
 import WidgetError from './WidgetError';
 
@@ -37,7 +38,7 @@ function CommitmentsWidget({ data, loading, error, reload }) {
         <h3 className="aur-section-title">Compromisos próximos</h3>
         <span className="aur-section-count">4 semanas</span>
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/tesoreria">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/treasury">
             Ver Tesorería →
           </Link>
         )}
@@ -68,7 +69,7 @@ function CommitmentsWidget({ data, loading, error, reload }) {
                 Sin salidas programadas en las próximas 4 semanas.
               </p>
               <Link
-                to="/finance/tesoreria"
+                to="/finance/treasury"
                 className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
               >
                 Abrir Tesorería
@@ -82,7 +83,7 @@ function CommitmentsWidget({ data, loading, error, reload }) {
                   className="fin-commit-item"
                   title={ev.source || undefined}
                 >
-                  <span className="fin-commit-date">{formatDateShort(ev.date)}</span>
+                  <span className="fin-commit-date">{formatShortDate(ev.date)}</span>
                   <span className="fin-commit-label">{ev.label}</span>
                   {/* Sin prefijo de moneda por fila: la unidad ya la fija el
                       stat "Total salidas" del header. Evita repetir "CRC" ×8. */}

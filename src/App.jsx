@@ -391,15 +391,22 @@ function App() {
             <Route path="/ordenes-compra" element={<Navigate to="/procurement/ordenes" replace />} />
             <Route path="/ordenes-compra/historial" element={<Navigate to="/procurement/ordenes/historial" replace />} />
             <Route path="/proveedores" element={<Navigate to="/procurement/proveedores" replace />} />
+            {/* Finance routes renamed ES→EN (mantener 2 releases para bookmarks/favoritos guardados). */}
+            <Route path="/finance/presupuestos" element={<Navigate to="/finance/budgets" replace />} />
+            <Route path="/finance/tesoreria" element={<Navigate to="/finance/treasury" replace />} />
+            <Route path="/finance/ingresos" element={<Navigate to="/finance/income" replace />} />
+            <Route path="/finance/compradores" element={<Navigate to="/finance/buyers" replace />} />
+            <Route path="/finance/financing/ofertas" element={<Navigate to="/finance/financing/offers" replace />} />
+            <Route path="/finance/financing/simulaciones" element={<Navigate to="/finance/financing/simulations" replace />} />
             <Route path="/costos" element={<RoleRoute path="/costos"><CostCenter /></RoleRoute>} />
             <Route path="/finance/dashboard" element={<RoleRoute path="/finance/dashboard"><FinanceDashboard /></RoleRoute>} />
-            <Route path="/finance/presupuestos" element={<RoleRoute path="/finance/presupuestos"><Budgets /></RoleRoute>} />
-            <Route path="/finance/tesoreria" element={<RoleRoute path="/finance/tesoreria"><Treasury /></RoleRoute>} />
-            <Route path="/finance/ingresos" element={<RoleRoute path="/finance/ingresos"><IncomeRecords /></RoleRoute>} />
-            <Route path="/finance/compradores" element={<RoleRoute path="/finance/compradores"><BuyersList /></RoleRoute>} />
+            <Route path="/finance/budgets" element={<RoleRoute path="/finance/budgets"><Budgets /></RoleRoute>} />
+            <Route path="/finance/treasury" element={<RoleRoute path="/finance/treasury"><Treasury /></RoleRoute>} />
+            <Route path="/finance/income" element={<RoleRoute path="/finance/income"><IncomeRecords /></RoleRoute>} />
+            <Route path="/finance/buyers" element={<RoleRoute path="/finance/buyers"><BuyersList /></RoleRoute>} />
             <Route path="/finance/financing" element={<AdvancedRoute><RoleRoute path="/finance/financing"><FinancingDashboard /></RoleRoute></AdvancedRoute>} />
-            <Route path="/finance/financing/ofertas" element={<AdvancedRoute><RoleRoute path="/finance/financing/ofertas"><CreditOffers /></RoleRoute></AdvancedRoute>} />
-            <Route path="/finance/financing/simulaciones" element={<AdvancedRoute><RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute></AdvancedRoute>} />
+            <Route path="/finance/financing/offers" element={<AdvancedRoute><RoleRoute path="/finance/financing/offers"><CreditOffers /></RoleRoute></AdvancedRoute>} />
+            <Route path="/finance/financing/simulations" element={<AdvancedRoute><RoleRoute path="/finance/financing/simulations"><DebtSimulations /></RoleRoute></AdvancedRoute>} />
             <Route path="/finance/financing/snapshots/:id" element={<AdvancedRoute><RoleRoute path="/finance/financing"><SnapshotDetail /></RoleRoute></AdvancedRoute>} />
             <Route path="/ceo" element={<AdvancedRoute><RoleRoute path="/ceo"><CeoDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><EmployeeProfile /></RoleRoute>} />

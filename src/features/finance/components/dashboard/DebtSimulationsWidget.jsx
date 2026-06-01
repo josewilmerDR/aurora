@@ -30,7 +30,7 @@ function DebtSimulationsWidget() {
         <h3 className="aur-section-title">Simulaciones de deuda</h3>
         {sims.length > 0 && <span className="aur-section-count">{sims.length} recientes</span>}
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/financing/simulaciones">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/financing/simulations">
             Ver todas →
           </Link>
         )}
@@ -49,7 +49,7 @@ function DebtSimulationsWidget() {
                 contra el perfil financiero para ver el impacto en tu margen.
               </p>
               <Link
-                to="/finance/financing/simulaciones"
+                to="/finance/financing/simulations"
                 className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta aur-touch-target"
               >
                 Nueva simulación
@@ -63,7 +63,7 @@ function DebtSimulationsWidget() {
                 return (
                   <Link
                     key={s.id}
-                    to="/finance/financing/simulaciones"
+                    to="/finance/financing/simulations"
                     className="fin-recent-row fin-recent-row--link"
                   >
                     <div className="fin-recent-row-text">

@@ -10,7 +10,7 @@ function NegativeFlag() {
     <>
       {' '}
       <FiAlertTriangle size={12} aria-hidden="true" style={{ verticalAlign: '-1px' }} />
-      <span className="fin-sr-only"> (en negativo)</span>
+      <span className="aur-sr-only"> (en negativo)</span>
     </>
   );
 }

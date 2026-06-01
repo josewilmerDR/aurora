@@ -79,7 +79,7 @@ function RoiWidget() {
                 Sin ingresos ni costos registrados este mes.
               </p>
               <Link
-                to="/finance/ingresos"
+                to="/finance/income"
                 className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
               >
                 <FiPlus size={12} /> Registrar ingreso

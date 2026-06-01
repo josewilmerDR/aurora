@@ -89,14 +89,14 @@ export default function FinancingSetupChecklist() {
       done: hasOffer,
       label: 'Registrá las ofertas de crédito que recibiste',
       hint: 'Cargá las cotizaciones de bancos o cooperativas para compararlas.',
-      to: '/finance/financing/ofertas',
+      to: '/finance/financing/offers',
     },
     {
       key: 'sim',
       done: hasSim,
       label: 'Corré una simulación de deuda',
       hint: 'Monte Carlo del impacto de una oferta sobre tu margen antes de firmar.',
-      to: '/finance/financing/simulaciones',
+      to: '/finance/financing/simulations',
     },
   ];
 

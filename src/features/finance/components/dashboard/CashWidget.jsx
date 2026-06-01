@@ -60,7 +60,7 @@ function CashWidget({ data, loading, error, reload }) {
         <h3 className="aur-section-title">Caja</h3>
         {data?.weeks ? <span className="aur-section-count">Proyección {data.weeks}s</span> : null}
         {hasBalance && (
-          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/tesoreria">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/treasury">
             Ver Tesorería →
           </Link>
         )}
@@ -77,7 +77,7 @@ function CashWidget({ data, loading, error, reload }) {
             proyectar tu liquidez.
           </p>
           <Link
-            to="/finance/tesoreria"
+            to="/finance/treasury"
             className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
           >
             <FiPlus size={12} /> Registrar saldo inicial
