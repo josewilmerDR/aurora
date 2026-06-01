@@ -1,48 +1,33 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
-  FiPlus, FiTrendingUp, FiTrendingDown, FiFilter, FiX,
-  FiSliders, FiPackage, FiArrowLeft,
+  FiPlus, FiTrendingUp, FiTrendingDown, FiPackage, FiArrowLeft, FiTrash2, FiDownload,
 } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { useToast } from '../../../contexts/ToastContext';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import DebtSimulatorForm from '../components/DebtSimulatorForm';
 import DebtSimulationDetail from '../components/DebtSimulationDetail';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney } from '../../../lib/formatMoney';
+import { formatShortDate } from '../../../lib/formatDate';
+import { RECOMMENDATION_VARIANT } from '../lib/recommendation';
 import '../../planting/styles/siembra.css';
 import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
 import '../styles/financing.css';
 import '../styles/debt-simulator.css';
 
-const RECOMMENDATION_BADGE_VARIANT = {
-  tomar:             { label: 'Tomar',       cls: 'aur-badge--green' },
-  tomar_condicional: { label: 'Condicional', cls: 'aur-badge--yellow' },
-  no_tomar:          { label: 'No tomar',    cls: 'aur-badge--gray' },
-};
-
 const COLUMNS = [
-  { key: 'fecha',     label: 'Fecha',       type: 'date'   },
-  { key: 'proveedor', label: 'Proveedor',   type: 'text'   },
-  { key: 'monto',     label: 'Monto',       type: 'number' },
-  { key: 'plazo',     label: 'Plazo (m)',   type: 'number' },
-  { key: 'apr',       label: 'APR %',       type: 'number' },
-  { key: 'dMargen',   label: 'Δ Margen',    type: 'number' },
-  { key: 'rec',       label: 'Recomendación', type: 'text' },
+  { key: 'fecha',     label: 'Fecha',         type: 'date'   },
+  { key: 'proveedor', label: 'Proveedor',     type: 'text'   },
+  { key: 'monto',     label: 'Monto',         type: 'number', align: 'right' },
+  { key: 'plazo',     label: 'Plazo (m)',     type: 'number', align: 'right' },
+  { key: 'apr',       label: 'APR %',         type: 'number', align: 'right' },
+  { key: 'dMargen',   label: 'Δ Margen',      type: 'number', align: 'right' },
+  { key: 'rec',       label: 'Recomendación', type: 'text'   },
 ];
-
-const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
-
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
-  } catch { return iso; }
-};
 
 function getColVal(r, key) {
   switch (key) {
@@ -57,58 +42,41 @@ function getColVal(r, key) {
   }
 }
 
-function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
-  const menuRef = useRef(null);
-  useEffect(() => {
-    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
-    const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown',   onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [onClose]);
-  return createPortal(
-    <div ref={menuRef} className="sh-col-menu" style={{ position: 'fixed', top: y, left: x }}>
-      <div className="sh-col-menu-title">Columnas visibles</div>
-      {COLUMNS.map(col => {
-        const checked = visibleCols[col.key];
-        const isLast  = checked && Object.values(visibleCols).filter(Boolean).length === 1;
-        return (
-          <label key={col.key} className={`sh-col-menu-item${isLast ? ' sh-col-menu-item--disabled' : ''}`}>
-            <input type="checkbox" checked={checked} disabled={isLast}
-              onChange={() => !isLast && onToggle(col.key)} />
-            <span>{col.label}</span>
-          </label>
-        );
-      })}
-    </div>,
-    document.body,
-  );
-}
-
 function DebtSimulations() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [sims, setSims] = useState([]);
   const [snapshots, setSnapshots] = useState([]);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('list'); // 'list' | 'form' | 'detail'
-  const [detail, setDetail] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState(null);
 
-  const [sortField, setSortField] = useState('fecha');
-  const [sortDir,   setSortDir]   = useState('desc');
-  const [colFilters, setColFilters] = useState({});
-  const [filterPopover, setFilterPopover] = useState(null);
-  const [visibleCols, setVisibleCols] = useState(ALL_COLS_VISIBLE);
-  const [colMenu, setColMenu] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Snapshot de la data filtrada+ordenada que muestra el data-table, para que
+  // el export CSV respete exactamente la vista actual.
+  const displayRef = useRef([]);
+
+  // ── Vista derivada de la URL (deep-link + back/refresh) ──────────────────
+  const simId    = searchParams.get('sim');
+  const showForm = searchParams.get('view') === 'form';
+  const view     = showForm ? 'form' : simId ? 'detail' : 'list';
+
+  const goList   = useCallback(() => setSearchParams({}), [setSearchParams]);
+  const goForm   = useCallback(() => setSearchParams({ view: 'form' }), [setSearchParams]);
+  const openSim  = useCallback((id) => setSearchParams({ sim: id }), [setSearchParams]);
 
   const loadSims = useCallback(() => {
     return apiFetch('/api/financing/debt-simulations')
       .then(r => r.json())
       .then(data => setSims(Array.isArray(data) ? data : []))
-      .catch(() => setToast({ type: 'error', message: 'No se pudieron cargar las simulaciones.' }));
-  }, [apiFetch]);
+      .catch(() => toast.error('No se pudieron cargar las simulaciones.'));
+  }, [apiFetch, toast]);
 
   useEffect(() => {
     setLoading(true);
@@ -125,17 +93,39 @@ function DebtSimulations() {
     ]).finally(() => setLoading(false));
   }, [apiFetch, loadSims]);
 
-  const openDetail = async (simId) => {
-    try {
-      const res = await apiFetch(`/api/financing/debt-simulations/${simId}`);
-      if (!res.ok) throw new Error('No se pudo cargar la simulación.');
-      const data = await res.json();
-      setDetail(data);
-      setView('detail');
-    } catch (e) {
-      setToast({ type: 'error', message: e.message });
-    }
-  };
+  // Carga del detalle cuando cambia el id en la URL. El flag `cancelled`
+  // descarta respuestas stale: clics rápidos en filas distintas ya no pintan
+  // la simulación equivocada (la última en navegar gana).
+  useEffect(() => {
+    if (!simId) { setDetail(null); setDetailLoading(false); return; }
+    if (detail?.id === simId) return; // ya cargada (p.ej. recién simulada)
+    let cancelled = false;
+    setDetailLoading(true);
+    apiFetch(`/api/financing/debt-simulations/${simId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error('No se pudo cargar la simulación.');
+        return res.json();
+      })
+      .then((data) => { if (!cancelled) setDetail(data); })
+      .catch((e) => {
+        if (cancelled) return;
+        toast.error(e.message);
+        setSearchParams({}, { replace: true });
+      })
+      .finally(() => { if (!cancelled) setDetailLoading(false); });
+    return () => { cancelled = true; };
+  }, [simId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ESC vuelve a la lista desde el detalle (vista read-only, descartar es
+  // inofensivo). En el form NO se monta: ahí el cierre pasa por "Cancelar",
+  // que tiene guard de datos sin guardar. En la lista tampoco, para no pisar
+  // el popover de filtros del data-table.
+  useEffect(() => {
+    if (view !== 'detail') return;
+    const onKey = (e) => { if (e.key === 'Escape') goList(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view, goList]);
 
   const handleSubmit = async (payload) => {
     setSubmitting(true);
@@ -152,128 +142,127 @@ function DebtSimulations() {
       const data = await res.json();
       await loadSims();
       setDetail(data);
-      setView('detail');
-      setToast({ type: 'success', message: 'Simulación completada.' });
+      setSearchParams({ sim: data.id });
+      toast.success('Simulación completada.');
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleThSort = (field) => {
-    if (sortField !== field) { setSortField(field); setSortDir('desc'); }
-    else if (sortDir === 'desc') { setSortDir('asc'); }
-    else { setSortField(null); setSortDir(null); }
-  };
-
-  const openColFilter = (e, field, type) => {
-    e.stopPropagation();
-    if (filterPopover?.field === field) { setFilterPopover(null); return; }
-    const th = e.currentTarget.closest('th') ?? e.currentTarget;
-    const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, type, x: rect.left, y: rect.bottom + 4 });
-  };
-
-  const setColFilter = (field, type, key, val) => {
-    setColFilters(prev => {
-      const cur = prev[field] || (type === 'text' ? { text: '' } : { from: '', to: '' });
-      const updated = { ...cur, [key]: val };
-      const isEmpty = type === 'text' ? !updated.text : !updated.from && !updated.to;
-      if (isEmpty) {
-        const { [field]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [field]: updated };
-    });
-  };
-
-  const toggleCol = (key) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
-  const handleColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    setColMenu({ x: r.right - 185, y: r.bottom + 4 });
-  };
-
-  const displayData = useMemo(() => {
-    let data = [...sims];
-
-    const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
-      if (fv.text !== undefined) return fv.text.trim();
-      return fv.from || fv.to;
-    });
-    if (activeColFilters.length > 0) {
-      data = data.filter(r => {
-        for (const [key, fv] of activeColFilters) {
-          const col = COLUMNS.find(c => c.key === key);
-          if (!col) continue;
-          const val = getColVal(r, key);
-          if (col.type === 'text') {
-            if (fv.text && !String(val).includes(fv.text.toLowerCase())) return false;
-          } else if (col.type === 'date') {
-            if (!val) return false;
-            const dateStr = String(val).slice(0, 10);
-            if (fv.from && dateStr < fv.from) return false;
-            if (fv.to   && dateStr > fv.to)   return false;
-          } else if (col.type === 'number') {
-            if (fv.from !== '' && fv.from !== undefined && Number(val) < Number(fv.from)) return false;
-            if (fv.to   !== '' && fv.to   !== undefined && Number(val) > Number(fv.to))   return false;
-          }
-        }
-        return true;
-      });
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/api/financing/debt-simulations/${confirmDelete.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('No se pudo eliminar la simulación.');
+      await loadSims();
+      toast.success('Simulación eliminada.');
+      setConfirmDelete(null);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setDeleting(false);
     }
+  };
 
-    if (sortField && sortDir) {
-      data.sort((a, b) => {
-        const av = getColVal(a, sortField);
-        const bv = getColVal(b, sortField);
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
+  // Faltantes acumulados: el usuario ve TODOS los requisitos de una vez, no de
+  // a uno (antes el `||` corto escondía la oferta hasta resolver el snapshot).
+  const blockReason = useMemo(() => {
+    const missing = [];
+    if (!snapshots.length) missing.push('un snapshot financiero (creálo desde el Perfil financiero)');
+    if (!offers.length)    missing.push('una oferta de crédito activa (registrála en Ofertas de crédito)');
+    if (!missing.length) return null;
+    return `Para correr una simulación necesitás ${missing.join('; y ')}.`;
+  }, [snapshots.length, offers.length]);
 
-    return data;
-  }, [sims, colFilters, sortField, sortDir]);
+  const exportCSV = useCallback(() => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headers = ['Fecha', 'Proveedor', 'Monto', 'Plazo (m)', 'APR %', 'Δ Margen', 'Recomendación'];
+    const rows = displayRef.current.map((r) => [
+      esc(r.createdAt ? String(r.createdAt).slice(0, 10) : ''),
+      esc(r.providerName || ''),
+      esc(r.amount ?? ''),
+      esc(r.plazoMeses ?? ''),
+      esc((Number(r.apr) * 100).toFixed(2)),
+      esc(r.marginDelta ?? ''),
+      esc(RECOMMENDATION_VARIANT[r.recommendation]?.label || r.recommendation || ''),
+    ]);
+    const csv = [headers.map(esc), ...rows].map((row) => row.join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `simulaciones_deuda_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
 
-  const stats = useMemo(() => {
-    const byRec = { tomar: 0, tomar_condicional: 0, no_tomar: 0 };
-    displayData.forEach(s => {
-      if (s.recommendation && byRec[s.recommendation] !== undefined) byRec[s.recommendation] += 1;
-    });
-    return byRec;
-  }, [displayData]);
-
-  const SortTh = ({ col, children }) => {
-    const isSort  = sortField === col.key;
-    const hasFilt = !!colFilters[col.key];
-    if (!visibleCols[col.key]) return null;
+  const renderRow = (r, vis) => {
+    const rec = RECOMMENDATION_VARIANT[r.recommendation] || null;
+    const marginDelta = Number(r.marginDelta) || 0;
+    const positive = marginDelta >= 0;
     return (
-      <th
-        className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
-        onClick={() => handleThSort(col.key)}
-      >
-        <span className="sh-th-content">
-          {children}
-          <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
-          <span
-            className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
-            onClick={e => openColFilter(e, col.key, col.type)}
-            title={`Filtrar por ${col.label}`}
-          >
-            <FiFilter size={13} />
-          </span>
-        </span>
-      </th>
+      <>
+        {vis.fecha     && <td>{formatShortDate(r.createdAt)}</td>}
+        {vis.proveedor && <td>{r.providerName || '—'}</td>}
+        {vis.monto     && <td className="aur-td-num">{formatMoney(r.amount, undefined, { decimals: 0 })}</td>}
+        {vis.plazo     && <td className="aur-td-num">{r.plazoMeses}</td>}
+        {vis.apr       && <td className="aur-td-num">{(Number(r.apr) * 100).toFixed(2)}%</td>}
+        {vis.dMargen   && (
+          <td className="aur-td-num">
+            <span className={positive ? 'debt-sim-delta-positive' : 'debt-sim-delta-negative'}>
+              {positive ? <FiTrendingUp size={11} /> : <FiTrendingDown size={11} />}
+              {' '}{formatMoney(marginDelta, undefined, { decimals: 0 })}
+            </span>
+          </td>
+        )}
+        {vis.rec && (
+          <td>{rec ? <span className={`aur-badge ${rec.cls}`}>{rec.labelShort}</span> : '—'}</td>
+        )}
+      </>
     );
   };
 
-  const startCreate = () => { setView('form'); };
-  const cancelForm = () => { setView('list'); };
-  const closeDetail = () => { setDetail(null); setView('list'); };
+  const trailingCell = (r) => (
+    <td className="ds-actions-cell">
+      <button
+        type="button"
+        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+        onClick={() => setConfirmDelete(r)}
+        title="Eliminar simulación"
+        aria-label={`Eliminar simulación de ${r.providerName || 'proveedor'}`}
+      >
+        <FiTrash2 size={13} />
+      </button>
+    </td>
+  );
 
-  const blockReason = (!snapshots.length && 'Necesitás al menos un snapshot financiero (creá uno desde el Perfil financiero).') ||
-                      (!offers.length && 'Necesitás al menos una oferta de crédito activa.');
+  const renderSummary = (rows) => {
+    const byRec = { tomar: 0, tomar_condicional: 0, no_tomar: 0 };
+    rows.forEach((s) => { if (byRec[s.recommendation] !== undefined) byRec[s.recommendation] += 1; });
+    return (
+      <div className="sh-stats-bar">
+        <div className="sh-stat">
+          <span className="sh-stat-value sh-stat-green">{byRec.tomar}</span>
+          <span className="sh-stat-label">Tomar</span>
+        </div>
+        <div className="sh-stat-divider" />
+        <div className="sh-stat">
+          <span className="sh-stat-value">{byRec.tomar_condicional}</span>
+          <span className="sh-stat-label">Condicional</span>
+        </div>
+        <div className="sh-stat-divider sh-stat-hide-mobile" />
+        <div className="sh-stat sh-stat-hide-mobile">
+          <span className="sh-stat-value">{byRec.no_tomar}</span>
+          <span className="sh-stat-label">No tomar</span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="lote-page">
@@ -285,18 +274,13 @@ function DebtSimulations() {
           <h2 className="lote-page-title"><FiTrendingUp /> Simulador de deuda</h2>
         </div>
         {view === 'list' && (
-          <button
-            className="aur-btn-pill"
-            onClick={startCreate}
-            disabled={loading || !!blockReason}
-            title={blockReason || ''}
-          >
+          <button className="aur-btn-pill" onClick={goForm} disabled={loading || !!blockReason}>
             <FiPlus /> Nueva simulación
           </button>
         )}
       </div>
 
-      {view !== 'detail' && (
+      {view === 'list' && (
         <AuroraSectionIntro
           expanderLabel="¿Cómo funciona Monte Carlo?"
           expanderContent={
@@ -318,13 +302,17 @@ function DebtSimulations() {
           snapshots={snapshots}
           offers={offers}
           onSubmit={handleSubmit}
-          onCancel={cancelForm}
+          onCancel={goList}
           submitting={submitting}
         />
       )}
 
-      {view === 'detail' && detail && (
-        <DebtSimulationDetail simulation={detail} onBack={closeDetail} />
+      {view === 'detail' && (
+        detailLoading && !detail ? (
+          <p className="finance-empty">Cargando simulación…</p>
+        ) : detail ? (
+          <DebtSimulationDetail simulation={detail} onBack={goList} />
+        ) : null
       )}
 
       {view === 'list' && (
@@ -334,11 +322,9 @@ function DebtSimulations() {
           <div className="siembra-empty-state">
             <FiPackage size={36} />
             <p>Aún no hay simulaciones.</p>
-            {blockReason ? (
-              <p className="fin-page-empty-hint">{blockReason}</p>
-            ) : (
-              <p className="fin-page-empty-hint">Corré la primera simulación con "Nueva simulación".</p>
-            )}
+            <p className="fin-page-empty-hint">
+              {blockReason || 'Corré la primera simulación con "Nueva simulación".'}
+            </p>
           </div>
         ) : (
           <>
@@ -347,157 +333,46 @@ function DebtSimulations() {
                 <FiPackage size={14} /> <span>{blockReason}</span>
               </div>
             )}
-            <div className="sh-stats-bar">
-              <div className="sh-stat">
-                <span className="sh-stat-value">{displayData.length}</span>
-                <span className="sh-stat-label">Simulaciones</span>
-              </div>
-              <div className="sh-stat-divider" />
-              <div className="sh-stat">
-                <span className="sh-stat-value sh-stat-green">{stats.tomar}</span>
-                <span className="sh-stat-label">Tomar</span>
-              </div>
-              <div className="sh-stat-divider sh-stat-hide-mobile" />
-              <div className="sh-stat sh-stat-hide-mobile">
-                <span className="sh-stat-value">{stats.tomar_condicional}</span>
-                <span className="sh-stat-label">Condicional</span>
-              </div>
-              <div className="sh-stat-divider sh-stat-hide-mobile" />
-              <div className="sh-stat sh-stat-hide-mobile">
-                <span className="sh-stat-value">{stats.no_tomar}</span>
-                <span className="sh-stat-label">No tomar</span>
-              </div>
-            </div>
-
-            <div className="siembra-historial sh-table-card">
-              <div className="historial-top-row">
-                <span className="sh-result-count">
-                  {displayData.length === sims.length
-                    ? `${sims.length} simulaciones`
-                    : `${displayData.length} de ${sims.length} simulaciones`}
-                </span>
-                {Object.keys(colFilters).length > 0 && (
-                  <button className="sh-clear-col-filters" onClick={() => setColFilters({})}>
-                    <FiX size={11} /> Limpiar filtros de columna
-                  </button>
-                )}
-              </div>
-
-              {displayData.length === 0 ? (
-                <p className="empty-state">No hay simulaciones con los filtros aplicados.</p>
-              ) : (
-                <div className="siembra-table-wrapper">
-                  <table className="siembra-table siembra-table-historial">
-                    <thead>
-                      <tr>
-                        {COLUMNS.map(col => visibleCols[col.key] && (
-                          <SortTh key={col.key} col={col}>{col.label}</SortTh>
-                        ))}
-                        <th className="sh-th-settings">
-                          <button
-                            className={`sh-col-toggle-btn${Object.values(visibleCols).some(v => !v) ? ' sh-col-toggle-btn--active' : ''}`}
-                            onClick={handleColBtnClick}
-                            title="Personalizar columnas"
-                          >
-                            <FiSliders size={12} />
-                            {Object.values(visibleCols).filter(v => !v).length > 0 && (
-                              <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v => !v).length}</span>
-                            )}
-                          </button>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayData.map(r => {
-                        const rec = RECOMMENDATION_BADGE_VARIANT[r.recommendation] || null;
-                        const marginDelta = Number(r.marginDelta) || 0;
-                        const positive = marginDelta >= 0;
-                        const aprPct = (Number(r.apr) * 100).toFixed(2);
-                        return (
-                          <tr key={r.id} className="ds-row-clickable" onClick={() => openDetail(r.id)}>
-                            {visibleCols.fecha     && <td className="td-readonly">{fmtDate(r.createdAt)}</td>}
-                            {visibleCols.proveedor && <td>{r.providerName || '—'}</td>}
-                            {visibleCols.monto     && <td className="td-num">{formatMoney(r.amount, undefined, { decimals: 0 })}</td>}
-                            {visibleCols.plazo     && <td className="td-num">{r.plazoMeses}</td>}
-                            {visibleCols.apr       && <td className="td-num">{aprPct}%</td>}
-                            {visibleCols.dMargen   && (
-                              <td className="td-num">
-                                <span className={positive ? 'debt-sim-delta-positive' : 'debt-sim-delta-negative'}>
-                                  {positive ? <FiTrendingUp size={11} /> : <FiTrendingDown size={11} />}
-                                  {' '}{formatMoney(marginDelta, undefined, { decimals: 0 })}
-                                </span>
-                              </td>
-                            )}
-                            {visibleCols.rec && (
-                              <td>
-                                {rec ? <span className={`aur-badge ${rec.cls}`}>{rec.label}</span> : '—'}
-                              </td>
-                            )}
-                            <td />
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <AuroraDataTable
+              columns={COLUMNS}
+              data={sims}
+              getColVal={getColVal}
+              initialSort={{ field: 'fecha', dir: 'desc' }}
+              firstClickDir="desc"
+              renderRow={renderRow}
+              renderSummary={renderSummary}
+              trailingHead={<th className="ds-actions-head" aria-hidden="true" />}
+              trailingCell={trailingCell}
+              onRowClick={(r) => openSim(r.id)}
+              onDisplayDataChange={(d) => { displayRef.current = d; }}
+              toolbarActions={
+                <button type="button" className="fin-table-btn" onClick={exportCSV} title="Exportar CSV">
+                  <FiDownload size={11} /> CSV
+                </button>
+              }
+              resultLabel={(f, t) => (f === t ? `${t} simulaciones` : `${f} de ${t} simulaciones`)}
+              emptyText="No hay simulaciones con los filtros aplicados."
+              emptyIcon={FiPackage}
+            />
           </>
         )
       )}
 
-      {colMenu && (
-        <ColMenu x={colMenu.x} y={colMenu.y} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
-      )}
-
-      {filterPopover && createPortal(
-        <>
-          <div className="sh-filter-backdrop" onClick={() => setFilterPopover(null)} />
-          <div className="sh-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
-            {filterPopover.type === 'text' ? (
-              <>
-                <FiFilter size={13} className="sh-filter-icon" />
-                <input autoFocus className="sh-filter-input" placeholder="Filtrar…"
-                  value={colFilters[filterPopover.field]?.text || ''}
-                  onChange={e => setColFilter(filterPopover.field, 'text', 'text', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setFilterPopover(null); }}
-                />
-                {colFilters[filterPopover.field]?.text && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, 'text', 'text', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className="sh-filter-range">
-                <span className="sh-filter-range-label">De</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.from || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'from', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                <span className="sh-filter-range-label">A</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.to || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'to', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </>,
-        document.body,
-      )}
-
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      {confirmDelete && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar simulación"
+          body={
+            `Vas a eliminar la simulación de ${confirmDelete.providerName || 'proveedor'} ` +
+            `por ${formatMoney(confirmDelete.amount, undefined, { decimals: 0 })} a ` +
+            `${confirmDelete.plazoMeses} meses (${formatShortDate(confirmDelete.createdAt)}). ` +
+            `Esta acción no se puede deshacer.`
+          }
+          confirmLabel="Eliminar"
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );

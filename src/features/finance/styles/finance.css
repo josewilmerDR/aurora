@@ -159,8 +159,13 @@
   color: var(--aur-text-3);
 }
 
-.ds-row-clickable {
-  cursor: pointer;
+/* Columna de acciones de la tabla de simulaciones (botón eliminar). El
+   clickable de fila lo aporta AuroraDataTable vía .aur-tr-clickable. */
+.ds-actions-head,
+.ds-actions-cell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .finance-amount {

@@ -59,7 +59,7 @@ function CashflowDualChart({ withDebt = [], withoutDebt = [], labels = [] }) {
               y1={y(t)}
               y2={y(t)}
             />
-            <text x={PAD.left - 8} y={y(t) + 3} fontSize="10" fill="#8ba5bf" textAnchor="end">{fmt(t)}</text>
+            <text x={PAD.left - 8} y={y(t) + 3} fontSize="10" fill="var(--aur-text-3)" textAnchor="end">{fmt(t)}</text>
           </g>
         ))}
 
@@ -81,7 +81,7 @@ function CashflowDualChart({ withDebt = [], withoutDebt = [], labels = [] }) {
           const label = labels[i] || `m${i + 1}`;
           if (H > 12 && i % 2 !== 0) return null;
           return (
-            <text key={i} x={x(i)} y={HEIGHT - 10} fontSize="10" fill="#8ba5bf" textAnchor="middle">
+            <text key={i} x={x(i)} y={HEIGHT - 10} fontSize="10" fill="var(--aur-text-3)" textAnchor="middle">
               {label}
             </text>
           );

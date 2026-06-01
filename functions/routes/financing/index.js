@@ -30,6 +30,7 @@ const {
   simulateDebtRoiHandler,
   listDebtSimulations,
   getDebtSimulation,
+  deleteDebtSimulation,
 } = require('./debtSimulations');
 
 const router = Router();
@@ -59,5 +60,6 @@ router.get('/api/financing/eligibility/:id', authenticate, getEligibilityAnalysi
 router.post('/api/financing/debt-simulations/simulate', authenticate, simulateDebtRoiHandler);
 router.get('/api/financing/debt-simulations', authenticate, listDebtSimulations);
 router.get('/api/financing/debt-simulations/:id', authenticate, getDebtSimulation);
+router.delete('/api/financing/debt-simulations/:id', authenticate, deleteDebtSimulation);
 
 module.exports = router;
