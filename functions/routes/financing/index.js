@@ -6,6 +6,7 @@
 
 const { Router } = require('express');
 const { authenticate } = require('../../lib/middleware');
+const { rateLimit } = require('../../lib/rateLimit');
 const {
   getLiveProfile,
   createSnapshot,
@@ -38,7 +39,10 @@ const router = Router();
 // Order matters: specific paths before /:id.
 router.get('/api/financing/profile/live', authenticate, getLiveProfile);
 
-router.post('/api/financing/profile/snapshot', authenticate, createSnapshot);
+// Snapshot creation fans out to a heavy multi-collection scan + an immutable
+// write; cap it with the costly_read tier so a runaway client (or abusive
+// admin) can't hammer expensive Firestore reads.
+router.post('/api/financing/profile/snapshot', authenticate, rateLimit('financing_snapshot', 'costly_read'), createSnapshot);
 router.get('/api/financing/profile/snapshots', authenticate, listSnapshots);
 router.get('/api/financing/profile/snapshots/:id/export', authenticate, exportSnapshot);
 router.get('/api/financing/profile/snapshots/:id', authenticate, getSnapshot);
@@ -52,12 +56,17 @@ router.put('/api/financing/credit-products/:id', authenticate, updateCreditProdu
 router.delete('/api/financing/credit-products/:id', authenticate, deleteCreditProduct);
 
 // Fase 5.3 — eligibility analysis.
-router.post('/api/financing/eligibility/analyze', authenticate, analyzeEligibility);
+// `analyze` loads the snapshot + catalog and (opt-in ?useClaude=1) fans out
+// serial Claude calls per borderline product → ai_heavy tier.
+router.post('/api/financing/eligibility/analyze', authenticate, rateLimit('financing_eligibility', 'ai_heavy'), analyzeEligibility);
 router.get('/api/financing/eligibility', authenticate, listEligibilityAnalyses);
 router.get('/api/financing/eligibility/:id', authenticate, getEligibilityAnalysis);
 
 // Fase 5.4 — debt ROI Monte Carlo simulations.
-router.post('/api/financing/debt-simulations/simulate', authenticate, simulateDebtRoiHandler);
+// `simulate` runs nTrials × horizonteMeses of CPU-bound Monte Carlo and
+// (opt-in) a Claude refinement → ai_heavy tier. Params are also clamped in
+// the handler so a single call can't exhaust CPU.
+router.post('/api/financing/debt-simulations/simulate', authenticate, rateLimit('financing_sim', 'ai_heavy'), simulateDebtRoiHandler);
 router.get('/api/financing/debt-simulations', authenticate, listDebtSimulations);
 router.get('/api/financing/debt-simulations/:id', authenticate, getDebtSimulation);
 router.delete('/api/financing/debt-simulations/:id', authenticate, deleteDebtSimulation);

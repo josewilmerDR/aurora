@@ -6,6 +6,7 @@
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { buildCreditProductDoc } = require('../../lib/financing/creditProductValidator');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const repo = require('./repository');
 
 // ─── Filtering ────────────────────────────────────────────────────────────
@@ -136,7 +137,18 @@ async function deleteCreditProduct(req, res) {
     const ownership = await verifyOwnership('credit_products', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
+    const removed = ownership.doc.data();
     await repo.removeCreditProduct(req.params.id);
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.FINANCING_CREDIT_PRODUCT_DELETE,
+      target: { type: 'credit_product', id: req.params.id },
+      metadata: { providerName: removed.providerName || null, tipo: removed.tipo || null },
+      severity: SEVERITY.WARNING,
+    });
+
     res.json({ ok: true });
   } catch (error) {
     console.error('[FINANCING] credit-products delete failed:', error);
