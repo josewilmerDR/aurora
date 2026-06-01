@@ -144,7 +144,12 @@ const ACTIONS = Object.freeze({
   // — "quién generó qué corte" tiene valor forense (va como INFO). Los DELETE
   // de catálogo de crédito y de simulaciones son borrados duros e
   // irreversibles → WARNING. Listas/lecturas no se auditan (ruido sin valor).
+  // EXPORT del snapshot: saca del sistema el estado financiero completo
+  // (balance, resultados, flujo) + el email del autor en un documento
+  // bank-presentable. Mismo criterio que AUDIT_EXPORT del CSV forense: su
+  // salida debe quedar registrada (quién, qué corte, en qué formato). INFO.
   FINANCING_SNAPSHOT_CREATE: 'financing.snapshot.create',
+  FINANCING_SNAPSHOT_EXPORT: 'financing.snapshot.export',
   FINANCING_CREDIT_PRODUCT_DELETE: 'financing.credit_product.delete',
   FINANCING_DEBT_SIMULATION_DELETE: 'financing.debt_simulation.delete',
 
