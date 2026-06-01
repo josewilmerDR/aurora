@@ -513,6 +513,19 @@
   .sh-th-funnel.is-active { opacity: 1; }
 }
 
+/* Accesibilidad por teclado: el header ordenable y el funnel ahora son
+   focusables (tabIndex / role=button). Sin esto el funnel —opacity:0 por
+   default— quedaría invisible al recibir foco con Tab. */
+.sh-th-sortable:focus-visible {
+  outline: 2px solid var(--aurora-green);
+  outline-offset: -2px;
+}
+.sh-th-funnel:focus-visible {
+  opacity: 1 !important;
+  outline: 2px solid var(--aurora-green);
+  outline-offset: 1px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    CROSS-FEATURE COL TOGGLE / COL MENU (portaled checkbox dropdown).
    ═══════════════════════════════════════════════════════════════════════════ */

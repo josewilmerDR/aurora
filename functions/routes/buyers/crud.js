@@ -3,7 +3,7 @@
 
 const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
-const { buildBuyerDoc } = require('./validator');
+const { buildBuyerDoc, VALID_STATUSES } = require('./validator');
 const repo = require('./repository');
 
 async function listBuyers(req, res) {
@@ -64,6 +64,31 @@ async function updateBuyer(req, res) {
   }
 }
 
+// PATCH parcial de estado (activo/inactivo). El toggle de la lista usa esta
+// ruta en vez del PUT completo: así no reenvía todo el doc, evitando que el
+// validador re-normalice campos accesorios (p. ej. creditDays caería a 30 si
+// el doc almacenado lo tenía en null).
+async function updateBuyerStatus(req, res) {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update buyers.', 403);
+    }
+    const ownership = await verifyOwnership('buyers', req.params.id, req.fincaId);
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+
+    const status = req.body?.status;
+    if (!VALID_STATUSES.has(status)) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid status. Expected "activo" or "inactivo".', 400);
+    }
+
+    await repo.update(req.params.id, { status });
+    res.json({ ok: true, status });
+  } catch (error) {
+    console.error('[BUYERS] status update failed:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update buyer status.', 500);
+  }
+}
+
 async function deleteBuyer(req, res) {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
@@ -80,4 +105,4 @@ async function deleteBuyer(req, res) {
   }
 }
 
-module.exports = { listBuyers, createBuyer, updateBuyer, deleteBuyer };
+module.exports = { listBuyers, createBuyer, updateBuyer, updateBuyerStatus, deleteBuyer };
