@@ -46,6 +46,10 @@ function BuyerForm({ initial, onSubmit, onCancel, saving }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Cortafuegos de doble-submit: un Enter repetido antes de que el botón se
+    // deshabilite podría disparar dos POST y, si el comprador no trae taxId
+    // (la dedupe del backend es por cédula), crear duplicados.
+    if (saving) return;
     const found = validate(form);
     if (Object.keys(found).length > 0) {
       setErrors(found);

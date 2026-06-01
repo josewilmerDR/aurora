@@ -115,6 +115,11 @@ const ACTIONS = Object.freeze({
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
   INCOME_CREATE: 'income.create',
   INCOME_DELETE: 'income.delete',
+  // Compradores (buyers). Solo DELETE: es un borrado duro irreversible que
+  // elimina términos de crédito + PII de contacto y deja huérfanas las
+  // referencias desde ingresos ya registrados a su nombre. Create/update y el
+  // toggle de estado quedan fuera del audit, alineado con la política del archivo.
+  BUYER_DELETE: 'buyer.delete',
   // Presupuestos. Mutaciones de la configuración financiera de la finca:
   // definen el techo de gasto por categoría/período contra el que se mide la
   // ejecución. CREATE/UPDATE van como INFO; DELETE como WARNING porque es

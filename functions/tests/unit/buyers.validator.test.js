@@ -64,4 +64,11 @@ describe('buildBuyerDoc', () => {
     expect(buildBuyerDoc({ name: 'X', creditLimit: 5000 }).data.creditLimit).toBe(5000);
     expect(buildBuyerDoc({ name: 'X', creditLimit: -1 }).data.creditLimit).toBeNull();
   });
+
+  test('website preserves http(s) and scheme-less values, blanks hostile schemes', () => {
+    expect(buildBuyerDoc({ name: 'X', website: 'https://acme.com' }).data.website).toBe('https://acme.com');
+    expect(buildBuyerDoc({ name: 'X', website: 'www.acme.com' }).data.website).toBe('www.acme.com');
+    expect(buildBuyerDoc({ name: 'X', website: 'javascript:alert(1)' }).data.website).toBe('');
+    expect(buildBuyerDoc({ name: 'X', website: 'data:text/html,<script>1</script>' }).data.website).toBe('');
+  });
 });

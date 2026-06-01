@@ -26,6 +26,21 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const trimmedString = (max) =>
   z.preprocess((v) => (typeof v === 'string' ? v.trim().slice(0, max) : ''), z.string());
 
+// Como trimmedString, pero neutraliza esquemas peligrosos. Si el valor declara
+// un esquema explícito que no sea http(s) (p. ej. javascript:, data:, vbscript:)
+// lo vacía, para que nunca pueda convertirse en un href hostil si una vista
+// futura lo renderiza como enlace. Los valores sin esquema (dominio pelado tipo
+// "www.ejemplo.com") y los http(s) se preservan tal cual.
+const safeWebUrl = (max) =>
+  z.preprocess((v) => {
+    if (typeof v !== 'string') return '';
+    const s = v.trim().slice(0, max);
+    if (!s) return '';
+    const scheme = s.match(/^([a-z][a-z0-9+.-]*):/i);
+    if (scheme && !/^https?$/i.test(scheme[1])) return '';
+    return s;
+  }, z.string());
+
 const enumWithDefault = (validSet, fallback) =>
   z.unknown().transform((v) => (validSet.has(v) ? v : fallback));
 
@@ -62,7 +77,7 @@ const buyerInputSchema = z.object({
   currency: enumWithDefault(VALID_CURRENCIES, 'USD'),
   contact: trimmedString(MAX_TEXT),
   whatsapp: trimmedString(MAX_PHONE),
-  website: trimmedString(MAX_URL),
+  website: safeWebUrl(MAX_URL),
   country: trimmedString(MAX_TEXT),
   creditLimit: floatInRangeOrNull(0, 1e12),
   notes: trimmedString(MAX_NOTES),

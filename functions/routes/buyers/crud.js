@@ -3,11 +3,20 @@
 
 const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { buildBuyerDoc, VALID_STATUSES } = require('./validator');
 const repo = require('./repository');
 
 async function listBuyers(req, res) {
   try {
+    // Buyers carry credit terms (creditLimit, paymentType) + contact PII. The
+    // only selector consumers (IncomeForm, CosechaDespachoModal) live on
+    // encargado+ pages, so no legitimate trabajador flow needs this data —
+    // gate the read to encargado+ to match the writes and avoid leaking
+    // commercial terms to lower roles via a direct API call.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can list buyers.', 403);
+    }
     const data = await repo.listByFinca(req.fincaId);
     res.json(data);
   } catch (error) {
@@ -97,7 +106,18 @@ async function deleteBuyer(req, res) {
     const ownership = await verifyOwnership('buyers', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
+    const buyer = ownership.doc.data();
     await repo.remove(req.params.id);
+    // Hard-delete irreversible: dejá rastro de quién/cuándo y qué comprador se
+    // borró (los ingresos a su nombre se conservan, pero la ficha desaparece).
+    await writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.BUYER_DELETE,
+      target: { type: 'buyer', id: req.params.id },
+      metadata: { name: buyer.name || null, taxId: buyer.taxId || null },
+      severity: SEVERITY.WARNING,
+    });
     res.json({ ok: true });
   } catch (error) {
     console.error('[BUYERS] delete failed:', error);
