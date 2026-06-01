@@ -130,7 +130,12 @@ function deriveBaseline(snapshot, override = {}) {
     ...('priceVolatility' in override ? { priceVolatility: Number(override.priceVolatility) || 0.15 } : {}),
     ...('yieldVolatility' in override ? { yieldVolatility: Number(override.yieldVolatility) || 0.10 } : {}),
     ...('costDriftMonthly' in override ? { costDriftMonthly: Number(override.costDriftMonthly) || 0.005 } : {}),
-    ...(Array.isArray(override.commitmentsByMonth) ? { commitmentsByMonth: override.commitmentsByMonth.map(v => Number(v) || 0) } : {}),
+    // Cap antes de mapear: un array gigante (p.ej. 1e8 entradas) forzaría una
+    // asignación masiva en memoria aun cuando el motor luego lo recorte a H.
+    // MAX_HORIZONTE_MESES es el máximo útil — más allá del horizonte se ignora.
+    ...(Array.isArray(override.commitmentsByMonth)
+      ? { commitmentsByMonth: override.commitmentsByMonth.slice(0, MAX_HORIZONTE_MESES).map(v => Number(v) || 0) }
+      : {}),
   };
 }
 
@@ -323,10 +328,17 @@ async function getDebtSimulation(req, res) {
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     // createdBy (uid) y createdByEmail son identificadores internos del autor
     // que la UI no muestra; los omitimos del payload.
-    const { createdBy, createdByEmail, ...data } = ownership.doc.data();
+    const { createdBy, createdByEmail, recommendation, ...data } = ownership.doc.data();
+    // `recommendation.reasoning` es el razonamiento crudo (chain-of-thought) de
+    // Claude — útil para auditoría server-side, pero la UI solo usa el veredicto
+    // y la justificación corta. No lo exponemos al cliente.
+    const safeRecommendation = recommendation
+      ? (({ reasoning, ...rest }) => rest)(recommendation)
+      : recommendation;
     res.json({
       id: ownership.doc.id,
       ...data,
+      recommendation: safeRecommendation,
       createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
     });
   } catch (error) {

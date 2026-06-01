@@ -69,8 +69,10 @@ router.get('/api/financing/eligibility/:id', authenticate, getEligibilityAnalysi
 // (opt-in) a Claude refinement → ai_heavy tier. Params are also clamped in
 // the handler so a single call can't exhaust CPU.
 router.post('/api/financing/debt-simulations/simulate', authenticate, rateLimit('financing_sim', 'ai_heavy'), simulateDebtRoiHandler);
-router.get('/api/financing/debt-simulations', authenticate, listDebtSimulations);
+// List fans out to a full-collection scan → costly_read. DELETE is a hard,
+// irreversible write on an append-only record → 'write' tier (and audited).
+router.get('/api/financing/debt-simulations', authenticate, rateLimit('financing_sim_read', 'costly_read'), listDebtSimulations);
 router.get('/api/financing/debt-simulations/:id', authenticate, getDebtSimulation);
-router.delete('/api/financing/debt-simulations/:id', authenticate, deleteDebtSimulation);
+router.delete('/api/financing/debt-simulations/:id', authenticate, rateLimit('financing_sim_write', 'write'), deleteDebtSimulation);
 
 module.exports = router;
