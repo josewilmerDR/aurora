@@ -16,7 +16,7 @@
 }
 .fin-table-btn:hover { border-color: var(--aur-accent); color: var(--aur-accent); }
 .fin-table-btn.is-active {
-  background: rgba(51, 255, 153, 0.08);
+  background: var(--aur-accent-tint);
   border-color: var(--aur-accent);
   color: var(--aur-accent);
   font-weight: 600;
@@ -80,6 +80,46 @@
 .budgets-period-section + .budgets-period-section {
   margin-top: 14px;
 }
+
+/* La fila de período es un <button> real (accesible por teclado) que llena el
+   <li>. El <li> cede su padding al botón para no duplicarlo. */
+.budgets-page .lote-list-item {
+  padding: 0;
+}
+.budgets-page .lote-list-item-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.budgets-page .lote-list-item-btn:focus-visible {
+  outline: 2px solid var(--aur-accent);
+  outline-offset: -2px;
+}
+
+/* CTA compacta cuando el período activo no tiene presupuestos asignados
+   (el panel de ejecución sigue arriba mostrando lo ejecutado real). */
+.budgets-period-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--aur-divider);
+  border-radius: var(--aur-r-input);
+}
+.budgets-period-empty .fin-page-empty-hint { margin: 0; }
 
 .budgets-period-section-title {
   margin: 0 0 6px 0;
@@ -198,7 +238,7 @@
   color: var(--aur-accent);
 }
 .horizon-preset-btn--active {
-  background: rgba(51, 255, 153, 0.08);
+  background: var(--aur-accent-tint);
   border-color: var(--aur-accent);
   color: var(--aur-accent);
   font-weight: 600;

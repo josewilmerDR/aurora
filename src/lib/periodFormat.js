@@ -58,6 +58,44 @@ export function parsePeriod(input) {
   return null;
 }
 
+// Período por defecto: mes actual (YYYY-MM).
+export function currentMonthPeriod(now = new Date()) {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Opciones para el selector de período: últimos 12 meses, últimos 4 trimestres
+// y los 3 años recientes. Valores en formato canónico (YYYY-MM, YYYY-Qn, YYYY);
+// labels en español vía formatPeriod.
+export function buildPeriodOptions(now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  const monthValues = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(y, m - i, 1);
+    monthValues.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+
+  const currentQ = Math.floor(m / 3) + 1;
+  const quarterValues = [];
+  for (let i = 0; i < 4; i++) {
+    let q = currentQ - i;
+    let yr = y;
+    while (q <= 0) { q += 4; yr -= 1; }
+    quarterValues.push(`${yr}-Q${q}`);
+  }
+
+  const yearValues = [];
+  for (let i = 0; i < 3; i++) yearValues.push(String(y - i));
+
+  const toOption = v => ({ value: v, label: formatPeriod(v) });
+  return {
+    months: monthValues.map(toOption),
+    quarters: quarterValues.map(toOption),
+    years: yearValues.map(toOption),
+  };
+}
+
 // Etiqueta corta para burbujas / píldoras (carrusel móvil).
 // "2026-04" → "ABR" · "2026-Q2" → "T2" · "2026" → "26".
 export function shortPeriod(period) {

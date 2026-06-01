@@ -5,16 +5,14 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatPeriod } from '../../../lib/periodFormat';
 import { formatMoney as fmt } from '../../../lib/formatMoney';
+import { BUDGET_CATEGORY_LABELS as CATEGORY_LABELS } from '../lib/budgetCategories';
 
-const CATEGORY_LABELS = {
-  combustible:      'Combustible',
-  depreciacion:     'Depreciación',
-  planilla_directa: 'Planilla directa',
-  planilla_fija:    'Planilla fija',
-  insumos:          'Insumos',
-  mantenimiento:    'Mantenimiento',
-  administrativo:   'Administrativo',
-  otro:             'Otro',
+// "2026-04-01" → "01 abr 2026". Si no es una fecha ISO la devolvemos tal cual.
+const formatRangeDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 // Panel que muestra la ejecución (asignado vs. ejecutado) del período.
@@ -32,6 +30,10 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
     const controller = new AbortController();
     setLoading(true);
     setError(null);
+    // Limpiamos los datos del período anterior: si no, mientras llega el fetch
+    // nuevo el header muestra el período nuevo pero los montos serían los viejos
+    // (y el skeleton no aparece porque `data` ya tiene valor).
+    setData(null);
     apiFetch(`/api/budgets/execution?period=${encodeURIComponent(period)}`, { signal: controller.signal })
       .then(async r => {
         if (!r.ok) {
@@ -43,6 +45,8 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
       .then(setData)
       .catch(e => {
         if (e?.name === 'AbortError') return;
+        // En error no dejamos datos rancios visibles junto al mensaje.
+        setData(null);
         setError(e.message);
       })
       .finally(() => {
@@ -82,7 +86,7 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
         <h3 className="aur-section-title">Ejecución presupuestaria — {formatPeriod(period)}</h3>
         {data?.range && (
           <span className="aur-section-count">
-            {data.range.from} → {data.range.to}
+            {formatRangeDate(data.range.from)} → {formatRangeDate(data.range.to)}
           </span>
         )}
       </div>
@@ -93,11 +97,11 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
             <span className="finance-execution-summary-label">Asignado</span>
             <strong>{fmt(data.summary.totalAssigned)}</strong>
           </div>
-          <div className={`finance-execution-summary-item${data.summary.totalRemaining < 0 ? ' finance-execution-summary-item--over' : ''}`}>
+          <div className="finance-execution-summary-item">
             <span className="finance-execution-summary-label">Ejecutado</span>
             <strong>{fmt(data.summary.totalExecuted)}</strong>
           </div>
-          <div className="finance-execution-summary-item">
+          <div className={`finance-execution-summary-item${data.summary.totalRemaining < 0 ? ' finance-execution-summary-item--over' : ''}`}>
             <span className="finance-execution-summary-label">Restante</span>
             <strong>{fmt(data.summary.totalRemaining)}</strong>
           </div>
@@ -144,6 +148,15 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
                     <tr
                       className={rowCls}
                       onClick={isExpandable ? () => toggle(r.category) : undefined}
+                      role={isExpandable ? 'button' : undefined}
+                      tabIndex={isExpandable ? 0 : undefined}
+                      aria-expanded={isExpandable ? isExpanded : undefined}
+                      onKeyDown={isExpandable ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggle(r.category);
+                        }
+                      } : undefined}
                     >
                       <td className="finance-execution-row-category">
                         {isExpandable ? (
@@ -182,7 +195,7 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
                                   )}
                                   <span className="finance-amount">{fmt(b.assignedAmount, b.currency)}</span>
                                   {b.loteId && (
-                                    <span className="finance-execution-subrow-meta">Lote: {b.loteId}</span>
+                                    <span className="finance-execution-subrow-meta">Lote: {b.loteNombre || b.loteId}</span>
                                   )}
                                   {b.notes && (
                                     <span className="finance-execution-subrow-meta">{b.notes}</span>
@@ -190,16 +203,18 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
                                 </div>
                                 <div className="finance-execution-subrow-actions">
                                   <button
-                                    className="aur-icon-btn aur-icon-btn--sm"
+                                    className="aur-icon-btn aur-icon-btn--sm aur-touch-target"
                                     title="Editar"
+                                    aria-label={`Editar presupuesto de ${label}`}
                                     onClick={() => onEdit && onEdit(b)}
                                   >
                                     <FiEdit size={14} />
                                   </button>
                                   <button
-                                    className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+                                    className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger aur-touch-target"
                                     title="Eliminar"
-                                    onClick={() => onDelete && onDelete(b.id)}
+                                    aria-label={`Eliminar presupuesto de ${label}`}
+                                    onClick={() => onDelete && onDelete(b)}
                                   >
                                     <FiTrash2 size={14} />
                                   </button>
