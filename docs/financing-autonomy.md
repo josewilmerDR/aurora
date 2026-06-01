@@ -40,6 +40,34 @@ Not a single metric. The bar is cumulative evidence across multiple axes, and it
 - **Role gating is additive to this policy.** `administrador` is required to create snapshots, write catalog entries, and trigger eligibility analysis. Simulation and reads are open to `supervisor+`. None of these roles can escalate autonomy — the domain-level cap takes precedence.
 - **Where the guard lives.** [financingDomainGuards.js](../functions/lib/financing/financingDomainGuards.js) exports `assertNivelAllowed(level)` for any future code path that processes an explicit level. [eligibility.js](../functions/routes/financing/eligibility.js) and [debtSimulations.js](../functions/routes/financing/debtSimulations.js) read `dominios.financing.nivel` from the config and block if the user set anything other than `nivel1`.
 
+## ⚠ Don't confuse `financing` with `financiera`
+
+Two separate autonomy domains live under `autopilot_config.dominios` with
+near-identical names, **different caps, and different code paths**:
+
+| Config key | Fase | Agent | Cap | Can it act autonomously? |
+|---|---|---|---|---|
+| `dominios.financing` | 5 | External financing (this doc) | **Nivel 1 only** (hard-coded) | **No** — recommendations only |
+| `dominios.financiera` | 1 | Budget agent ([autopilot-finance](../functions/routes/autopilot-finance/analyze.js)) | up to **Nivel 3** | **Yes** — autonomous budget reallocation when enabled |
+
+This matters operationally:
+
+- **Disabling `financing` does NOT stop budget reallocation.** The Fase 1 budget
+  agent runs under `dominios.financiera` and is gated by
+  [financeDomainGuards.js](../functions/lib/finance/financeDomainGuards.js)
+  (`isFinancialDomainActive` / `resolveDomainLevel`), an entirely separate
+  toggle from the `financing` kill switch described above. To halt the budget
+  agent, set `dominios.financiera.activo = false` (or pause the finca globally).
+- The two guards are deliberately distinct files:
+  `financingDomainGuards.js` (Fase 5, N1 cap) vs `financeDomainGuards.js`
+  (Fase 1, up to N3). A change to one does not affect the other.
+- Triggering either agent over HTTP requires `supervisor+`
+  ([autopilot-finance/index.js](../functions/routes/autopilot-finance/index.js)).
+  The in-process orchestrator path is gated at the orchestrator route instead.
+
+When an admin says "turn off financial autonomy," confirm **which** domain they
+mean — they almost always mean `financiera` (the one that can execute).
+
 ## Related Fase 5 sub-phases
 
 - **5.1 Financial profile** — the data a credit application needs (balance sheet, income statement, 12m cash flow + 6m projection) exportable as JSON/HTML.

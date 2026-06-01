@@ -35,6 +35,14 @@ function isValidDocId(id) {
 
 async function getLiveProfile(req, res) {
   try {
+    // Gate a supervisor+ (también en el router, como defensa en profundidad).
+    // Asimetría aceptada y deliberada: un `encargado` puede leer crudo
+    // income/budgets/treasury/costs y reconstruir aproximadamente este perfil
+    // consolidado, así que el gate no protege datos que ese rol no pueda ver de
+    // otra forma. Lo mantenemos en supervisor porque el balance/estado de
+    // resultados consolidado + el snapshot bank-presentable son la cara
+    // "ejecutiva" del dominio (Fase 5) y su público objetivo es supervisor+; no
+    // es un control de confidencialidad sino de superficie/encuadre del módulo.
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Requires supervisor role or above.', 403);
     }

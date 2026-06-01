@@ -50,7 +50,12 @@ const MODULE_PREFIXES = {
     '/api/inventario', '/api/ingreso', '/api/cierres-combustible',
   ],
   rrhh: [
-    '/api/hr', '/api/autopilot-hr',
+    // El agente de RRHH se monta en `/api/autopilot/hr/...` (no
+    // `/api/autopilot-hr`); el guion era una entrada muerta que nunca matcheaba
+    // y dejaba la ruta real clasificada bajo `admin` vía el prefijo
+    // `/api/autopilot`. Va antes que `admin` en este objeto, así que el prefijo
+    // específico gana por orden de iteración.
+    '/api/hr', '/api/autopilot/hr',
   ],
   monitoreo: [
     '/api/muestreos',
@@ -61,7 +66,14 @@ const MODULE_PREFIXES = {
     '/api/proveedores', '/api/rfqs', '/api/procurement', '/api/suppliers',
     '/api/costos', '/api/budgets', '/api/income', '/api/buyers',
     '/api/treasury', '/api/financing', '/api/roi',
-    '/api/autopilot-procurement', '/api/autopilot-finance',
+    // Agentes del autopilot del depto. financiero/compras. Las rutas reales son
+    // `/api/autopilot/finance/...` y `/api/autopilot/procurement/...`; las
+    // entradas previas con guion (`/api/autopilot-finance`) eran letra muerta y
+    // hacían que estas rutas cayeran bajo `admin` (prefijo `/api/autopilot`),
+    // negándolas a un supervisor restringido a `contabilidad`. Los prefijos
+    // específicos van antes que `admin` por orden de iteración → ownerModule
+    // correcto = contabilidad.
+    '/api/autopilot/procurement', '/api/autopilot/finance',
   ],
   estrategia: [
     '/api/strategy', '/api/signals', '/api/scenarios', '/api/annualPlans',
