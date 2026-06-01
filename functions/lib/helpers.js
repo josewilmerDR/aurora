@@ -13,7 +13,19 @@ const pick = (obj, fields) => fields.reduce((acc, f) => {
 // Always returns 404 when the caller can't see the doc (both "doesn't
 // exist" and "belongs to another finca") to avoid cross-tenant enumeration
 // via status-code observation.
+//
+// A structurally invalid id (empty, too long, or containing a path separator)
+// is treated as "not found" rather than passed to db...doc(): the Admin SDK
+// throws synchronously on such ids, which would otherwise surface as a generic
+// 500. Folding it into the 404 keeps the response consistent (no enumeration
+// signal) and spares each caller from repeating a docId guard.
+const isValidDocId = (id) =>
+  typeof id === 'string' && id.length > 0 && id.length <= 1500 && !id.includes('/');
+
 const verifyOwnership = async (collection, docId, fincaId) => {
+  if (!isValidDocId(docId)) {
+    return { ok: false, status: 404, code: ERROR_CODES.NOT_FOUND, message: 'Document not found.' };
+  }
   const doc = await db.collection(collection).doc(docId).get();
   if (!doc.exists || doc.data().fincaId !== fincaId) {
     return { ok: false, status: 404, code: ERROR_CODES.NOT_FOUND, message: 'Document not found.' };
