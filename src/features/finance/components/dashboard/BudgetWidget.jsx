@@ -53,7 +53,7 @@ function BudgetWidget() {
         <h3 className="aur-section-title">Presupuesto</h3>
         <span className="aur-section-count">{period}</span>
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/presupuestos">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/budgets">
             Ver Presupuestos →
           </Link>
         )}
@@ -91,7 +91,7 @@ function BudgetWidget() {
                 metas para comparar contra el gasto real.
               </p>
               <Link
-                to="/finance/presupuestos"
+                to="/finance/budgets"
                 className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta"
               >
                 <FiPlus size={12} /> Crear presupuesto del mes
@@ -124,7 +124,7 @@ function BudgetWidget() {
                 );
               })}
               {hiddenRows > 0 && (
-                <Link to="/finance/presupuestos" className="fin-commits-more">
+                <Link to="/finance/budgets" className="fin-commits-more">
                   +{hiddenRows} categorías más
                 </Link>
               )}

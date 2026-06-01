@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { FiPlus, FiDollarSign, FiChevronRight } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { FiPlus, FiDollarSign, FiChevronRight, FiInfo } from 'react-icons/fi';
+import { useToast } from '../../../contexts/ToastContext';
+import PageHeader from '../../../components/PageHeader';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import BudgetForm from '../components/BudgetForm';
 import BudgetExecutionPanel from '../components/BudgetExecutionPanel';
@@ -17,18 +18,19 @@ import '../styles/finance.css';
 
 function Budgets() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const [period, setPeriod] = useState(currentMonthPeriod());
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   // Guardamos el presupuesto COMPLETO (no solo el id) para poder mostrar su
   // detalle en el modal de confirmación de borrado.
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [executionRefreshKey, setExecutionRefreshKey] = useState(0);
+  // toast local migrado a useToast() (cola global del ToastProvider).
   const carouselRef = useRef(null);
   const formPanelRef = useRef(null);
   const headerCreateRef = useRef(null);
@@ -51,7 +53,7 @@ function Budgets() {
       .then(data => setBudgets(Array.isArray(data) ? data : []))
       .catch(err => {
         if (err?.name === 'AbortError') return;
-        setToast({ type: 'error', message: 'No se pudo cargar la lista.' });
+        toast.error('No se pudo cargar la lista.');
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -100,7 +102,7 @@ function Budgets() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Error al guardar.');
       }
-      setToast({ type: 'success', message: isEdit ? 'Presupuesto actualizado.' : 'Presupuesto creado.' });
+      toast.success(isEdit ? 'Presupuesto actualizado.' : 'Presupuesto creado.');
       setShowForm(false);
       setEditing(null);
       // Saltamos al período del presupuesto recién guardado para que el usuario
@@ -108,7 +110,7 @@ function Budgets() {
       if (payload.period) setPeriod(payload.period);
       setExecutionRefreshKey(k => k + 1);
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setSaving(false);
     }
@@ -127,10 +129,10 @@ function Budgets() {
       // Update optimista: sacamos la fila de inmediato y refrescamos la
       // ejecución (que sí necesita recálculo del backend).
       setBudgets(prev => prev.filter(b => b.id !== id));
-      setToast({ type: 'success', message: 'Presupuesto eliminado.' });
+      toast.success('Presupuesto eliminado.');
       setExecutionRefreshKey(k => k + 1);
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setDeleting(false);
       setConfirmDelete(null);
@@ -171,7 +173,7 @@ function Budgets() {
   const periodEmpty = !loading && budgets.length > 0 && filteredBudgets.length === 0;
 
   return (
-    <div className={`budgets-page budgets-page--selected${showForm ? ' budgets-page--form' : ''}`}>
+    <div className={`lote-page budgets-page--selected${showForm ? ' budgets-page--form' : ''}`}>
       {/* ── Carrusel móvil ── */}
       {!showForm && (
         <div className="lote-carousel" ref={carouselRef}>
@@ -193,14 +195,16 @@ function Budgets() {
       )}
 
       {/* ── Header ── */}
-      <div className="lote-page-header">
-        <h2 className="lote-page-title"><FiDollarSign /> Presupuestos</h2>
-        {!showForm && (
+      <PageHeader
+        level={2}
+        icon={<FiDollarSign />}
+        title="Presupuestos"
+        actions={!showForm && (
           <button className="aur-btn-pill" onClick={startCreate} ref={headerCreateRef}>
             <FiPlus /> Nuevo presupuesto
           </button>
         )}
-      </div>
+      />
 
       <div className="lote-management-layout">
         {/* ── Panel principal (izquierda) ── */}
@@ -224,11 +228,14 @@ function Budgets() {
             />
           )}
           {!showForm && periodEmpty && (
-            <div className="budgets-period-empty">
-              <span className="fin-page-empty-hint">
-                No hay presupuestos asignados para {formatPeriod(period)}.
-              </span>
-              <button className="aur-btn-pill" onClick={startCreate}>
+            <div className="aur-banner aur-banner--info">
+              <FiInfo size={14} />
+              <span>No hay presupuestos asignados para {formatPeriod(period)}.</span>
+              <button
+                className="aur-btn-text"
+                style={{ marginLeft: 'auto', flexShrink: 0 }}
+                onClick={startCreate}
+              >
                 <FiPlus /> Crear presupuesto para este período
               </button>
             </div>
@@ -270,10 +277,6 @@ function Budgets() {
           onCancel={() => setConfirmDelete(null)}
           loading={deleting}
         />
-      )}
-
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );

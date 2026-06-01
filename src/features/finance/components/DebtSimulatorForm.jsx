@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiPlay, FiX, FiChevronDown, FiChevronRight } from 'react-icons/fi';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatMoney, formatPct } from '../../../lib/formatMoney';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 
 // Form del simulador de deuda. La oferta define amount/plazo/APR (min=max en
@@ -172,7 +172,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
               {!snapshots.length && <option value="">No hay snapshots — creá uno primero</option>}
               {snapshots.map(s => (
                 <option key={s.id} value={s.id}>
-                  {s.asOf} — margen {(Number(s.netMargin) * 100).toFixed(1)}%
+                  {s.asOf} — margen {formatPct(Number(s.netMargin) * 100)}
                 </option>
               ))}
             </select>
@@ -190,7 +190,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
               {!offers.length && <option value="">No hay ofertas activas — registrá una primero</option>}
               {offers.map(o => (
                 <option key={o.id} value={o.id}>
-                  {o.providerName} — {formatMoney(o.monedaMin, o.moneda, { decimals: 0 })} · {o.plazoMesesMin}m · {(Number(o.aprMin) * 100).toFixed(1)}%
+                  {o.providerName} — {formatMoney(o.monedaMin, o.moneda)} · {o.plazoMesesMin}m · {formatPct(Number(o.aprMin) * 100, { decimals: 2 })}
                 </option>
               ))}
             </select>
@@ -200,7 +200,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
           <div className="debt-sim-offer-summary">
             <div>
               <span className="debt-sim-offer-label">Monto</span>
-              <strong>{formatMoney(selectedOffer.monedaMin, selectedOffer.moneda, { decimals: 0 })}</strong>
+              <strong>{formatMoney(selectedOffer.monedaMin, selectedOffer.moneda)}</strong>
             </div>
             <div>
               <span className="debt-sim-offer-label">Plazo</span>
@@ -208,7 +208,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
             </div>
             <div>
               <span className="debt-sim-offer-label">APR</span>
-              <strong>{(Number(selectedOffer.aprMin) * 100).toFixed(2)}%</strong>
+              <strong>{formatPct(Number(selectedOffer.aprMin) * 100, { decimals: 2 })}</strong>
             </div>
             <div>
               <span className="debt-sim-offer-label">Esquema</span>

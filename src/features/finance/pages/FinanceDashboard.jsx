@@ -1,4 +1,5 @@
 import { FiDollarSign } from 'react-icons/fi';
+import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import CashWidget from '../components/dashboard/CashWidget';
 import BudgetWidget from '../components/dashboard/BudgetWidget';
@@ -22,10 +23,12 @@ function FinanceDashboard() {
 
   return (
     <div className="page-container">
-      <div className="page-header fin-dashboard-header">
-        <h2><FiDollarSign /> Finanzas — Dashboard Ejecutivo</h2>
-        <p className="fin-dashboard-subtitle">{currentMonthLabel()} · vista en tiempo real</p>
-      </div>
+      <PageHeader
+        level={2}
+        icon={<FiDollarSign />}
+        title="Finanzas — Dashboard Ejecutivo"
+        subtitle={`${currentMonthLabel()} · vista en tiempo real`}
+      />
 
       <AuroraSectionIntro>
         Visión rápida de tus finanzas en 4 mediciones: saldo de caja, ejecución

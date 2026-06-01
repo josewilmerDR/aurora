@@ -38,8 +38,8 @@ export const ROUTE_MIN_ROLE = {
   '/procurement': 'encargado',
   // Financing (phase 5.5) — supervisor+ can read; admin gates write ops at API layer
   '/finance/financing': 'supervisor',
-  '/finance/financing/ofertas': 'supervisor',
-  '/finance/financing/simulaciones': 'supervisor',
+  '/finance/financing/offers': 'supervisor',
+  '/finance/financing/simulations': 'supervisor',
   // CEO Dashboard (phase 6.5) — admin only; reflects meta-agent state
   '/ceo': 'administrador',
   // Strategy (phase 4.1)

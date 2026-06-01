@@ -37,4 +37,16 @@ export function formatPrice(n, { locale = DEFAULT_LOCALE } = {}) {
   return v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
+// Porcentaje con N decimales (default 1; el APR pasa decimals:2). Única fuente de
+// verdad de porcentajes del módulo: antes convivían un formatPct propio, varios
+// `toFixed(1/2)` inline y un caso con coma (formatNumber) → "12.3%" vs "12,34%".
+// Usa punto decimal a propósito, el separador que ya usa la mayoría de los
+// porcentajes del dominio. Devuelve '—' para null/undefined y no-finitos.
+export function formatPct(n, { decimals = 1 } = {}) {
+  if (n == null) return '—';
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  return `${v.toFixed(decimals)}%`;
+}
+
 export { DEFAULT_CURRENCY, DEFAULT_LOCALE };

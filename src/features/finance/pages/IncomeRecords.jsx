@@ -4,7 +4,7 @@ import {
   FiMoreVertical, FiEdit2, FiTrash2, FiSearch,
   FiLayout, FiDownload, FiAlertTriangle, FiRefreshCw,
 } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { useToast } from '../../../contexts/ToastContext';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import IncomeForm from '../components/IncomeForm';
@@ -128,13 +128,13 @@ function SortTh({ col, sortField, sortDir, hasFilter, onSort, onOpenFilter }) {
 // ── Página principal ─────────────────────────────────────────────────────────
 function IncomeRecords() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // registro completo
   const [deleting, setDeleting] = useState(false);
   const [recentId, setRecentId] = useState(null); // highlight de fila recién tocada
@@ -225,13 +225,13 @@ function IncomeRecords() {
       });
       if (!res.ok) throw new Error(await apiErrorMessage(res, 'No se pudo guardar el ingreso.'));
       const out = await res.json().catch(() => ({}));
-      setToast({ type: 'success', message: isEdit ? 'Ingreso actualizado.' : 'Ingreso registrado.' });
+      toast.success(isEdit ? 'Ingreso actualizado.' : 'Ingreso registrado.');
       setRecentId(out.id || payload.id || null);
       setShowForm(false);
       setEditing(null);
       load(true);
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setSaving(false);
     }
@@ -243,11 +243,11 @@ function IncomeRecords() {
     try {
       const res = await apiFetch(`/api/income/${confirmDelete.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(await apiErrorMessage(res, 'No se pudo eliminar el ingreso.'));
-      setToast({ type: 'success', message: 'Ingreso eliminado.' });
+      toast.success('Ingreso eliminado.');
       setRecords(prev => prev.filter(r => r.id !== confirmDelete.id));
       setConfirmDelete(null);
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setDeleting(false);
     }
@@ -499,7 +499,7 @@ function IncomeRecords() {
               ) : (
                 <div className="siembra-table-wrapper">
                   <table className="siembra-table siembra-table-historial">
-                    <caption className="co-sr-only">Ingresos registrados</caption>
+                    <caption className="aur-sr-only">Ingresos registrados</caption>
                     <thead>
                       <tr>
                         {visibleColumns.map(col => (
@@ -643,10 +643,6 @@ function IncomeRecords() {
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
         />
-      )}
-
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );

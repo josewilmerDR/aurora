@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
-  FiPlus, FiTrendingUp, FiTrendingDown, FiPackage, FiArrowLeft, FiTrash2, FiDownload,
+  FiPlus, FiTrendingUp, FiTrendingDown, FiPackage, FiTrash2, FiDownload,
+  FiAlertTriangle, FiRefreshCw,
 } from 'react-icons/fi';
 import { useToast } from '../../../contexts/ToastContext';
+import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraDataTable from '../../../components/AuroraDataTable';
 import DebtSimulatorForm from '../components/DebtSimulatorForm';
 import DebtSimulationDetail from '../components/DebtSimulationDetail';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { formatMoney } from '../../../lib/formatMoney';
+import { formatMoney, formatPct } from '../../../lib/formatMoney';
 import { formatShortDate } from '../../../lib/formatDate';
 import { RECOMMENDATION_VARIANT } from '../lib/recommendation';
 import '../../planting/styles/siembra.css';
@@ -51,6 +53,7 @@ function DebtSimulations() {
   const [snapshots, setSnapshots] = useState([]);
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -72,11 +75,15 @@ function DebtSimulations() {
   const openSim  = useCallback((id) => setSearchParams({ sim: id }), [setSearchParams]);
 
   const loadSims = useCallback(() => {
+    setLoadError(null);
     return apiFetch('/api/financing/debt-simulations')
-      .then(r => r.json())
-      .then(data => setSims(Array.isArray(data) ? data : []))
-      .catch(() => toast.error('No se pudieron cargar las simulaciones.'));
-  }, [apiFetch, toast]);
+      .then(async (r) => {
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        setSims(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setLoadError('No se pudieron cargar las simulaciones.'));
+  }, [apiFetch]);
 
   useEffect(() => {
     setLoading(true);
@@ -209,14 +216,14 @@ function DebtSimulations() {
       <>
         {vis.fecha     && <td>{formatShortDate(r.createdAt)}</td>}
         {vis.proveedor && <td>{r.providerName || '—'}</td>}
-        {vis.monto     && <td className="aur-td-num">{formatMoney(r.amount, undefined, { decimals: 0 })}</td>}
+        {vis.monto     && <td className="aur-td-num">{formatMoney(r.amount)}</td>}
         {vis.plazo     && <td className="aur-td-num">{r.plazoMeses}</td>}
-        {vis.apr       && <td className="aur-td-num">{(Number(r.apr) * 100).toFixed(2)}%</td>}
+        {vis.apr       && <td className="aur-td-num">{formatPct(Number(r.apr) * 100, { decimals: 2 })}</td>}
         {vis.dMargen   && (
           <td className="aur-td-num">
             <span className={positive ? 'debt-sim-delta-positive' : 'debt-sim-delta-negative'}>
               {positive ? <FiTrendingUp size={11} /> : <FiTrendingDown size={11} />}
-              {' '}{formatMoney(marginDelta, undefined, { decimals: 0 })}
+              {' '}{formatMoney(marginDelta)}
             </span>
           </td>
         )}
@@ -266,19 +273,17 @@ function DebtSimulations() {
 
   return (
     <div className="lote-page">
-      <div className="lote-page-header">
-        <div className="lote-page-title-stack">
-          <Link to="/finance/financing" className="aur-btn-text fin-back-link">
-            <FiArrowLeft size={12} /> Financiamiento
-          </Link>
-          <h2 className="lote-page-title"><FiTrendingUp /> Simulador de deuda</h2>
-        </div>
-        {view === 'list' && (
+      <PageHeader
+        level={2}
+        icon={<FiTrendingUp />}
+        title="Simulador de deuda"
+        backLink={{ to: '/finance/financing', label: 'Financiamiento' }}
+        actions={view === 'list' && (
           <button className="aur-btn-pill" onClick={goForm} disabled={loading || !!blockReason}>
             <FiPlus /> Nueva simulación
           </button>
         )}
-      </div>
+      />
 
       {view === 'list' && (
         <AuroraSectionIntro
@@ -316,7 +321,18 @@ function DebtSimulations() {
       )}
 
       {view === 'list' && (
-        loading ? (
+        loadError ? (
+          <div className="siembra-empty-state" role="alert">
+            <FiAlertTriangle size={36} />
+            <p>{loadError}</p>
+            <button
+              className="aur-btn-pill"
+              onClick={() => { setLoading(true); loadSims().finally(() => setLoading(false)); }}
+            >
+              <FiRefreshCw /> Reintentar
+            </button>
+          </div>
+        ) : loading ? (
           <p className="finance-empty">Cargando…</p>
         ) : sims.length === 0 ? (
           <div className="siembra-empty-state">
@@ -364,7 +380,7 @@ function DebtSimulations() {
           title="Eliminar simulación"
           body={
             `Vas a eliminar la simulación de ${confirmDelete.providerName || 'proveedor'} ` +
-            `por ${formatMoney(confirmDelete.amount, undefined, { decimals: 0 })} a ` +
+            `por ${formatMoney(confirmDelete.amount)} a ` +
             `${confirmDelete.plazoMeses} meses (${formatShortDate(confirmDelete.createdAt)}). ` +
             `Esta acción no se puede deshacer.`
           }

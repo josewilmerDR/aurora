@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FiFileText, FiRefreshCw } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import Toast from '../../../../components/Toast';
+import { useToast } from '../../../../contexts/ToastContext';
 import { useApiFetch } from '../../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../../contexts/UserContext';
 import { useFinanceResource } from '../../hooks/useFinanceResource';
@@ -15,6 +15,7 @@ import WidgetError from './WidgetError';
 // /finance/financing/snapshots/:id (SnapshotDetail).
 function FinancialProfileWidget() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const { currentUser } = useUser();
   const canGenerate = hasMinRole(currentUser?.rol || 'trabajador', 'administrador');
 
@@ -25,7 +26,6 @@ function FinancialProfileWidget() {
   const snapshots = Array.isArray(data) ? data : [];
   const latest = snapshots[0];
 
-  const [toast, setToast] = useState(null);
   const [generating, setGenerating] = useState(false);
 
   const handleGenerate = async () => {
@@ -39,10 +39,10 @@ function FinancialProfileWidget() {
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error();
-      setToast({ type: 'success', message: 'Snapshot generado.' });
+      toast.success('Snapshot generado.');
       reload();
     } catch {
-      setToast({ type: 'error', message: 'No se pudo generar el snapshot.' });
+      toast.error('No se pudo generar el snapshot.');
     } finally {
       setGenerating(false);
     }
@@ -139,8 +139,6 @@ function FinancialProfileWidget() {
           )}
         </>
       )}
-
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { FiBriefcase, FiShield, FiChevronDown } from 'react-icons/fi';
+import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import FinancialProfileWidget from '../components/dashboard/FinancialProfileWidget';
@@ -68,10 +69,12 @@ function FinancingPolicyBadge() {
 function FinancingDashboard() {
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h2><FiBriefcase /> Financiamiento</h2>
-        <FinancingPolicyBadge />
-      </div>
+      <PageHeader
+        level={2}
+        icon={<FiBriefcase />}
+        title="Financiamiento"
+        actions={<FinancingPolicyBadge />}
+      />
 
       <AuroraSectionIntro>
         Evaluá opciones de crédito externo para tu finca: revisá tu perfil

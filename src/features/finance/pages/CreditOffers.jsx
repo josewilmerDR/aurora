@@ -3,16 +3,16 @@ import { Link } from 'react-router-dom';
 import {
   FiPlus, FiBriefcase, FiFilter, FiX, FiSliders,
   FiMoreVertical, FiEdit2, FiTrash2, FiPackage, FiArrowLeft,
-  FiSearch, FiFileText,
+  FiSearch, FiFileText, FiAlertTriangle, FiRefreshCw,
 } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { useToast } from '../../../contexts/ToastContext';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import CreditOfferForm from '../components/CreditOfferForm';
 import { ColMenu, ColFilterPopover, RowKebabMenu } from '../components/table/SortableTable';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
-import { formatMoney, formatNumber } from '../../../lib/formatMoney';
+import { formatMoney, formatNumber, formatPct } from '../../../lib/formatMoney';
 import '../../planting/styles/siembra.css';
 import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
@@ -80,15 +80,16 @@ function getColVal(r, key) {
 
 function CreditOffers() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const { currentUser } = useUser();
   const canManage = hasMinRole(currentUser?.rol || 'trabajador', 'administrador');
 
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
@@ -136,10 +137,18 @@ function CreditOffers() {
   // (tras guardar) son silenciosos para no desmontar la tabla y provocar un flash.
   const load = useCallback((silent = false) => {
     if (!silent) setLoading(true);
+    setLoadError(null);
     apiFetch('/api/financing/credit-products')
-      .then(r => r.json())
-      .then(data => setOffers(Array.isArray(data) ? data : []))
-      .catch(() => setToast({ type: 'error', message: 'No se pudieron cargar las ofertas.' }))
+      .then(async (r) => {
+        if (!r.ok) {
+          setOffers([]);
+          setLoadError('No se pudieron cargar las ofertas.');
+          return;
+        }
+        const data = await r.json();
+        setOffers(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setLoadError('No se pudieron cargar las ofertas. Revisá tu conexión.'))
       .finally(() => { if (!silent) setLoading(false); });
   }, [apiFetch]);
 
@@ -162,13 +171,13 @@ function CreditOffers() {
         throw new Error(err.message || 'Error al guardar.');
       }
       const saved = await res.json().catch(() => ({}));
-      setToast({ type: 'success', message: isEdit ? 'Oferta actualizada.' : 'Oferta registrada.' });
+      toast.success(isEdit ? 'Oferta actualizada.' : 'Oferta registrada.');
       setShowForm(false);
       setEditing(null);
       if (saved?.id) setRecentId(saved.id);
       load(true);
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setSaving(false);
     }
@@ -180,11 +189,11 @@ function CreditOffers() {
     try {
       const res = await apiFetch(`/api/financing/credit-products/${confirmDelete.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al eliminar.');
-      setToast({ type: 'success', message: 'Oferta eliminada.' });
+      toast.success('Oferta eliminada.');
       setOffers(prev => prev.filter(o => o.id !== confirmDelete.id));
       setConfirmDelete(null);
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setDeleting(false);
     }
@@ -205,9 +214,9 @@ function CreditOffers() {
       });
       if (!res.ok) throw new Error('No se pudo cambiar el estado.');
       setOffers(prev => prev.map(o => o.id === offer.id ? { ...o, activo: newActivo } : o));
-      setToast({ type: 'success', message: newActivo ? 'Oferta activada.' : 'Oferta archivada.' });
+      toast.success(newActivo ? 'Oferta activada.' : 'Oferta archivada.');
     } catch (e) {
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setTogglingId(null);
     }
@@ -388,7 +397,15 @@ function CreditOffers() {
       )}
 
       {!showForm && (
-        loading ? (
+        loadError ? (
+          <div className="siembra-empty-state" role="alert">
+            <FiAlertTriangle size={36} />
+            <p>{loadError}</p>
+            <button className="aur-btn-pill" onClick={() => load()}>
+              <FiRefreshCw /> Reintentar
+            </button>
+          </div>
+        ) : loading ? (
           <p className="finance-empty">Cargando…</p>
         ) : offers.length === 0 ? (
           <div className="siembra-empty-state">
@@ -456,7 +473,7 @@ function CreditOffers() {
               ) : (
                 <div className="siembra-table-wrapper">
                   <table className="siembra-table siembra-table-historial">
-                    <caption className="co-sr-only">Ofertas de crédito registradas</caption>
+                    <caption className="aur-sr-only">Ofertas de crédito registradas</caption>
                     <thead>
                       <tr>
                         {COLUMNS.map(col => visibleCols[col.key] && (
@@ -502,10 +519,10 @@ function CreditOffers() {
                             )}
                             {visibleCols.tipoProv  && <td>{PROVIDER_LABELS[r.providerType] || r.providerType || '—'}</td>}
                             {visibleCols.tipo      && <td>{TIPO_LABELS[r.tipo] || r.tipo || '—'}</td>}
-                            {visibleCols.monto     && <td className="td-num">{formatMoney(r.monedaMin, r.moneda, { decimals: 0 })}</td>}
+                            {visibleCols.monto     && <td className="td-num">{formatMoney(r.monedaMin, r.moneda)}</td>}
                             {visibleCols.moneda    && <td>{r.moneda || '—'}</td>}
                             {visibleCols.plazo     && <td className="td-num">{formatNumber(r.plazoMesesMin, { decimals: 0 })}</td>}
-                            {visibleCols.apr       && <td className="td-num">{formatNumber(aprPct, { decimals: 2 })}%</td>}
+                            {visibleCols.apr       && <td className="td-num">{formatPct(aprPct, { decimals: 2 })}</td>}
                             {visibleCols.esquema   && <td title={ESQUEMA_LABELS[r.esquemaAmortizacion] || ''}>{ESQUEMA_LABELS[r.esquemaAmortizacion] || r.esquemaAmortizacion || '—'}</td>}
                             {visibleCols.estado    && (
                               <td>
@@ -600,19 +617,15 @@ function CreditOffers() {
           title="Eliminar oferta"
           body={
             `Vas a eliminar la oferta de ${confirmDelete.providerName || 'proveedor sin nombre'} ` +
-            `por ${formatMoney(confirmDelete.monedaMin, confirmDelete.moneda, { decimals: 0 })} ` +
+            `por ${formatMoney(confirmDelete.monedaMin, confirmDelete.moneda)} ` +
             `a ${formatNumber(confirmDelete.plazoMesesMin, { decimals: 0 })} meses · ` +
-            `${formatNumber(Number(confirmDelete.aprMin) * 100, { decimals: 2 })}% APR. ` +
+            `${formatPct(Number(confirmDelete.aprMin) * 100, { decimals: 2 })} APR. ` +
             'Esta acción no se puede deshacer; las simulaciones que la referencien quedarán con la oferta desvinculada.'
           }
           confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
         />
-      )}
-
-      {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );

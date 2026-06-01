@@ -102,19 +102,19 @@ export default function SetupChecklist() {
       done: hasBalance,
       label: 'Registrá tu saldo de caja inicial',
       hint: 'Sin saldo, no podemos proyectar tu liquidez.',
-      to: '/finance/tesoreria',
+      to: '/finance/treasury',
     },
     {
       done: hasBudget,
       label: 'Definí los presupuestos del mes',
       hint: 'Te permite comparar gasto real contra meta.',
-      to: '/finance/presupuestos',
+      to: '/finance/budgets',
     },
     {
       done: hasIncome,
       label: 'Registrá tus primeros ingresos',
       hint: 'Necesario para calcular rentabilidad por lote.',
-      to: '/finance/ingresos',
+      to: '/finance/income',
     },
   ];
 

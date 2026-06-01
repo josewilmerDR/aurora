@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { FiFileText, FiArrowLeft, FiDownload } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { useParams } from 'react-router-dom';
+import { FiFileText, FiDownload } from 'react-icons/fi';
+import { useToast } from '../../../contexts/ToastContext';
+import PageHeader from '../../../components/PageHeader';
+import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useFinanceResource } from '../hooks/useFinanceResource';
@@ -34,6 +36,7 @@ function StatRow({ label, value, sub, negative }) {
 function SnapshotDetail() {
   const { id } = useParams();
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const { currentUser } = useUser();
   const canExport = hasMinRole(currentUser?.rol || 'trabajador', 'administrador');
 
@@ -42,7 +45,6 @@ function SnapshotDetail() {
     { errorMessage: 'No se pudo cargar el snapshot.' }
   );
 
-  const [toast, setToast] = useState(null);
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
@@ -59,9 +61,9 @@ function SnapshotDetail() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setToast({ type: 'success', message: 'Snapshot exportado.' });
+      toast.success('Snapshot exportado.');
     } catch {
-      setToast({ type: 'error', message: 'No se pudo exportar el snapshot.' });
+      toast.error('No se pudo exportar el snapshot.');
     } finally {
       setExporting(false);
     }
@@ -73,14 +75,12 @@ function SnapshotDetail() {
 
   return (
     <div className="lote-page">
-      <div className="lote-page-header">
-        <div className="lote-page-title-stack">
-          <Link to="/finance/financing" className="aur-btn-text fin-back-link aur-touch-target">
-            <FiArrowLeft size={12} /> Financiamiento
-          </Link>
-          <h2 className="lote-page-title"><FiFileText /> Snapshot financiero</h2>
-        </div>
-        {!loading && !error && data && canExport && (
+      <PageHeader
+        level={2}
+        icon={<FiFileText />}
+        title="Snapshot financiero"
+        backLink={{ to: '/finance/financing', label: 'Financiamiento' }}
+        actions={!loading && !error && data && canExport && (
           <button
             type="button"
             className="aur-btn-pill aur-touch-target"
@@ -91,7 +91,7 @@ function SnapshotDetail() {
             <FiDownload size={14} /> {exporting ? 'Exportando…' : 'Exportar JSON'}
           </button>
         )}
-      </div>
+      />
 
       {loading && <p className="finance-empty">Cargando snapshot…</p>}
 
@@ -106,13 +106,13 @@ function SnapshotDetail() {
 
       {!loading && !error && data && (
         <>
-          <p className="fin-page-intro">
+          <AuroraSectionIntro>
             Corte <strong>{formatShortDate(data.asOf)}</strong> · generado el{' '}
             {formatShortDate(data.generatedAt)}
             {data.generatedByEmail ? ` por ${data.generatedByEmail}` : ''}. Es un
             registro inmutable: refleja el estado de la finca a esa fecha y no
             cambia aunque los datos de origen cambien después.
-          </p>
+          </AuroraSectionIntro>
 
           <div className="snapshot-grid">
             <section className="aur-section">
@@ -181,7 +181,6 @@ function SnapshotDetail() {
         </>
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

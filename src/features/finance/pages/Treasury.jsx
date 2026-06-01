@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FiPlus, FiActivity, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { useToast } from '../../../contexts/ToastContext';
 import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import CashBalanceModal from '../components/CashBalanceModal';
@@ -20,10 +20,10 @@ const PROJECTION_CURRENCY = DEFAULT_CURRENCY;
 
 function Treasury() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const [weeks, setWeeks] = useState(DEFAULT_HORIZON_WEEKS);
   const [showBalanceForm, setShowBalanceForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   // Bump al registrar un saldo: fuerza a CashBalanceList a recargar su lista.
   const [balanceListKey, setBalanceListKey] = useState(0);
 
@@ -43,16 +43,13 @@ function Treasury() {
         err.status = res.status;
         throw err;
       }
-      setToast({
-        type: 'success',
-        message: `Saldo de ${formatMoney(payload.amount, payload.currency)} registrado al ${payload.dateAsOf}. La proyección parte de ahí.`,
-      });
+      toast.success(`Saldo de ${formatMoney(payload.amount, payload.currency)} registrado al ${payload.dateAsOf}. La proyección parte de ahí.`);
       setShowBalanceForm(false);
       setBalanceListKey(k => k + 1);
       reload();
     } catch (e) {
       console.error('[Treasury] save balance failed', { status: e.status, err: e });
-      setToast({ type: 'error', message: e.message });
+      toast.error(e.message);
     } finally {
       setSaving(false);
     }
@@ -189,10 +186,8 @@ function Treasury() {
       <CashBalanceList
         refreshKey={balanceListKey}
         onDeleted={reload}
-        onToast={(message, type) => setToast({ message, type })}
+        onToast={(message, type = 'success') => toast[type]?.(message)}
       />
-
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
