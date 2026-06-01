@@ -29,4 +29,12 @@ export function formatNumber(n, { locale = DEFAULT_LOCALE, decimals = 2 } = {}) 
   });
 }
 
+// Precio unitario: 2 decimales mínimo, hasta 4 si los necesita. Evita el ruido
+// de "100,0000" para precios redondos sin perder precisión en precios finos.
+export function formatPrice(n, { locale = DEFAULT_LOCALE } = {}) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  return v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
 export { DEFAULT_CURRENCY, DEFAULT_LOCALE };
