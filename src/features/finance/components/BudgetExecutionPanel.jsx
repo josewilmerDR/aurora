@@ -5,6 +5,7 @@ import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatPeriod } from '../../../lib/periodFormat';
 import { formatMoney as fmt } from '../../../lib/formatMoney';
+import { translateApiError } from '../../../lib/errorMessages';
 import { BUDGET_CATEGORY_LABELS as CATEGORY_LABELS } from '../lib/budgetCategories';
 
 // "2026-04-01" → "01 abr 2026". Si no es una fecha ISO la devolvemos tal cual.
@@ -37,8 +38,8 @@ function BudgetExecutionPanel({ period, refreshKey, budgets = [], onEdit, onDele
     apiFetch(`/api/budgets/execution?period=${encodeURIComponent(period)}`, { signal: controller.signal })
       .then(async r => {
         if (!r.ok) {
-          const e = await r.json().catch(() => ({}));
-          throw new Error(e.message || 'No se pudo obtener la ejecución.');
+          const body = await r.json().catch(() => null);
+          throw new Error(translateApiError(body, 'No se pudo obtener la ejecución presupuestaria.'));
         }
         return r.json();
       })
