@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  FiPlus, FiDollarSign, FiFilter, FiX, FiSliders,
-  FiMoreVertical, FiEdit2, FiTrash2, FiSearch,
-  FiLayout, FiDownload, FiAlertTriangle, FiRefreshCw,
+  FiPlus, FiDollarSign, FiX, FiMoreVertical, FiEdit2, FiTrash2,
+  FiSearch, FiLayout, FiDownload, FiAlertTriangle, FiRefreshCw,
 } from 'react-icons/fi';
 import { useToast } from '../../../contexts/ToastContext';
+import PageHeader from '../../../components/PageHeader';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraDataTable from '../../../components/AuroraDataTable';
 import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import IncomeForm from '../components/IncomeForm';
-import { ColMenu, ColFilterPopover, RowKebabMenu } from '../components/table/SortableTable';
+import { RowKebabMenu } from '../components/table/SortableTable';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
 import { translateApiError } from '../../../lib/errorMessages';
@@ -23,11 +24,11 @@ const COLUMNS = [
   { key: 'fecha',     label: 'Fecha',       type: 'date'   },
   { key: 'comprador', label: 'Comprador',   type: 'text'   },
   { key: 'lote',      label: 'Lote',        type: 'text'   },
-  { key: 'despachos', label: 'Despachos',   type: 'number' },
-  { key: 'cantidad',  label: 'Cantidad',    type: 'number' },
+  { key: 'despachos', label: 'Despachos',   type: 'number', align: 'right' },
+  { key: 'cantidad',  label: 'Cantidad',    type: 'number', align: 'right' },
   { key: 'unidad',    label: 'Unidad',      type: 'text'   },
-  { key: 'precio',    label: 'P. unit.',    type: 'number' },
-  { key: 'total',     label: 'Total',       type: 'number' },
+  { key: 'precio',    label: 'P. unit.',    type: 'number', align: 'right' },
+  { key: 'total',     label: 'Total',       type: 'number', align: 'right' },
   { key: 'moneda',    label: 'Moneda',      type: 'text'   },
   { key: 'estado',    label: 'Estado',      type: 'text'   },
   { key: 'fespera',   label: 'F. esperada', type: 'date'   },
@@ -95,36 +96,6 @@ async function apiErrorMessage(res, fallback) {
   return translateApiError(body, fallback);
 }
 
-// ── TH ordenable (hoisteado a módulo: evita remount de todo el header en cada
-//    tecla tipeada en la búsqueda — audit #16) ───────────────────────────────
-function SortTh({ col, sortField, sortDir, hasFilter, onSort, onOpenFilter }) {
-  const isSort = sortField === col.key;
-  return (
-    <th
-      className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
-      aria-sort={isSort ? (sortDir === 'desc' ? 'descending' : 'ascending') : 'none'}
-      tabIndex={0}
-      onClick={() => onSort(col.key)}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(col.key); } }}
-    >
-      <span className="sh-th-content">
-        {col.label}
-        <span className="sh-th-arrow" aria-hidden="true">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
-        <button
-          type="button"
-          className={`sh-th-funnel aur-touch-target${hasFilter ? ' is-active' : ''}`}
-          aria-label={`Filtrar por ${col.label}${hasFilter ? ' (filtro activo)' : ''}`}
-          title={`Filtrar por ${col.label}`}
-          onClick={e => onOpenFilter(e, col.key, col.type)}
-          onKeyDown={e => e.stopPropagation()}
-        >
-          <FiFilter size={13} />
-        </button>
-      </span>
-    </th>
-  );
-}
-
 // ── Página principal ─────────────────────────────────────────────────────────
 function IncomeRecords() {
   const apiFetch = useApiFetch();
@@ -138,48 +109,38 @@ function IncomeRecords() {
   const [confirmDelete, setConfirmDelete] = useState(null); // registro completo
   const [deleting, setDeleting] = useState(false);
   const [recentId, setRecentId] = useState(null); // highlight de fila recién tocada
-
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState('fecha');
-  const [sortDir,   setSortDir]   = useState('desc');
-  const [colFilters, setColFilters] = useState({});
-  const [filterPopover, setFilterPopover] = useState(null);
-  const [colMenu, setColMenu] = useState(null);
 
-  // Visibilidad de columnas con preset compacto/completo persistido.
+  // Snapshot de la vista filtrada+ordenada del data-table, para que el CSV
+  // exporte exactamente lo que se ve (lo alimenta AuroraDataTable).
+  const displayRef = useRef([]);
+
+  // Visibilidad de columnas con preset compacto/completo persistido. Se pasa
+  // a AuroraDataTable en modo controlado (la persistencia vive acá).
   const { visibleColumns, isVisible, toggleColumn, isCompact, setMode } =
     useTableColumnPreset(COLUMN_DEFS, COMPACT_KEYS, 'aurora_income_columns');
   const visibleColsMap = useMemo(
     () => Object.fromEntries(COLUMNS.map(c => [c.key, isVisible(c.key)])),
     [isVisible]
   );
-  const hiddenCount = COLUMNS.length - visibleColumns.length;
 
   const [rowMenu, setRowMenu] = useState(null);
   const [rowMenuPos, setRowMenuPos] = useState({ top: 0, right: 0 });
 
-  // Cierra el kebab al hacer click fuera.
+  // Cierra el kebab al click fuera / scroll / resize (el dropdown es fixed y
+  // si no queda flotando desanclado de su fila).
   useEffect(() => {
     if (rowMenu === null) return;
     const close = () => setRowMenu(null);
     document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [rowMenu]);
-
-  // Los overlays porteados (menú de columnas, popover de filtro, kebab) se
-  // posicionan con coordenadas fixed calculadas al abrir; si el usuario
-  // scrollea o rota el dispositivo quedarían flotando despegados de su ancla.
-  // Los cerramos ante scroll/resize (audit #7).
-  useEffect(() => {
-    if (!colMenu && !filterPopover && rowMenu === null) return;
-    const close = () => { setColMenu(null); setFilterPopover(null); setRowMenu(null); };
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
     return () => {
+      document.removeEventListener('pointerdown', close);
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('resize', close);
     };
-  }, [colMenu, filterPopover, rowMenu]);
+  }, [rowMenu]);
 
   // Limpia el highlight de la fila recién tocada tras un par de segundos.
   useEffect(() => {
@@ -257,95 +218,14 @@ function IncomeRecords() {
   const startCreate = () => { setEditing(null); setShowForm(true); };
   const cancel = () => { setShowForm(false); setEditing(null); };
 
-  // ── Sort / filtros de columna ─────────────────────────────────────────────
-  const handleThSort = (field) => {
-    if (sortField !== field) { setSortField(field); setSortDir('desc'); }
-    else if (sortDir === 'desc') { setSortDir('asc'); }
-    else { setSortField(null); setSortDir(null); }
-  };
-
-  const openColFilter = (e, field, type) => {
-    e.stopPropagation();
-    if (filterPopover?.field === field) { setFilterPopover(null); return; }
-    const th = e.currentTarget.closest('th') ?? e.currentTarget;
-    const rect = th.getBoundingClientRect();
-    setFilterPopover({ field, type, x: rect.left, y: rect.bottom + 4 });
-  };
-
-  const setColFilter = (field, type, key, val) => {
-    setColFilters(prev => {
-      const cur = prev[field] || (type === 'text' ? { text: '' } : { from: '', to: '' });
-      const updated = { ...cur, [key]: val };
-      const isEmpty = type === 'text' ? !updated.text : !updated.from && !updated.to;
-      if (isEmpty) {
-        const { [field]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [field]: updated };
-    });
-  };
-
-  const clearColFilter = (field, type) => {
-    if (type === 'text') setColFilter(field, type, 'text', '');
-    else { setColFilter(field, type, 'from', ''); setColFilter(field, type, 'to', ''); }
-  };
-
-  const handleColBtnClick = (e) => {
-    e.stopPropagation();
-    const r = e.currentTarget.getBoundingClientRect();
-    // Clamp al viewport: con 185px de ancho estimado el menú no se sale por la
-    // izquierda en pantallas angostas (audit #18).
-    const x = Math.max(8, Math.min(r.right - 185, window.innerWidth - 193));
-    setColMenu({ x, y: r.bottom + 4 });
-  };
-
-  // ── Datos derivados ──────────────────────────────────────────────────────
-  const displayData = useMemo(() => {
-    let data = [...records];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      data = data.filter(r => [r.buyerName, r.loteNombre, r.unit, r.currency, r.collectionStatus]
-        .some(v => v && String(v).toLowerCase().includes(q)));
-    }
-
-    const activeColFilters = Object.entries(colFilters).filter(([, fv]) => {
-      if (fv.text !== undefined) return fv.text.trim();
-      return fv.from || fv.to;
-    });
-
-    if (activeColFilters.length > 0) {
-      data = data.filter(r => {
-        for (const [key, fv] of activeColFilters) {
-          const col = COLUMNS.find(c => c.key === key);
-          if (!col) continue;
-          const val = getColVal(r, key);
-          if (col.type === 'text') {
-            if (fv.text && !String(val).includes(fv.text.toLowerCase())) return false;
-          } else if (col.type === 'date') {
-            if (!val) return false;
-            if (fv.from && val < fv.from) return false;
-            if (fv.to   && val > fv.to)   return false;
-          } else if (col.type === 'number') {
-            if (fv.from !== '' && fv.from !== undefined && Number(val) < Number(fv.from)) return false;
-            if (fv.to   !== '' && fv.to   !== undefined && Number(val) > Number(fv.to))   return false;
-          }
-        }
-        return true;
-      });
-    }
-
-    if (sortField && sortDir) {
-      data.sort((a, b) => {
-        const av = getColVal(a, sortField);
-        const bv = getColVal(b, sortField);
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-
-    return data;
-  }, [records, searchQuery, colFilters, sortField, sortDir]);
+  // ── Búsqueda global (page-level). AuroraDataTable hace el filtro por columna
+  //    y el orden sobre este subconjunto ya buscado. ─────────────────────────
+  const searchedData = useMemo(() => {
+    if (!searchQuery.trim()) return records;
+    const q = searchQuery.trim().toLowerCase();
+    return records.filter(r => [r.buyerName, r.loteNombre, r.unit, r.currency, r.collectionStatus]
+      .some(v => v && String(v).toLowerCase().includes(q)));
+  }, [records, searchQuery]);
 
   const exportCSV = useCallback(() => {
     const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -357,7 +237,7 @@ function IncomeRecords() {
       headerCells.push(escape(c.label));
       if (c.key === 'total') headerCells.push(escape('Total (CRC)'));
     });
-    const rows = displayData.map(r => {
+    const rows = displayRef.current.map(r => {
       const cells = [];
       COLUMNS.forEach(col => {
         cells.push(escape(csvCellValue(r, col.key)));
@@ -375,31 +255,102 @@ function IncomeRecords() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [displayData]);
+  }, []);
 
-  // ── Stats (agregan en CRC vía totalAmountCRC) ─────────────────────────────
-  const stats = useMemo(() => {
-    const totalPendiente = displayData
+  // ── Stats bar (renderSummary). Agrega en CRC vía totalAmountCRC y refleja
+  //    búsqueda + filtros de columna (recibe la data ya filtrada). ───────────
+  const renderSummary = (rows) => {
+    const totalPendiente = rows
       .filter(r => r.collectionStatus === 'pendiente')
       .reduce((s, r) => s + (Number(r.totalAmountCRC) || Number(r.totalAmount) || 0), 0);
-    const totalCobrado = displayData
+    const totalCobrado = rows
       .filter(r => r.collectionStatus === 'cobrado')
       .reduce((s, r) => s + (Number(r.totalAmountCRC) || Number(r.totalAmount) || 0), 0);
-    return { totalPendiente, totalCobrado };
-  }, [displayData]);
+    return (
+      <div className="sh-stats-bar">
+        <div className="sh-stat">
+          <span className="sh-stat-value">{rows.length}</span>
+          <span className="sh-stat-label">Registros</span>
+        </div>
+        <div className="sh-stat-divider" />
+        <div className="sh-stat">
+          <span className="sh-stat-value">{formatMoney(totalPendiente)}</span>
+          <span className="sh-stat-label">Pendiente (CRC)</span>
+        </div>
+        <div className="sh-stat-divider" />
+        <div className="sh-stat">
+          <span className="sh-stat-value sh-stat-green">{formatMoney(totalCobrado)}</span>
+          <span className="sh-stat-label">Cobrado (CRC)</span>
+        </div>
+      </div>
+    );
+  };
 
-  const filtersActive = Object.keys(colFilters).length > 0 || Boolean(searchQuery);
+  // ── Celdas de cada fila (AuroraDataTable provee thead/sort/filtros/col-menu) ─
+  const renderRow = (r, vis) => {
+    const pill = STATUS_BADGE_VARIANT[r.collectionStatus] || STATUS_BADGE_VARIANT.pendiente;
+    const dispCount = dispatchCount(r);
+    const isForeignCurrency = r.currency && r.currency !== 'CRC' && r.totalAmountCRC != null;
+    return (
+      <>
+        {vis.fecha     && <td className="td-readonly">{formatShortDate(r.date)}</td>}
+        {vis.comprador && <td>{r.buyerName || '—'}</td>}
+        {vis.lote      && <td>{r.loteNombre || '—'}</td>}
+        {vis.despachos && <td className="aur-td-num">{dispCount || '—'}</td>}
+        {vis.cantidad  && <td className="aur-td-num">{formatNumber(r.quantity)}</td>}
+        {vis.unidad    && <td>{r.unit || '—'}</td>}
+        {vis.precio    && <td className="aur-td-num">{formatPrice(r.unitPrice)}</td>}
+        {vis.total     && (
+          <td
+            className="aur-td-num td-calc"
+            title={isForeignCurrency ? `≈ ${formatMoney(r.totalAmountCRC)}` : undefined}
+          >
+            {formatMoney(r.totalAmount, r.currency)}
+          </td>
+        )}
+        {vis.moneda    && <td>{r.currency || '—'}</td>}
+        {vis.estado    && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
+        {vis.fespera   && <td className="td-readonly">{formatShortDate(r.expectedCollectionDate)}</td>}
+        {vis.fcobro    && <td className="td-readonly">{formatShortDate(r.actualCollectionDate)}</td>}
+      </>
+    );
+  };
+
+  // Columna de acciones (kebab) — va como trailingCell del data-table.
+  const trailingCell = (r) => (
+    <td>
+      <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
+        <button
+          className="hist-kebab-btn aur-touch-target"
+          title="Más acciones"
+          aria-label={`Acciones para el ingreso de ${r.buyerName || 'comprador'}`}
+          aria-haspopup="menu"
+          aria-expanded={rowMenu === r.id}
+          onClick={e => {
+            if (rowMenu === r.id) { setRowMenu(null); return; }
+            const rect = e.currentTarget.getBoundingClientRect();
+            setRowMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+            setRowMenu(r.id);
+          }}
+        >
+          <FiMoreVertical size={16} />
+        </button>
+      </div>
+    </td>
+  );
 
   return (
     <div className="lote-page">
-      <div className="lote-page-header">
-        <h2 className="lote-page-title"><FiDollarSign /> Ingresos</h2>
-        {!showForm && (
+      <PageHeader
+        level={2}
+        icon={<FiDollarSign />}
+        title="Ingresos"
+        actions={!showForm && (
           <button className="aur-btn-pill" onClick={startCreate}>
             <FiPlus /> Nuevo ingreso
           </button>
         )}
-      </div>
+      />
 
       {showForm && (
         <IncomeForm
@@ -431,24 +382,6 @@ function IncomeRecords() {
           </div>
         ) : (
           <>
-            {/* ── Stats bar ──────────────────────────────────────────── */}
-            <div className="sh-stats-bar">
-              <div className="sh-stat">
-                <span className="sh-stat-value">{displayData.length}</span>
-                <span className="sh-stat-label">Registros</span>
-              </div>
-              <div className="sh-stat-divider" />
-              <div className="sh-stat">
-                <span className="sh-stat-value">{formatMoney(stats.totalPendiente)}</span>
-                <span className="sh-stat-label">Pendiente (CRC)</span>
-              </div>
-              <div className="sh-stat-divider" />
-              <div className="sh-stat">
-                <span className="sh-stat-value sh-stat-green">{formatMoney(stats.totalCobrado)}</span>
-                <span className="sh-stat-label">Cobrado (CRC)</span>
-              </div>
-            </div>
-
             {/* ── Búsqueda global ────────────────────────────────────── */}
             <div className="fin-search-wrap">
               <FiSearch size={14} className="fin-search-icon" />
@@ -466,15 +399,30 @@ function IncomeRecords() {
               )}
             </div>
 
-            {/* ── Tabla ──────────────────────────────────────────────── */}
-            <div className="siembra-historial sh-table-card">
-              <div className="historial-top-row">
-                <span className="sh-result-count" aria-live="polite">
-                  {displayData.length === records.length
-                    ? `${records.length} registros`
-                    : `${displayData.length} de ${records.length} registros`}
-                </span>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
+            <AuroraDataTable
+              columns={COLUMNS}
+              data={searchedData}
+              getColVal={getColVal}
+              initialSort={{ field: 'fecha', dir: 'desc' }}
+              firstClickDir="desc"
+              visibleCols={visibleColsMap}
+              onToggleVisibleCol={toggleColumn}
+              rowKey={(r) => r.id}
+              renderRow={renderRow}
+              rowClassName={(r) => [
+                r.collectionStatus === 'anulado' ? 'row-inactive' : '',
+                r.id === recentId ? 'row-recent' : '',
+              ].filter(Boolean).join(' ')}
+              tableClassName="fin-historial-table"
+              trailingHead={<th aria-hidden="true" />}
+              trailingCell={trailingCell}
+              renderSummary={renderSummary}
+              onDisplayDataChange={(d) => { displayRef.current = d; }}
+              resultLabel={(f) => (f === records.length ? `${records.length} registros` : `${f} de ${records.length} registros`)}
+              emptyText="No hay registros con los filtros aplicados."
+              emptyIcon={FiDollarSign}
+              toolbarActions={
+                <>
                   <button
                     className={`fin-table-btn${isCompact ? ' is-active' : ''}`}
                     onClick={() => setMode(isCompact ? 'full' : 'compact')}
@@ -483,131 +431,14 @@ function IncomeRecords() {
                     <FiLayout size={11} />
                     {isCompact ? `Mostrar todas (${COLUMNS.length} cols)` : 'Vista compacta'}
                   </button>
-                  {filtersActive && (
-                    <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
-                      <FiX size={11} /> Limpiar filtros
-                    </button>
-                  )}
                   <button className="fin-table-btn" onClick={exportCSV} title="Exportar CSV">
                     <FiDownload size={11} /> CSV
                   </button>
-                </div>
-              </div>
-
-              {displayData.length === 0 ? (
-                <p className="empty-state">No hay registros con los filtros aplicados.</p>
-              ) : (
-                <div className="siembra-table-wrapper">
-                  <table className="siembra-table siembra-table-historial">
-                    <caption className="aur-sr-only">Ingresos registrados</caption>
-                    <thead>
-                      <tr>
-                        {visibleColumns.map(col => (
-                          <SortTh
-                            key={col.key}
-                            col={col}
-                            sortField={sortField}
-                            sortDir={sortDir}
-                            hasFilter={!!colFilters[col.key]}
-                            onSort={handleThSort}
-                            onOpenFilter={openColFilter}
-                          />
-                        ))}
-                        <th className="sh-th-settings">
-                          <button
-                            className={`sh-col-toggle-btn aur-touch-target${hiddenCount > 0 ? ' sh-col-toggle-btn--active' : ''}`}
-                            onClick={handleColBtnClick}
-                            title="Personalizar columnas"
-                            aria-label="Personalizar columnas visibles"
-                          >
-                            <FiSliders size={12} />
-                            {hiddenCount > 0 && (
-                              <span className="sh-col-hidden-badge">{hiddenCount}</span>
-                            )}
-                          </button>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayData.map(r => {
-                        const pill = STATUS_BADGE_VARIANT[r.collectionStatus] || STATUS_BADGE_VARIANT.pendiente;
-                        const dispCount = dispatchCount(r);
-                        const isForeignCurrency = r.currency && r.currency !== 'CRC' && r.totalAmountCRC != null;
-                        // row-inactive atenúa la fila anulada (row-anulado no tenía
-                        // CSS — audit #2); row-recent le da un flash a la recién tocada.
-                        const rowCls = [
-                          r.collectionStatus === 'anulado' ? 'row-inactive' : '',
-                          r.id === recentId ? 'row-recent' : '',
-                        ].filter(Boolean).join(' ');
-                        return (
-                          <tr key={r.id} className={rowCls}>
-                            {isVisible('fecha')     && <td className="td-readonly">{formatShortDate(r.date)}</td>}
-                            {isVisible('comprador') && <td>{r.buyerName || '—'}</td>}
-                            {isVisible('lote')      && <td>{r.loteNombre || '—'}</td>}
-                            {isVisible('despachos') && <td className="td-num">{dispCount || '—'}</td>}
-                            {isVisible('cantidad')  && <td className="td-num">{formatNumber(r.quantity)}</td>}
-                            {isVisible('unidad')    && <td>{r.unit || '—'}</td>}
-                            {isVisible('precio')    && <td className="td-num">{formatPrice(r.unitPrice)}</td>}
-                            {isVisible('total')     && (
-                              <td
-                                className="td-num td-calc"
-                                title={isForeignCurrency ? `≈ ${formatMoney(r.totalAmountCRC)}` : undefined}
-                              >
-                                {formatMoney(r.totalAmount, r.currency)}
-                              </td>
-                            )}
-                            {isVisible('moneda')    && <td>{r.currency || '—'}</td>}
-                            {isVisible('estado')    && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
-                            {isVisible('fespera')   && <td className="td-readonly">{formatShortDate(r.expectedCollectionDate)}</td>}
-                            {isVisible('fcobro')    && <td className="td-readonly">{formatShortDate(r.actualCollectionDate)}</td>}
-                            <td>
-                              <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
-                                <button
-                                  className="hist-kebab-btn aur-touch-target"
-                                  title="Más acciones"
-                                  aria-label={`Acciones para el ingreso de ${r.buyerName || 'comprador'}`}
-                                  aria-haspopup="menu"
-                                  aria-expanded={rowMenu === r.id}
-                                  onClick={e => {
-                                    if (rowMenu === r.id) { setRowMenu(null); return; }
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setRowMenuPos({
-                                      top: rect.bottom + 4,
-                                      right: window.innerWidth - rect.right,
-                                    });
-                                    setRowMenu(r.id);
-                                  }}
-                                >
-                                  <FiMoreVertical size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                </>
+              }
+            />
           </>
         )
-      )}
-
-      {/* ── Menú de columnas ────────────────────────────────────────── */}
-      {colMenu && (
-        <ColMenu x={colMenu.x} y={colMenu.y} columns={COLUMNS} visibleCols={visibleColsMap} onToggle={toggleColumn} onClose={() => setColMenu(null)} />
-      )}
-
-      {/* ── Popover de filtro de columna ────────────────────────────── */}
-      {filterPopover && (
-        <ColFilterPopover
-          popover={filterPopover}
-          value={colFilters[filterPopover.field]}
-          onChange={(key, val) => setColFilter(filterPopover.field, filterPopover.type, key, val)}
-          onClear={() => clearColFilter(filterPopover.field, filterPopover.type)}
-          onClose={() => setFilterPopover(null)}
-        />
       )}
 
       {/* ── Kebab dropdown ──────────────────────────────────────────── */}

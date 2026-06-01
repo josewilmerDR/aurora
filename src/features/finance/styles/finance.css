@@ -26,21 +26,24 @@
 /* `row-anulado` no tenía CSS en ninguna parte (clase muerta); las filas
    inactivas nunca se atenuaban. `row-inactive` sí las distingue. Mismo
    criterio que .pg-row-inactive en inventory/agroquimicos.css. */
-.siembra-table-historial tbody tr.row-inactive td {
+/* Tabla de finance: AuroraDataTable con tableClassName="fin-historial-table". */
+.fin-historial-table tbody tr.row-inactive td {
   opacity: 0.5;
 }
-.siembra-table-historial tbody tr.row-inactive:hover td {
+.fin-historial-table tbody tr.row-inactive:hover td {
   opacity: 0.75;
 }
-/* La columna de acciones (kebab) no se atenúa: debe seguir siendo usable
-   para reactivar la fila. */
-.siembra-table-historial tbody tr.row-inactive td:last-child {
+/* La columna de acciones (kebab) no se atenúa: debe seguir siendo usable para
+   reactivar la fila. AuroraDataTable agrega un <td/> de cierre tras las
+   acciones, así que el kebab es la penúltima celda (no la última). */
+.fin-historial-table tbody tr.row-inactive td:last-child,
+.fin-historial-table tbody tr.row-inactive td:nth-last-child(2) {
   opacity: 1;
 }
 
 /* Flash sutil de la fila recién creada/editada/togglada, para que el usuario
    la localice tras la acción (el toast no la ubica en una lista larga). */
-.siembra-table-historial tbody tr.row-recent td {
+.fin-historial-table tbody tr.row-recent td {
   animation: fin-row-flash 2s ease-out;
 }
 @keyframes fin-row-flash {
@@ -48,7 +51,7 @@
   100% { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .siembra-table-historial tbody tr.row-recent td { animation: none; }
+  .fin-historial-table tbody tr.row-recent td { animation: none; }
 }
 
 /* ── Layout master-detail ───────────────────────────────────────────────
@@ -119,20 +122,6 @@
 
 
 /* ── Page-level helpers compartidos por las páginas de finance ─────────── */
-.lote-page-title-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* aur-btn-text ya provee color/typography del back-link; este slim sólo
-   reduce el tamaño de fuente para que el link encaje bajo el título. */
-.aur-btn-text.fin-back-link {
-  font-size: var(--aur-fs-caption);
-  padding: 0;
-  align-self: flex-start;
-}
-
 .fin-page-empty-hint {
   margin: 0;
   font-size: var(--aur-fs-footnote);
