@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 
 /**
  * useFinanceResource — fetch GET con manejo correcto de errores HTTP y retry.
@@ -35,12 +36,24 @@ export function useFinanceResource(url, { errorMessage = 'No se pudo cargar la i
     if (!url) return undefined;
     let cancelled = false;
     apiFetch(url)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      .then(async (r) => {
+        if (!r.ok) {
+          // Parseamos el body de error para traducir códigos accionables
+          // (403 INSUFFICIENT_ROLE, 429 RATE_LIMITED, …) con el mismo mapa que
+          // usa el resto de la app; `errorMessage` queda como fallback para
+          // 5xx/desconocidos. La bandera userFacing distingue este error
+          // traducido de un fallo de red (fetch reject), que NO debe exponer
+          // su mensaje crudo al usuario.
+          let body = null;
+          try { body = await r.json(); } catch { /* body vacío o no-JSON */ }
+          const e = new Error(translateApiError(body, errorMessage));
+          e.userFacing = true;
+          throw e;
+        }
         return r.json();
       })
       .then((d) => { if (!cancelled) setData(d); })
-      .catch(() => { if (!cancelled) setError(errorMessage); })
+      .catch((err) => { if (!cancelled) setError(err?.userFacing ? err.message : errorMessage); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [apiFetch, url, nonce, errorMessage]);
