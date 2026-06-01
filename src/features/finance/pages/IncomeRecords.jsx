@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import {
   FiPlus, FiDollarSign, FiFilter, FiX, FiSliders,
-  FiMoreVertical, FiEdit2, FiTrash2, FiPackage, FiSearch,
-  FiLayout, FiDownload,
+  FiMoreVertical, FiEdit2, FiTrash2, FiSearch,
+  FiLayout, FiDownload, FiAlertTriangle, FiRefreshCw,
 } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraSkeleton from '../../../components/ui/AuroraSkeleton';
 import IncomeForm from '../components/IncomeForm';
-import { ColMenu, ColFilterPopover } from '../components/table/SortableTable';
+import { ColMenu, ColFilterPopover, RowKebabMenu } from '../components/table/SortableTable';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { formatMoney, formatNumber } from '../../../lib/formatMoney';
+import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
+import { translateApiError } from '../../../lib/errorMessages';
+import { formatMoney, formatNumber, formatPrice } from '../../../lib/formatMoney';
+import { formatShortDate } from '../../../lib/formatDate';
 import '../../planting/styles/siembra.css';
 import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
@@ -31,32 +34,10 @@ const COLUMNS = [
   { key: 'fcobro',    label: 'F. cobrada',  type: 'date'   },
 ];
 
-const ALL_COLS_VISIBLE = Object.fromEntries(COLUMNS.map(c => [c.key, true]));
-
-const COMPACT_COLS_KEYS = new Set(['fecha', 'comprador', 'lote', 'total', 'estado']);
-const COMPACT_COLS = Object.fromEntries(COLUMNS.map(c => [c.key, COMPACT_COLS_KEYS.has(c.key)]));
-
-// Persistencia de la preferencia de columnas. Default es el preset compacto
-// (5 cols) por audit UX: la vista de 12 cols abrumaba al usuario casual.
-// Cuando el usuario togglea columnas guardamos su selección exacta y la
-// rehidratamos en el siguiente render.
-const COLUMN_PREF_STORAGE_KEY = 'aurora_income_columns';
-function loadColumnPref() {
-  try {
-    const raw = localStorage.getItem(COLUMN_PREF_STORAGE_KEY);
-    if (!raw) return COMPACT_COLS;
-    const parsed = JSON.parse(raw);
-    // Reconstruimos sobre la definición vigente; columnas nuevas (que el
-    // usuario nunca vio) entran como visibles por default.
-    const next = {};
-    for (const c of COLUMNS) {
-      next[c.key] = c.key in parsed ? Boolean(parsed[c.key]) : true;
-    }
-    return next;
-  } catch {
-    return COMPACT_COLS;
-  }
-}
+// `useTableColumnPreset` indexa por `id`; lo derivamos de `key`.
+const COLUMN_DEFS = COLUMNS.map(c => ({ id: c.key, ...c }));
+// Preset compacto (audit UX): la vista de 12 columnas abruma al usuario casual.
+const COMPACT_KEYS = ['fecha', 'comprador', 'lote', 'total', 'estado'];
 
 const STATUS_BADGE_VARIANT = {
   pendiente: { label: 'Pendiente', cls: 'aur-badge--magenta' },
@@ -64,25 +45,84 @@ const STATUS_BADGE_VARIANT = {
   anulado:   { label: 'Anulado',   cls: 'aur-badge--gray' },
 };
 
-const formatFecha = (iso) =>
-  iso ? new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const dispatchCount = (r) =>
+  Array.isArray(r.despachoIds) ? r.despachoIds.length : (r.despachoId ? 1 : 0);
 
+// getColVal devuelve el valor que se ORDENA y FILTRA. Las fechas se recortan a
+// `YYYY-MM-DD`: si el doc trae componente de hora, la comparación lexicográfica
+// del filtro de rango excluía el día exacto del límite "A" (audit #20).
 function getColVal(r, key) {
   switch (key) {
-    case 'fecha':     return r.date || '';
+    case 'fecha':     return (r.date || '').slice(0, 10);
     case 'comprador': return (r.buyerName || '').toLowerCase();
     case 'lote':      return (r.loteNombre || '').toLowerCase();
-    case 'despachos': return Array.isArray(r.despachoIds) ? r.despachoIds.length : 0;
+    case 'despachos': return dispatchCount(r);
     case 'cantidad':  return Number(r.quantity) || 0;
     case 'unidad':    return (r.unit || '').toLowerCase();
     case 'precio':    return Number(r.unitPrice) || 0;
     case 'total':     return Number(r.totalAmountCRC) || Number(r.totalAmount) || 0;
     case 'moneda':    return (r.currency || '').toLowerCase();
     case 'estado':    return (r.collectionStatus || '').toLowerCase();
+    case 'fespera':   return (r.expectedCollectionDate || '').slice(0, 10);
+    case 'fcobro':    return (r.actualCollectionDate || '').slice(0, 10);
+    default:          return '';
+  }
+}
+
+// Valor crudo para el CSV (sin normalizar a minúsculas/CRC; eso lo agrega la
+// columna "Total (CRC)" aparte).
+function csvCellValue(r, key) {
+  switch (key) {
+    case 'fecha':     return r.date || '';
+    case 'comprador': return r.buyerName || '';
+    case 'lote':      return r.loteNombre || '';
+    case 'despachos': return dispatchCount(r);
+    case 'cantidad':  return r.quantity ?? '';
+    case 'unidad':    return r.unit || '';
+    case 'precio':    return r.unitPrice ?? '';
+    case 'total':     return r.totalAmount ?? '';
+    case 'moneda':    return r.currency || '';
+    case 'estado':    return r.collectionStatus || '';
     case 'fespera':   return r.expectedCollectionDate || '';
     case 'fcobro':    return r.actualCollectionDate || '';
     default:          return '';
   }
+}
+
+// Extrae el mensaje en español del cuerpo de error del backend, con fallback.
+async function apiErrorMessage(res, fallback) {
+  const body = await res.json().catch(() => null);
+  return translateApiError(body, fallback);
+}
+
+// ── TH ordenable (hoisteado a módulo: evita remount de todo el header en cada
+//    tecla tipeada en la búsqueda — audit #16) ───────────────────────────────
+function SortTh({ col, sortField, sortDir, hasFilter, onSort, onOpenFilter }) {
+  const isSort = sortField === col.key;
+  return (
+    <th
+      className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilter ? ' has-col-filter' : ''}`}
+      aria-sort={isSort ? (sortDir === 'desc' ? 'descending' : 'ascending') : 'none'}
+      tabIndex={0}
+      onClick={() => onSort(col.key)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(col.key); } }}
+    >
+      <span className="sh-th-content">
+        {col.label}
+        <span className="sh-th-arrow" aria-hidden="true">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
+        <button
+          type="button"
+          className={`sh-th-funnel aur-touch-target${hasFilter ? ' is-active' : ''}`}
+          aria-label={`Filtrar por ${col.label}${hasFilter ? ' (filtro activo)' : ''}`}
+          title={`Filtrar por ${col.label}`}
+          onClick={e => onOpenFilter(e, col.key, col.type)}
+          onKeyDown={e => e.stopPropagation()}
+        >
+          <FiFilter size={13} />
+        </button>
+      </span>
+    </th>
+  );
 }
 
 // ── Página principal ─────────────────────────────────────────────────────────
@@ -90,32 +130,35 @@ function IncomeRecords() {
   const apiFetch = useApiFetch();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // registro completo
+  const [deleting, setDeleting] = useState(false);
+  const [recentId, setRecentId] = useState(null); // highlight de fila recién tocada
 
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('fecha');
   const [sortDir,   setSortDir]   = useState('desc');
   const [colFilters, setColFilters] = useState({});
   const [filterPopover, setFilterPopover] = useState(null);
-  const [visibleCols, setVisibleCols] = useState(loadColumnPref);
   const [colMenu, setColMenu] = useState(null);
 
-  // Persistencia: cada vez que cambia la selección, la guardamos. Errores
-  // (quota, modo privado) se silencian — la app sigue funcional sin la pref.
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLUMN_PREF_STORAGE_KEY, JSON.stringify(visibleCols));
-    } catch {
-      /* ignore */
-    }
-  }, [visibleCols]);
+  // Visibilidad de columnas con preset compacto/completo persistido.
+  const { visibleColumns, isVisible, toggleColumn, isCompact, setMode } =
+    useTableColumnPreset(COLUMN_DEFS, COMPACT_KEYS, 'aurora_income_columns');
+  const visibleColsMap = useMemo(
+    () => Object.fromEntries(COLUMNS.map(c => [c.key, isVisible(c.key)])),
+    [isVisible]
+  );
+  const hiddenCount = COLUMNS.length - visibleColumns.length;
 
   const [rowMenu, setRowMenu] = useState(null);
   const [rowMenuPos, setRowMenuPos] = useState({ top: 0, right: 0 });
+
+  // Cierra el kebab al hacer click fuera.
   useEffect(() => {
     if (rowMenu === null) return;
     const close = () => setRowMenu(null);
@@ -123,16 +166,46 @@ function IncomeRecords() {
     return () => document.removeEventListener('pointerdown', close);
   }, [rowMenu]);
 
-  const showToast = (msg, type = 'success') => setToast({ message: msg, type });
+  // Los overlays porteados (menú de columnas, popover de filtro, kebab) se
+  // posicionan con coordenadas fixed calculadas al abrir; si el usuario
+  // scrollea o rota el dispositivo quedarían flotando despegados de su ancla.
+  // Los cerramos ante scroll/resize (audit #7).
+  useEffect(() => {
+    if (!colMenu && !filterPopover && rowMenu === null) return;
+    const close = () => { setColMenu(null); setFilterPopover(null); setRowMenu(null); };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [colMenu, filterPopover, rowMenu]);
+
+  // Limpia el highlight de la fila recién tocada tras un par de segundos.
+  useEffect(() => {
+    if (!recentId) return;
+    const t = setTimeout(() => setRecentId(null), 2000);
+    return () => clearTimeout(t);
+  }, [recentId]);
 
   // ── Carga ─────────────────────────────────────────────────────────────────
-  const load = useCallback(() => {
-    setLoading(true);
+  // load(silent): el primer load muestra el skeleton; los refrescos posteriores
+  // (tras guardar) son silenciosos para no desmontar la tabla y provocar flash.
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
+    setLoadError(null);
     apiFetch('/api/income')
-      .then(r => r.json())
-      .then(data => setRecords(Array.isArray(data) ? data : []))
-      .catch(() => setToast({ type: 'error', message: 'No se pudo cargar el historial.' }))
-      .finally(() => setLoading(false));
+      .then(async (r) => {
+        if (!r.ok) {
+          setRecords([]);
+          setLoadError(await apiErrorMessage(r, 'No se pudo cargar el historial de ingresos.'));
+          return;
+        }
+        const data = await r.json();
+        setRecords(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setLoadError('No se pudo cargar el historial de ingresos. Revisá tu conexión.'))
+      .finally(() => { if (!silent) setLoading(false); });
   }, [apiFetch]);
 
   useEffect(() => { load(); }, [load]);
@@ -143,20 +216,20 @@ function IncomeRecords() {
     const isEdit = Boolean(payload.id);
     const url = isEdit ? `/api/income/${payload.id}` : '/api/income';
     const method = isEdit ? 'PUT' : 'POST';
+    const { id: _omit, ...createBody } = payload; // no mandar id en el body del POST (#22)
     try {
       const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(isEdit ? payload : createBody),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Error al guardar.');
-      }
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'No se pudo guardar el ingreso.'));
+      const out = await res.json().catch(() => ({}));
       setToast({ type: 'success', message: isEdit ? 'Ingreso actualizado.' : 'Ingreso registrado.' });
+      setRecentId(out.id || payload.id || null);
       setShowForm(false);
       setEditing(null);
-      load();
+      load(true);
     } catch (e) {
       setToast({ type: 'error', message: e.message });
     } finally {
@@ -166,15 +239,17 @@ function IncomeRecords() {
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      const res = await apiFetch(`/api/income/${confirmDelete}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Error al eliminar.');
+      const res = await apiFetch(`/api/income/${confirmDelete.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await apiErrorMessage(res, 'No se pudo eliminar el ingreso.'));
       setToast({ type: 'success', message: 'Ingreso eliminado.' });
-      load();
+      setRecords(prev => prev.filter(r => r.id !== confirmDelete.id));
+      setConfirmDelete(null);
     } catch (e) {
       setToast({ type: 'error', message: e.message });
     } finally {
-      setConfirmDelete(null);
+      setDeleting(false);
     }
   };
 
@@ -210,18 +285,19 @@ function IncomeRecords() {
     });
   };
 
-  const toggleCol = (key) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
+  const clearColFilter = (field, type) => {
+    if (type === 'text') setColFilter(field, type, 'text', '');
+    else { setColFilter(field, type, 'from', ''); setColFilter(field, type, 'to', ''); }
+  };
+
   const handleColBtnClick = (e) => {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
-    setColMenu({ x: r.right - 185, y: r.bottom + 4 });
+    // Clamp al viewport: con 185px de ancho estimado el menú no se sale por la
+    // izquierda en pantallas angostas (audit #18).
+    const x = Math.max(8, Math.min(r.right - 185, window.innerWidth - 193));
+    setColMenu({ x, y: r.bottom + 4 });
   };
-
-  const isCompact = useMemo(
-    () => COLUMNS.every(c => visibleCols[c.key] === COMPACT_COLS[c.key]),
-    [visibleCols]
-  );
-  const applyCompactPreset = () => setVisibleCols(isCompact ? ALL_COLS_VISIBLE : COMPACT_COLS);
 
   // ── Datos derivados ──────────────────────────────────────────────────────
   const displayData = useMemo(() => {
@@ -273,25 +349,23 @@ function IncomeRecords() {
 
   const exportCSV = useCallback(() => {
     const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const headers = COLUMNS.map(c => escape(c.label));
-    const rows = displayData.map(r => COLUMNS.map(col => {
-      switch (col.key) {
-        case 'fecha':     return escape(r.date || '');
-        case 'comprador': return escape(r.buyerName || '');
-        case 'lote':      return escape(r.loteNombre || '');
-        case 'despachos': return escape(Array.isArray(r.despachoIds) ? r.despachoIds.length : (r.despachoId ? 1 : 0));
-        case 'cantidad':  return escape(r.quantity ?? '');
-        case 'unidad':    return escape(r.unit || '');
-        case 'precio':    return escape(r.unitPrice ?? '');
-        case 'total':     return escape(r.totalAmount ?? '');
-        case 'moneda':    return escape(r.currency || '');
-        case 'estado':    return escape(r.collectionStatus || '');
-        case 'fespera':   return escape(r.expectedCollectionDate || '');
-        case 'fcobro':    return escape(r.actualCollectionDate || '');
-        default:          return escape('');
-      }
-    }));
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\r\n');
+    // Insertamos "Total (CRC)" justo después de "Total": el CSV en moneda
+    // original no se puede sumar mezclando CRC/USD; esta columna da el
+    // equivalente normalizado que usan los stats (audit #14).
+    const headerCells = [];
+    COLUMNS.forEach(c => {
+      headerCells.push(escape(c.label));
+      if (c.key === 'total') headerCells.push(escape('Total (CRC)'));
+    });
+    const rows = displayData.map(r => {
+      const cells = [];
+      COLUMNS.forEach(col => {
+        cells.push(escape(csvCellValue(r, col.key)));
+        if (col.key === 'total') cells.push(escape(r.totalAmountCRC ?? r.totalAmount ?? ''));
+      });
+      return cells;
+    });
+    const csv = [headerCells, ...rows].map(row => row.join(',')).join('\r\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -303,7 +377,7 @@ function IncomeRecords() {
     URL.revokeObjectURL(url);
   }, [displayData]);
 
-  // ── Stats (usan totalAmountCRC para agregación) ──────────────────────────
+  // ── Stats (agregan en CRC vía totalAmountCRC) ─────────────────────────────
   const stats = useMemo(() => {
     const totalPendiente = displayData
       .filter(r => r.collectionStatus === 'pendiente')
@@ -314,30 +388,7 @@ function IncomeRecords() {
     return { totalPendiente, totalCobrado };
   }, [displayData]);
 
-  // ── TH sortable ──────────────────────────────────────────────────────────
-  const SortTh = ({ col, children }) => {
-    const isSort  = sortField === col.key;
-    const hasFilt = !!colFilters[col.key];
-    if (!visibleCols[col.key]) return null;
-    return (
-      <th
-        className={`sh-th-sortable${isSort ? ' is-sorted' : ''}${hasFilt ? ' has-col-filter' : ''}`}
-        onClick={() => handleThSort(col.key)}
-      >
-        <span className="sh-th-content">
-          {children}
-          <span className="sh-th-arrow">{isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}</span>
-          <span
-            className={`sh-th-funnel${hasFilt ? ' is-active' : ''}`}
-            onClick={e => openColFilter(e, col.key, col.type)}
-            title={`Filtrar por ${col.label}`}
-          >
-            <FiFilter size={13} />
-          </span>
-        </span>
-      </th>
-    );
-  };
+  const filtersActive = Object.keys(colFilters).length > 0 || Boolean(searchQuery);
 
   return (
     <div className="lote-page">
@@ -360,11 +411,19 @@ function IncomeRecords() {
       )}
 
       {!showForm && (
-        loading ? (
-          <p className="finance-empty">Cargando…</p>
+        loadError ? (
+          <div className="siembra-empty-state" role="alert">
+            <FiAlertTriangle size={36} />
+            <p>{loadError}</p>
+            <button className="aur-btn-pill" onClick={() => load()}>
+              <FiRefreshCw /> Reintentar
+            </button>
+          </div>
+        ) : loading ? (
+          <AuroraSkeleton variant="row" count={6} label="Cargando ingresos…" />
         ) : records.length === 0 ? (
           <div className="siembra-empty-state">
-            <FiPackage size={36} />
+            <FiDollarSign size={36} />
             <p>Aún no hay ingresos registrados.</p>
             <button className="aur-btn-pill" onClick={startCreate}>
               <FiPlus /> Registrar primer ingreso
@@ -381,12 +440,12 @@ function IncomeRecords() {
               <div className="sh-stat-divider" />
               <div className="sh-stat">
                 <span className="sh-stat-value">{formatMoney(stats.totalPendiente)}</span>
-                <span className="sh-stat-label">Pendiente</span>
+                <span className="sh-stat-label">Pendiente (CRC)</span>
               </div>
-              <div className="sh-stat-divider sh-stat-hide-mobile" />
-              <div className="sh-stat sh-stat-hide-mobile">
+              <div className="sh-stat-divider" />
+              <div className="sh-stat">
                 <span className="sh-stat-value sh-stat-green">{formatMoney(stats.totalCobrado)}</span>
-                <span className="sh-stat-label">Cobrado</span>
+                <span className="sh-stat-label">Cobrado (CRC)</span>
               </div>
             </div>
 
@@ -395,12 +454,13 @@ function IncomeRecords() {
               <FiSearch size={14} className="fin-search-icon" />
               <input
                 className="fin-search-input"
+                aria-label="Buscar ingresos"
                 placeholder="Buscar por comprador, lote, estado…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
               {searchQuery && (
-                <button className="fin-search-clear" onClick={() => setSearchQuery('')}>
+                <button className="fin-search-clear" onClick={() => setSearchQuery('')} aria-label="Limpiar búsqueda">
                   <FiX size={14} />
                 </button>
               )}
@@ -409,7 +469,7 @@ function IncomeRecords() {
             {/* ── Tabla ──────────────────────────────────────────────── */}
             <div className="siembra-historial sh-table-card">
               <div className="historial-top-row">
-                <span className="sh-result-count">
+                <span className="sh-result-count" aria-live="polite">
                   {displayData.length === records.length
                     ? `${records.length} registros`
                     : `${displayData.length} de ${records.length} registros`}
@@ -417,13 +477,13 @@ function IncomeRecords() {
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
                   <button
                     className={`fin-table-btn${isCompact ? ' is-active' : ''}`}
-                    onClick={applyCompactPreset}
-                    title={isCompact ? 'Volver a mostrar las 12 columnas' : 'Mostrar sólo Fecha · Comprador · Lote · Total · Estado'}
+                    onClick={() => setMode(isCompact ? 'full' : 'compact')}
+                    title={isCompact ? `Mostrar las ${COLUMNS.length} columnas` : 'Mostrar sólo Fecha · Comprador · Lote · Total · Estado'}
                   >
                     <FiLayout size={11} />
-                    {isCompact ? 'Mostrar todas (12 cols)' : 'Vista compacta (5 cols)'}
+                    {isCompact ? `Mostrar todas (${COLUMNS.length} cols)` : 'Vista compacta'}
                   </button>
-                  {(Object.keys(colFilters).length > 0 || searchQuery) && (
+                  {filtersActive && (
                     <button className="sh-clear-col-filters" onClick={() => { setColFilters({}); setSearchQuery(''); }}>
                       <FiX size={11} /> Limpiar filtros
                     </button>
@@ -439,20 +499,30 @@ function IncomeRecords() {
               ) : (
                 <div className="siembra-table-wrapper">
                   <table className="siembra-table siembra-table-historial">
+                    <caption className="co-sr-only">Ingresos registrados</caption>
                     <thead>
                       <tr>
-                        {COLUMNS.map(col => visibleCols[col.key] && (
-                          <SortTh key={col.key} col={col}>{col.label}</SortTh>
+                        {visibleColumns.map(col => (
+                          <SortTh
+                            key={col.key}
+                            col={col}
+                            sortField={sortField}
+                            sortDir={sortDir}
+                            hasFilter={!!colFilters[col.key]}
+                            onSort={handleThSort}
+                            onOpenFilter={openColFilter}
+                          />
                         ))}
                         <th className="sh-th-settings">
                           <button
-                            className={`sh-col-toggle-btn${Object.values(visibleCols).some(v => !v) ? ' sh-col-toggle-btn--active' : ''}`}
+                            className={`sh-col-toggle-btn aur-touch-target${hiddenCount > 0 ? ' sh-col-toggle-btn--active' : ''}`}
                             onClick={handleColBtnClick}
                             title="Personalizar columnas"
+                            aria-label="Personalizar columnas visibles"
                           >
                             <FiSliders size={12} />
-                            {Object.values(visibleCols).filter(v => !v).length > 0 && (
-                              <span className="sh-col-hidden-badge">{Object.values(visibleCols).filter(v => !v).length}</span>
+                            {hiddenCount > 0 && (
+                              <span className="sh-col-hidden-badge">{hiddenCount}</span>
                             )}
                           </button>
                         </th>
@@ -461,26 +531,43 @@ function IncomeRecords() {
                     <tbody>
                       {displayData.map(r => {
                         const pill = STATUS_BADGE_VARIANT[r.collectionStatus] || STATUS_BADGE_VARIANT.pendiente;
-                        const dispCount = Array.isArray(r.despachoIds) ? r.despachoIds.length : (r.despachoId ? 1 : 0);
+                        const dispCount = dispatchCount(r);
+                        const isForeignCurrency = r.currency && r.currency !== 'CRC' && r.totalAmountCRC != null;
+                        // row-inactive atenúa la fila anulada (row-anulado no tenía
+                        // CSS — audit #2); row-recent le da un flash a la recién tocada.
+                        const rowCls = [
+                          r.collectionStatus === 'anulado' ? 'row-inactive' : '',
+                          r.id === recentId ? 'row-recent' : '',
+                        ].filter(Boolean).join(' ');
                         return (
-                          <tr key={r.id} className={r.collectionStatus === 'anulado' ? 'row-anulado' : ''}>
-                            {visibleCols.fecha     && <td className="td-readonly">{formatFecha(r.date)}</td>}
-                            {visibleCols.comprador && <td>{r.buyerName || '—'}</td>}
-                            {visibleCols.lote      && <td>{r.loteNombre || '—'}</td>}
-                            {visibleCols.despachos && <td className="td-num">{dispCount || '—'}</td>}
-                            {visibleCols.cantidad  && <td className="td-num">{formatNumber(r.quantity)}</td>}
-                            {visibleCols.unidad    && <td>{r.unit || '—'}</td>}
-                            {visibleCols.precio    && <td className="td-num">{formatNumber(r.unitPrice, { decimals: 4 })}</td>}
-                            {visibleCols.total     && <td className="td-num td-calc">{formatMoney(r.totalAmount, r.currency)}</td>}
-                            {visibleCols.moneda    && <td>{r.currency || '—'}</td>}
-                            {visibleCols.estado    && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
-                            {visibleCols.fespera   && <td className="td-readonly">{formatFecha(r.expectedCollectionDate)}</td>}
-                            {visibleCols.fcobro    && <td className="td-readonly">{formatFecha(r.actualCollectionDate)}</td>}
+                          <tr key={r.id} className={rowCls}>
+                            {isVisible('fecha')     && <td className="td-readonly">{formatShortDate(r.date)}</td>}
+                            {isVisible('comprador') && <td>{r.buyerName || '—'}</td>}
+                            {isVisible('lote')      && <td>{r.loteNombre || '—'}</td>}
+                            {isVisible('despachos') && <td className="td-num">{dispCount || '—'}</td>}
+                            {isVisible('cantidad')  && <td className="td-num">{formatNumber(r.quantity)}</td>}
+                            {isVisible('unidad')    && <td>{r.unit || '—'}</td>}
+                            {isVisible('precio')    && <td className="td-num">{formatPrice(r.unitPrice)}</td>}
+                            {isVisible('total')     && (
+                              <td
+                                className="td-num td-calc"
+                                title={isForeignCurrency ? `≈ ${formatMoney(r.totalAmountCRC)}` : undefined}
+                              >
+                                {formatMoney(r.totalAmount, r.currency)}
+                              </td>
+                            )}
+                            {isVisible('moneda')    && <td>{r.currency || '—'}</td>}
+                            {isVisible('estado')    && <td><span className={`aur-badge ${pill.cls}`}>{pill.label}</span></td>}
+                            {isVisible('fespera')   && <td className="td-readonly">{formatShortDate(r.expectedCollectionDate)}</td>}
+                            {isVisible('fcobro')    && <td className="td-readonly">{formatShortDate(r.actualCollectionDate)}</td>}
                             <td>
                               <div className="hist-kebab-wrap" onPointerDown={e => e.stopPropagation()}>
                                 <button
                                   className="hist-kebab-btn aur-touch-target"
                                   title="Más acciones"
+                                  aria-label={`Acciones para el ingreso de ${r.buyerName || 'comprador'}`}
+                                  aria-haspopup="menu"
+                                  aria-expanded={rowMenu === r.id}
                                   onClick={e => {
                                     if (rowMenu === r.id) { setRowMenu(null); return; }
                                     const rect = e.currentTarget.getBoundingClientRect();
@@ -507,53 +594,51 @@ function IncomeRecords() {
         )
       )}
 
-      {/* ── Column visibility menu portal ───────────────────────────── */}
+      {/* ── Menú de columnas ────────────────────────────────────────── */}
       {colMenu && (
-        <ColMenu x={colMenu.x} y={colMenu.y} columns={COLUMNS} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
+        <ColMenu x={colMenu.x} y={colMenu.y} columns={COLUMNS} visibleCols={visibleColsMap} onToggle={toggleColumn} onClose={() => setColMenu(null)} />
       )}
 
-      {/* ── Column filter popover portal ────────────────────────────── */}
+      {/* ── Popover de filtro de columna ────────────────────────────── */}
       {filterPopover && (
         <ColFilterPopover
           popover={filterPopover}
           value={colFilters[filterPopover.field]}
           onChange={(key, val) => setColFilter(filterPopover.field, filterPopover.type, key, val)}
-          onClear={() => {
-            if (filterPopover.type === 'text') setColFilter(filterPopover.field, 'text', 'text', '');
-            else { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); }
-          }}
+          onClear={() => clearColFilter(filterPopover.field, filterPopover.type)}
           onClose={() => setFilterPopover(null)}
         />
       )}
 
-      {/* ── Kebab dropdown portal ───────────────────────────────────── */}
+      {/* ── Kebab dropdown ──────────────────────────────────────────── */}
       {rowMenu !== null && (() => {
         const r = records.find(x => x.id === rowMenu);
         if (!r) return null;
-        return createPortal(
-          <div
-            className="hist-kebab-dropdown hist-kebab-dropdown-fixed"
-            style={{ top: rowMenuPos.top, right: rowMenuPos.right }}
-            onPointerDown={e => e.stopPropagation()}
-          >
-            <button className="hist-kebab-item" onClick={() => { setRowMenu(null); startEdit(r); }}>
-              <FiEdit2 size={13} />
-              Editar
-            </button>
-            <button className="hist-kebab-item hist-kebab-item-danger" onClick={() => { setRowMenu(null); setConfirmDelete(r.id); }}>
-              <FiTrash2 size={13} />
-              Eliminar
-            </button>
-          </div>,
-          document.body,
+        return (
+          <RowKebabMenu
+            pos={rowMenuPos}
+            onClose={() => setRowMenu(null)}
+            items={[
+              { icon: <FiEdit2 size={13} />, label: 'Editar', onClick: () => { setRowMenu(null); startEdit(r); } },
+              { icon: <FiTrash2 size={13} />, label: 'Eliminar', danger: true, onClick: () => { setRowMenu(null); setConfirmDelete(r); } },
+            ]}
+          />
         );
       })()}
 
       {confirmDelete && (
         <AuroraConfirmModal
           danger
+          loading={deleting}
+          loadingLabel="Eliminando…"
           title="Eliminar ingreso"
-          body="Esta acción no se puede deshacer."
+          body={
+            `Vas a eliminar el ingreso de ${confirmDelete.buyerName || 'comprador sin nombre'} ` +
+            `por ${formatMoney(confirmDelete.totalAmount, confirmDelete.currency)} ` +
+            `del ${formatShortDate(confirmDelete.date)}` +
+            `${confirmDelete.loteNombre ? ` · lote ${confirmDelete.loteNombre}` : ''}. ` +
+            'Esta acción no se puede deshacer.'
+          }
           confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
