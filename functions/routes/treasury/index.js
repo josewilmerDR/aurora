@@ -32,8 +32,14 @@ function requireRole(min) {
 // Saldos de caja (cash_balance).
 router.get('/api/treasury/balance/current', authenticate, requireRole('encargado'), getCurrentBalance);
 router.get('/api/treasury/balance', authenticate, requireRole('encargado'), listBalances);
-router.post('/api/treasury/balance', authenticate, requireRole('encargado'), createBalance);
-router.delete('/api/treasury/balance/:id', authenticate, requireRole('encargado'), deleteBalance);
+// Escrituras: rate-limit 'write' para que un token autenticado no pueda spamear
+// creación/borrado de saldos (escrituras Firestore ilimitadas + contaminación
+// de la serie cash_balance).
+router.post('/api/treasury/balance', authenticate, requireRole('encargado'), rateLimit('treasury_balance_write', 'write'), createBalance);
+// DELETE es un borrado duro irreversible que cambia la base de la proyección de
+// liquidez de toda la finca → exige supervisor+, por encima del encargado que
+// lee/crea (mismo criterio que el delete de grupos).
+router.delete('/api/treasury/balance/:id', authenticate, requireRole('supervisor'), rateLimit('treasury_balance_write', 'write'), deleteBalance);
 
 // Proyección de caja — une 6 colecciones completas por request (income, OCs,
 // proveedores, planilla fija/por unidad, saldo) → costly_read, igual que

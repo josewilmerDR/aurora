@@ -139,6 +139,15 @@ const ACTIONS = Object.freeze({
   COSTO_INDIRECTO_DELETE: 'costo_indirecto.delete',
   COSTO_SNAPSHOT_DELETE: 'costo_snapshot.delete',
 
+  // Tesorería. El saldo de caja (`cash_balance`) es la base de TODA la
+  // proyección de liquidez de la finca. CREATE va como INFO (fija el punto de
+  // arranque); DELETE como WARNING porque es un borrado duro irreversible que
+  // cambia la proyección de liquidez y borra junto al doc su autoría
+  // (createdBy/createdByEmail) — sin este rastro no hay forense de quién/cuándo
+  // manipuló el saldo. Mismo criterio que INCOME_DELETE / COSTO_SNAPSHOT_DELETE.
+  CASH_BALANCE_CREATE: 'cash_balance.create',
+  CASH_BALANCE_DELETE: 'cash_balance.delete',
+
   // Financiamiento externo (Fase 5). Snapshot del perfil financiero: corte
   // inmutable, admin-only, que alimenta elegibilidad y simulaciones de deuda
   // — "quién generó qué corte" tiene valor forense (va como INFO). Los DELETE
