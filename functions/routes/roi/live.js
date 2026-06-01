@@ -11,6 +11,12 @@ const {
 } = require('../../lib/finance/roiAttribution');
 const { buildRoiReport } = require('../../lib/finance/roiRows');
 
+// Forma estricta YYYY-MM-DD. Validamos antes de pasar `desde`/`hasta` a
+// Firestore `.where('date', …)`: un string mal formado, o un parámetro
+// duplicado (?desde=a&desde=b, que Express entrega como array) reventaría la
+// query con un 500. Lo cortamos como 400 controlado.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 // ─── Fetches ───────────────────────────────────────────────────────────────
 
 // Income records en el rango. `collectionStatus='anulado'` se filtra luego
@@ -45,6 +51,15 @@ async function getLive(req, res) {
         res,
         ERROR_CODES.MISSING_REQUIRED_FIELDS,
         'Query params "desde" and "hasta" are required (YYYY-MM-DD).',
+        400
+      );
+    }
+    if (typeof desde !== 'string' || typeof hasta !== 'string'
+        || !ISO_DATE_RE.test(desde) || !ISO_DATE_RE.test(hasta)) {
+      return sendApiError(
+        res,
+        ERROR_CODES.VALIDATION_FAILED,
+        'Query params "desde" and "hasta" must be valid YYYY-MM-DD dates.',
         400
       );
     }
