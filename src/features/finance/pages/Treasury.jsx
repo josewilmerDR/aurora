@@ -4,13 +4,14 @@ import Toast from '../../../components/Toast';
 import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import CashBalanceModal from '../components/CashBalanceModal';
+import CashBalanceList from '../components/CashBalanceList';
 import ProjectionChart from '../components/ProjectionChart';
 import ProjectionTable from '../components/ProjectionTable';
 import TreasuryStats from '../components/TreasuryStats';
 import HorizonSelector from '../components/HorizonSelector';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { useTreasuryProjection, useIsMounted } from '../../../hooks/useTreasuryProjection';
-import { DEFAULT_CURRENCY } from '../../../lib/formatMoney';
+import { useTreasuryProjection } from '../../../hooks/useTreasuryProjection';
+import { DEFAULT_CURRENCY, formatMoney } from '../../../lib/formatMoney';
 import '../styles/finance.css';
 
 const DEFAULT_HORIZON_WEEKS = 26;
@@ -19,11 +20,12 @@ const PROJECTION_CURRENCY = DEFAULT_CURRENCY;
 
 function Treasury() {
   const apiFetch = useApiFetch();
-  const isMounted = useIsMounted();
   const [weeks, setWeeks] = useState(DEFAULT_HORIZON_WEEKS);
   const [showBalanceForm, setShowBalanceForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  // Bump al registrar un saldo: fuerza a CashBalanceList a recargar su lista.
+  const [balanceListKey, setBalanceListKey] = useState(0);
 
   const { projection, loading, error, reload } = useTreasuryProjection(weeks);
 
@@ -41,16 +43,18 @@ function Treasury() {
         err.status = res.status;
         throw err;
       }
-      if (!isMounted.current) return;
-      setToast({ type: 'success', message: 'Saldo registrado.' });
+      setToast({
+        type: 'success',
+        message: `Saldo de ${formatMoney(payload.amount, payload.currency)} registrado al ${payload.dateAsOf}. La proyección parte de ahí.`,
+      });
       setShowBalanceForm(false);
+      setBalanceListKey(k => k + 1);
       reload();
     } catch (e) {
       console.error('[Treasury] save balance failed', { status: e.status, err: e });
-      if (!isMounted.current) return;
       setToast({ type: 'error', message: e.message });
     } finally {
-      if (isMounted.current) setSaving(false);
+      setSaving(false);
     }
   };
 
@@ -63,14 +67,29 @@ function Treasury() {
         level={2}
         title="Tesorería"
         icon={<FiActivity />}
-        actions={!showBalanceForm && (
+        actions={(
           <button className="aur-btn-pill" onClick={() => setShowBalanceForm(true)}>
             <FiPlus /> Registrar saldo
           </button>
         )}
       />
 
-      <AuroraSectionIntro>
+      <AuroraSectionIntro
+        expanderContent={
+          <>
+            <p>
+              La proyección arranca del <strong>último saldo de caja registrado</strong>:
+              si su fecha es futura, proyectamos desde esa fecha; si es pasada, desde hoy.
+              Si nunca registraste un saldo, parte de 0.
+            </p>
+            <p>
+              Las <strong>entradas y salidas</strong> de cada semana se arman con tus
+              movimientos registrados: órdenes de compra (salidas) e ingresos esperados
+              (entradas). Tocá una semana en la tabla para ver qué la compone.
+            </p>
+          </>
+        }
+      >
         Predicción de cuánto dinero tendrás en caja semana por semana, basada en
         los movimientos registrados y tu saldo inicial. Cambiá el horizonte abajo
         para ver más o menos semanas hacia adelante.
@@ -80,15 +99,13 @@ function Treasury() {
         <div className="aur-banner aur-banner--warn">
           <FiAlertTriangle size={14} />
           <span>No hay saldo de caja registrado. La proyección parte de 0.</span>
-          {!showBalanceForm && (
-            <button
-              className="aur-btn-text"
-              style={{ marginLeft: 'auto', flexShrink: 0 }}
-              onClick={() => setShowBalanceForm(true)}
-            >
-              Registrar saldo →
-            </button>
-          )}
+          <button
+            className="aur-btn-text"
+            style={{ marginLeft: 'auto', flexShrink: 0 }}
+            onClick={() => setShowBalanceForm(true)}
+          >
+            Registrar saldo →
+          </button>
         </div>
       )}
 
@@ -110,11 +127,29 @@ function Treasury() {
         />
       </div>
 
-      {loading && (
+      {/* Error durante un refetch: mantenemos la proyección previa visible y
+          avisamos en un banner, en vez de borrar toda la pantalla. */}
+      {error && hasProjection && (
+        <div className="aur-banner aur-banner--danger">
+          <FiAlertTriangle size={14} />
+          <span>{error.message}</span>
+          <button
+            className="aur-btn-text"
+            style={{ marginLeft: 'auto', flexShrink: 0 }}
+            onClick={reload}
+          >
+            <FiRefreshCw /> Reintentar
+          </button>
+        </div>
+      )}
+
+      {/* Carga inicial (todavía no hay nada que mostrar) */}
+      {loading && !hasProjection && (
         <p className="finance-empty">Cargando proyección…</p>
       )}
 
-      {!loading && error && (
+      {/* Error en la carga inicial: pantalla de error completa */}
+      {!loading && error && !hasProjection && (
         <section className="aur-section treasury-error-state">
           <p>{error.message}</p>
           <button className="aur-btn-pill" onClick={reload}>
@@ -123,15 +158,21 @@ function Treasury() {
         </section>
       )}
 
-      {!loading && !error && hasProjection && (
-        <>
+      {/* Proyección. Si hay un refetch en curso la mostramos atenuada
+          (stale-while-revalidate) en vez de reemplazarla por un spinner. */}
+      {hasProjection && (
+        <div
+          className={`treasury-content${loading ? ' treasury-content--revalidating' : ''}`}
+          aria-busy={loading}
+        >
           <section className="aur-section">
             <TreasuryStats
               startingBalance={projection.startingBalance}
               summary={projection.summary}
               currency={PROJECTION_CURRENCY}
+              source={projection.startingBalanceSource}
             />
-            <ProjectionChart series={projection.series} />
+            <ProjectionChart series={projection.series} currency={PROJECTION_CURRENCY} />
           </section>
 
           <section className="aur-section">
@@ -142,12 +183,14 @@ function Treasury() {
               <ProjectionTable series={projection.series} currency={PROJECTION_CURRENCY} />
             </div>
           </section>
-        </>
+        </div>
       )}
 
-      {!loading && !error && !hasProjection && (
-        <p className="finance-empty">Sin datos.</p>
-      )}
+      <CashBalanceList
+        refreshKey={balanceListKey}
+        onDeleted={reload}
+        onToast={(message, type) => setToast({ message, type })}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
