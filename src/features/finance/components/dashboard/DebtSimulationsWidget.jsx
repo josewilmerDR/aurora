@@ -1,23 +1,10 @@
-import { useEffect, useState } from 'react';
 import { FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { useFinanceResource } from '../../hooks/useFinanceResource';
+import { formatMoney } from '../../lib/format';
+import { formatShortDate } from '../../../../lib/formatDate';
 import WidgetSkeleton from './WidgetSkeleton';
-
-const fmtMoney = (n) => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-};
-
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-  } catch { return iso; }
-};
+import WidgetError from './WidgetError';
 
 const RECOMMENDATION_BADGE_VARIANT = {
   tomar:             { label: 'Tomar',       cls: 'aur-badge--green' },
@@ -26,79 +13,77 @@ const RECOMMENDATION_BADGE_VARIANT = {
 };
 
 function DebtSimulationsWidget() {
-  const apiFetch = useApiFetch();
-  const [sims, setSims] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    apiFetch('/api/financing/debt-simulations')
-      .then(r => r.json())
-      .then(data => setSims(Array.isArray(data) ? data : []))
-      .catch(() => setError('No se pudieron cargar las simulaciones.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch]);
-
+  const { data, loading, error, reload } = useFinanceResource(
+    '/api/financing/debt-simulations',
+    { errorMessage: 'No se pudieron cargar las simulaciones.' }
+  );
+  const sims = Array.isArray(data) ? data : [];
   const top = sims.slice(0, 5);
 
+  const isEmptyState = !loading && !error && sims.length === 0;
+  const sectionCls = `aur-section${isEmptyState ? ' fin-widget--empty' : ''}`;
+
   return (
-    <section className="aur-section">
+    <section className={sectionCls}>
       <div className="aur-section-header">
-        <span className="aur-section-num"><FiTrendingUp size={14} /></span>
+        <span className="aur-section-num"><FiTrendingUp size={14} aria-hidden="true" /></span>
         <h3 className="aur-section-title">Simulaciones de deuda</h3>
-        {sims.length ? <span className="aur-section-count">{sims.length} recientes</span> : null}
+        {sims.length > 0 && <span className="aur-section-count">{sims.length} recientes</span>}
+        {!isEmptyState && (
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/financing/simulaciones">
+            Ver todas →
+          </Link>
+        )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando simulaciones de deuda…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && (
         <>
-          {top.length === 0 ? (
-            <>
-              <div className="fin-widget-empty">
-                Sin simulaciones. Elegí una oferta registrada y corré Monte Carlo contra el perfil financiero.
-              </div>
-              <div className="fin-widget-cta-row">
-                <Link to="/finance/financing/simulaciones" className="aur-btn-pill">
-                  Nueva simulación
-                </Link>
-              </div>
-            </>
+          {sims.length === 0 ? (
+            <div className="fin-widget-empty-state">
+              <FiTrendingUp size={28} className="fin-widget-empty-icon" />
+              <p className="fin-widget-empty-text">
+                Sin simulaciones. Elegí una oferta registrada y corré Monte Carlo
+                contra el perfil financiero para ver el impacto en tu margen.
+              </p>
+              <Link
+                to="/finance/financing/simulaciones"
+                className="aur-btn-pill aur-btn-pill--sm fin-widget-empty-cta aur-touch-target"
+              >
+                Nueva simulación
+              </Link>
+            </div>
           ) : (
-            <>
-              <div className="fin-recent-list">
-                {top.map(s => {
-                  const rec = RECOMMENDATION_BADGE_VARIANT[s.recommendation] || null;
-                  const positive = Number(s.marginDelta) >= 0;
-                  return (
-                    <Link
-                      key={s.id}
-                      to="/finance/financing/simulaciones"
-                      className="fin-recent-row fin-recent-row--link"
-                    >
-                      <div className="fin-recent-row-text">
-                        <strong>{fmtMoney(s.amount)} · {s.plazoMeses}m</strong>
-                        <span className="fin-widget-sub">
-                          {s.providerName || 'producto ' + (s.creditProductId || '').slice(0, 6)} · {fmtDate(s.createdAt)}
-                        </span>
-                      </div>
-                      <div className="fin-recent-row-trail">
-                        <span className={`fin-recent-row-delta${positive ? '' : ' fin-recent-row-delta--negative'}`}>
-                          {positive ? <FiTrendingUp size={12} /> : <FiTrendingDown size={12} />} {fmtMoney(s.marginDelta)}
-                        </span>
-                        {rec && <span className={`aur-badge ${rec.cls}`}>{rec.label}</span>}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-              <div className="fin-widget-cta-row">
-                <Link to="/finance/financing/simulaciones" className="aur-btn-text">
-                  Ver todas / nueva simulación
-                </Link>
-              </div>
-            </>
+            <div className="fin-recent-list">
+              {top.map((s) => {
+                const rec = RECOMMENDATION_BADGE_VARIANT[s.recommendation] || null;
+                const positive = Number(s.marginDelta) >= 0;
+                return (
+                  <Link
+                    key={s.id}
+                    to="/finance/financing/simulaciones"
+                    className="fin-recent-row fin-recent-row--link"
+                  >
+                    <div className="fin-recent-row-text">
+                      <strong>{formatMoney(s.amount)} · {s.plazoMeses}m</strong>
+                      <span className="fin-widget-sub">
+                        {s.providerName || 'Oferta sin nombre'} · {formatShortDate(s.createdAt)}
+                      </span>
+                    </div>
+                    <div className="fin-recent-row-trail">
+                      <span className={`fin-recent-row-delta${positive ? '' : ' fin-recent-row-delta--negative'}`}>
+                        {positive
+                          ? <FiTrendingUp size={12} aria-hidden="true" />
+                          : <FiTrendingDown size={12} aria-hidden="true" />} {formatMoney(s.marginDelta)}
+                      </span>
+                      {rec && <span className={`aur-badge ${rec.cls}`}>{rec.label}</span>}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           )}
         </>
       )}

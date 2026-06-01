@@ -1,24 +1,15 @@
 /* Estilos específicos del Financing Dashboard. Se cargan ADEMÁS del
    finance-dashboard.css común (fin-widget, fin-recent-list, etc.). */
 
-/* aur-banner--info ya provee bg/color/border/typography para el banner;
-   este slim sólo añade el margen vertical específico del dashboard de
-   financiamiento, donde el banner queda entre el page-header y el grid.
-   La clase sigue viva para CeoDashboard u otros consumidores legacy; en
-   FinancingDashboard fue reemplazada por <details className="fin-policy-details">
-   que ocupa mucho menos vertical. */
-.aur-banner.fin-financing-banner {
-  margin: 12px 0 20px;
-}
-
-/* ── Política Nivel 1 como <details> compacto ────────────────────────────
-   Vive inline al lado del <h2> en el page-header. Cerrado, sólo muestra
-   un pill pequeño con el icono + label. Abierto, baja un panel con la
-   política completa anclado debajo del summary. Mucho más sobrio que el
-   banner ancho original.
+/* ── Política Nivel 1 como popover controlado ────────────────────────────
+   Vive inline al lado del <h2> en el page-header. Cerrado, muestra un pill
+   pequeño con icono + label + caret (la flecha comunica que es expandible —
+   antes era un <details> sin marcador, parecía un pill estático). Abierto,
+   baja un panel con la política completa. Cierra con ESC y click-away (lógica
+   en FinancingDashboard), no sólo re-clickeando el pill como el <details>.
 
    El page-header default no es flex; cuando contiene un .fin-policy-details
-   lo activamos para alinear el <h2> y el details en una sola fila. */
+   lo activamos para alinear el <h2> y el badge en una sola fila. */
 .page-header:has(.fin-policy-details) {
   display: flex;
   align-items: center;
@@ -38,22 +29,27 @@
   border-radius: var(--aur-r-pill);
   background: transparent;
   color: var(--aur-text-2);
+  font-family: inherit;
   font-size: var(--aur-fs-caption);
   font-weight: 500;
   cursor: pointer;
   user-select: none;
-  list-style: none;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.fin-policy-summary::-webkit-details-marker { display: none; }
 .fin-policy-summary:hover {
   border-color: var(--aur-accent);
   color: var(--aur-accent);
   background: rgba(51, 255, 153, 0.05);
 }
-.fin-policy-details[open] .fin-policy-summary {
+.fin-policy-summary[aria-expanded="true"] {
   border-color: var(--aur-accent);
   color: var(--aur-accent);
+}
+.fin-policy-caret {
+  transition: transform 0.15s ease;
+}
+.fin-policy-caret.is-open {
+  transform: rotate(180deg);
 }
 .fin-policy-content {
   position: absolute;
@@ -79,24 +75,6 @@
   .fin-policy-details { margin-left: 0; }
   .fin-policy-content { right: auto; left: 0; }
 }
-
-/* fin-policy-banner se mantiene como clase legacy: el dominio CEO la
-   referencia directamente (CeoDashboard.jsx) sin componer aur-banner. */
-.fin-policy-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  margin: 12px 0 20px 0;
-  background: rgba(51, 255, 153, 0.06);
-  border: 1px solid var(--aur-divider);
-  border-left: 3px solid var(--aur-accent);
-  border-radius: var(--aur-r-input);
-  color: var(--aur-text);
-  font-size: var(--aur-fs-footnote);
-  line-height: 1.4;
-}
-.fin-policy-banner strong { color: var(--aur-accent); }
 
 /* Lista de items recientes — usada por widgets de profile/credit/eligibility/
    simulaciones. Patrón: row con texto a la izquierda y badge/CTA a la derecha. */
@@ -177,4 +155,45 @@
 .fin-badge--bad {
   background: var(--aur-badge-gray-bg);
   color: var(--aur-badge-gray-fg);
+}
+
+/* ── SnapshotDetail (detalle de un snapshot financiero inmutable) ──────────
+   Grid responsivo de cards (Balance / Resultados / Flujo). Cada card es un
+   .aur-section reusando el shell del dashboard; acá sólo definimos las filas
+   label↔valor internas. */
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.snapshot-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.snapshot-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--aur-divider);
+  font-size: var(--aur-fs-footnote);
+}
+.snapshot-stat-row:last-child { border-bottom: none; }
+.snapshot-stat-label {
+  display: flex;
+  flex-direction: column;
+  color: var(--aur-text-2);
+}
+.snapshot-stat-sub {
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+}
+.snapshot-stat-value {
+  color: var(--aur-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
 }

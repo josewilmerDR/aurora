@@ -75,6 +75,7 @@ const FinanceDashboard = lazy(() => import('./features/finance/pages/FinanceDash
 const FinancingDashboard = lazy(() => import('./features/finance/pages/FinancingDashboard'));
 const CreditOffers = lazy(() => import('./features/finance/pages/CreditOffers'));
 const DebtSimulations = lazy(() => import('./features/finance/pages/DebtSimulations'));
+const SnapshotDetail = lazy(() => import('./features/finance/pages/SnapshotDetail'));
 const CeoDashboard = lazy(() => import('./features/ceo/pages/CeoDashboard'));
 const IncomeRecords = lazy(() => import('./features/finance/pages/IncomeRecords'));
 const BuyersList = lazy(() => import('./features/finance/pages/BuyersList'));
@@ -399,6 +400,7 @@ function App() {
             <Route path="/finance/financing" element={<AdvancedRoute><RoleRoute path="/finance/financing"><FinancingDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/finance/financing/ofertas" element={<AdvancedRoute><RoleRoute path="/finance/financing/ofertas"><CreditOffers /></RoleRoute></AdvancedRoute>} />
             <Route path="/finance/financing/simulaciones" element={<AdvancedRoute><RoleRoute path="/finance/financing/simulaciones"><DebtSimulations /></RoleRoute></AdvancedRoute>} />
+            <Route path="/finance/financing/snapshots/:id" element={<AdvancedRoute><RoleRoute path="/finance/financing"><SnapshotDetail /></RoleRoute></AdvancedRoute>} />
             <Route path="/ceo" element={<AdvancedRoute><RoleRoute path="/ceo"><CeoDashboard /></RoleRoute></AdvancedRoute>} />
             <Route path="/hr/ficha" element={<RoleRoute path="/hr/ficha"><EmployeeProfile /></RoleRoute>} />
             <Route path="/hr/asistencia" element={<RoleRoute path="/hr/asistencia"><Asistencia /></RoleRoute>} />
