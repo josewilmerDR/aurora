@@ -171,7 +171,6 @@ async function listEligibilityAnalyses(req, res) {
       borderlineCount: data.borderlineCount || 0,
       usedClaude: !!data.usedClaude,
       createdAt: data.createdAt?.toDate?.()?.toISOString?.() || null,
-      createdByEmail: data.createdByEmail || '',
       topScore: Array.isArray(data.results) && data.results.length > 0
         ? data.results[0].score
         : 0,
@@ -192,7 +191,9 @@ async function getEligibilityAnalysis(req, res) {
     }
     const ownership = await verifyOwnership('eligibility_analyses', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
-    const data = ownership.doc.data();
+    // createdBy (uid) y createdByEmail son identificadores internos del autor
+    // que la UI no muestra; los omitimos del payload.
+    const { createdBy, createdByEmail, ...data } = ownership.doc.data();
     res.json({
       id: ownership.doc.id,
       ...data,

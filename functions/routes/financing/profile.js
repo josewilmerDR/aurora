@@ -11,6 +11,7 @@ const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { buildFinancialProfile } = require('../../lib/financing/financialProfileBuilder');
 const { toHtml, toJson } = require('../../lib/financing/profileExporter');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const repo = require('./repository');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -64,6 +65,15 @@ async function createSnapshot(req, res) {
       userRole: req.userRole,
     }, profile);
 
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.FINANCING_SNAPSHOT_CREATE,
+      target: { type: 'financial_profile_snapshot', id },
+      metadata: { asOf: profile.asOf, inputsHash: profile.inputsHash || null },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(201).json({ id, ...profile });
   } catch (error) {
     console.error('[FINANCING] snapshot create failed:', error);
@@ -80,11 +90,13 @@ async function listSnapshots(req, res) {
     }
 
     const docs = await repo.listSnapshots(req.fincaId);
+    // No proyectamos generatedByEmail aquí: la lista no lo muestra. El email
+    // del autor solo se expone en el detalle (GET :id → SnapshotDetail), que
+    // sí lo renderiza. Minimiza PII en el payload del listado.
     const rows = docs.map(({ id, data }) => ({
       id,
       asOf: data.asOf,
       generatedAt: data.generatedAt?.toDate?.()?.toISOString?.() || null,
-      generatedByEmail: data.generatedByEmail || '',
       inputsHash: data.inputsHash,
       totalAssets: data.balanceSheet?.assets?.totalAssets ?? 0,
       totalEquity: data.balanceSheet?.equity?.totalEquity ?? 0,
@@ -110,7 +122,10 @@ async function getSnapshot(req, res) {
     const ownership = await verifyOwnership('financial_profile_snapshots', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
-    const data = ownership.doc.data();
+    // generatedBy (uid) y generatedByRole son identificadores internos que la
+    // UI no usa; los omitimos del payload. generatedByEmail sí se conserva
+    // porque SnapshotDetail lo muestra ("Generado por …").
+    const { generatedBy, generatedByRole, ...data } = ownership.doc.data();
     res.json({
       id: ownership.doc.id,
       ...data,

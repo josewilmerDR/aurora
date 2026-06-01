@@ -130,6 +130,15 @@ const ACTIONS = Object.freeze({
   COSTO_INDIRECTO_DELETE: 'costo_indirecto.delete',
   COSTO_SNAPSHOT_DELETE: 'costo_snapshot.delete',
 
+  // Financiamiento externo (Fase 5). Snapshot del perfil financiero: corte
+  // inmutable, admin-only, que alimenta elegibilidad y simulaciones de deuda
+  // — "quién generó qué corte" tiene valor forense (va como INFO). Los DELETE
+  // de catálogo de crédito y de simulaciones son borrados duros e
+  // irreversibles → WARNING. Listas/lecturas no se auditan (ruido sin valor).
+  FINANCING_SNAPSHOT_CREATE: 'financing.snapshot.create',
+  FINANCING_CREDIT_PRODUCT_DELETE: 'financing.credit_product.delete',
+  FINANCING_DEBT_SIMULATION_DELETE: 'financing.debt_simulation.delete',
+
   // Task operations that change ownership, timing, or stock — routine
   // creation is not audited (too noisy), but these four are.
   TASK_COMPLETE: 'task.complete',

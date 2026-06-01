@@ -66,6 +66,11 @@ export const ACTION_OPTIONS = [
   { value: 'costo_indirecto.delete',        label: 'Costo indirecto eliminado' },
   { value: 'costo_snapshot.delete',         label: 'Snapshot de costos eliminado' },
 
+  // Financiamiento externo (Fase 5)
+  { value: 'financing.snapshot.create',     label: 'Snapshot financiero generado' },
+  { value: 'financing.credit_product.delete',   label: 'Producto de crédito eliminado' },
+  { value: 'financing.debt_simulation.delete',  label: 'Simulación de deuda eliminada' },
+
   // Tareas programadas (cambian responsable, fecha o stock)
   { value: 'task.complete',                 label: 'Tarea completada' },
   { value: 'task.reschedule',               label: 'Tarea reprogramada' },

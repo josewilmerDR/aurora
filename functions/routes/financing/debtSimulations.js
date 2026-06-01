@@ -17,14 +17,34 @@ const {
   refineWithClaude,
   heuristicRecommendation,
 } = require('../../lib/financing/debtRoiReasoner');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const repo = require('./repository');
 
 const VALID_USECASE_TIPOS = new Set(['compra_insumos', 'siembra', 'infraestructura', 'liquidez']);
 const VALID_RETURN_KINDS = new Set(['linear', 'delayed_revenue', 'cost_reduction', 'none']);
 
+// Compute bounds for the Monte Carlo. The cost of a run is O(nTrials ×
+// horizonteMeses); without a ceiling a single authenticated request could
+// pass nTrials: 1e8 and exhaust CPU / hit the function timeout (DoS). These
+// caps are generous for any real analysis (5000 trials over 10 years) while
+// bounding worst-case compute.
+const MAX_N_TRIALS = 5000;
+const MAX_HORIZONTE_MESES = 120;
+const DEFAULT_N_TRIALS = 500;
+const DEFAULT_HORIZONTE_MESES = 12;
+
 function round2(n) {
   if (!Number.isFinite(n)) return 0;
   return Math.round(n * 100) / 100;
+}
+
+// Coerce an optional integer body param into [1, max], falling back to
+// `fallback` when absent/invalid. Pathological values are clamped, not
+// rejected, so exploratory callers still get a (bounded) result.
+function clampInt(raw, fallback, max) {
+  const n = Number(raw);
+  if (!Number.isInteger(n)) return fallback;
+  return Math.min(Math.max(n, 1), max);
 }
 
 // ─── Kill switch ──────────────────────────────────────────────────────────
@@ -178,10 +198,10 @@ async function simulateDebtRoiHandler(req, res) {
     const uc = validateUseCase(body.useCase);
     if (uc.error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, uc.error, 400);
 
-    // Simulation parameters with defaults.
-    const nTrials = Number.isInteger(Number(body.nTrials)) ? Number(body.nTrials) : 500;
+    // Simulation parameters with defaults, clamped to bound worst-case compute.
+    const nTrials = clampInt(body.nTrials, DEFAULT_N_TRIALS, MAX_N_TRIALS);
     const seed = Number.isInteger(Number(body.seed)) ? Number(body.seed) : 1;
-    const horizonteMeses = Number.isInteger(Number(body.horizonteMeses)) ? Number(body.horizonteMeses) : 12;
+    const horizonteMeses = clampInt(body.horizonteMeses, DEFAULT_HORIZONTE_MESES, MAX_HORIZONTE_MESES);
 
     const baseline = deriveBaseline(snapshot, body.baselineOverride || {});
     const simulation = simulateDebtRoi({
@@ -301,7 +321,9 @@ async function getDebtSimulation(req, res) {
     }
     const ownership = await verifyOwnership('debt_simulations', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
-    const data = ownership.doc.data();
+    // createdBy (uid) y createdByEmail son identificadores internos del autor
+    // que la UI no muestra; los omitimos del payload.
+    const { createdBy, createdByEmail, ...data } = ownership.doc.data();
     res.json({
       id: ownership.doc.id,
       ...data,
@@ -327,7 +349,22 @@ async function deleteDebtSimulation(req, res) {
     const ownership = await verifyOwnership('debt_simulations', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
+    const removed = ownership.doc.data();
     await repo.removeDebtSimulation(req.params.id);
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.FINANCING_DEBT_SIMULATION_DELETE,
+      target: { type: 'debt_simulation', id: req.params.id },
+      metadata: {
+        providerName: removed.providerName || null,
+        amount: removed.amount ?? null,
+        plazoMeses: removed.plazoMeses ?? null,
+      },
+      severity: SEVERITY.WARNING,
+    });
+
     res.json({ ok: true });
   } catch (error) {
     console.error('[FINANCING] debt-simulations delete failed:', error);
@@ -341,5 +378,6 @@ module.exports = {
   getDebtSimulation,
   deleteDebtSimulation,
   // exported for tests
-  _internals: { deriveBaseline, validateUseCase },
+  _internals: { deriveBaseline, validateUseCase, clampInt },
+  _limits: { MAX_N_TRIALS, MAX_HORIZONTE_MESES },
 };
