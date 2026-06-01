@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FiPlus, FiDollarSign, FiFilter, FiX, FiSliders,
@@ -8,6 +8,7 @@ import {
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import IncomeForm from '../components/IncomeForm';
+import { ColMenu, ColFilterPopover } from '../components/table/SortableTable';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
 import '../../planting/styles/siembra.css';
@@ -82,35 +83,6 @@ function getColVal(r, key) {
     case 'fcobro':    return r.actualCollectionDate || '';
     default:          return '';
   }
-}
-
-// ── Menú de columnas visibles ────────────────────────────────────────────────
-function ColMenu({ x, y, visibleCols, onToggle, onClose }) {
-  const menuRef = useRef(null);
-  useEffect(() => {
-    const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
-    const onKey  = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown',   onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [onClose]);
-  return createPortal(
-    <div ref={menuRef} className="sh-col-menu" style={{ position: 'fixed', top: y, left: x }}>
-      <div className="sh-col-menu-title">Columnas visibles</div>
-      {COLUMNS.map(col => {
-        const checked = visibleCols[col.key];
-        const isLast  = checked && Object.values(visibleCols).filter(Boolean).length === 1;
-        return (
-          <label key={col.key} className={`sh-col-menu-item${isLast ? ' sh-col-menu-item--disabled' : ''}`}>
-            <input type="checkbox" checked={checked} disabled={isLast}
-              onChange={() => !isLast && onToggle(col.key)} />
-            <span>{col.label}</span>
-          </label>
-        );
-      })}
-    </div>,
-    document.body,
-  );
 }
 
 // ── Página principal ─────────────────────────────────────────────────────────
@@ -537,54 +509,21 @@ function IncomeRecords() {
 
       {/* ── Column visibility menu portal ───────────────────────────── */}
       {colMenu && (
-        <ColMenu x={colMenu.x} y={colMenu.y} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
+        <ColMenu x={colMenu.x} y={colMenu.y} columns={COLUMNS} visibleCols={visibleCols} onToggle={toggleCol} onClose={() => setColMenu(null)} />
       )}
 
       {/* ── Column filter popover portal ────────────────────────────── */}
-      {filterPopover && createPortal(
-        <>
-          <div className="sh-filter-backdrop" onClick={() => setFilterPopover(null)} />
-          <div className="sh-filter-popover" style={{ left: filterPopover.x, top: filterPopover.y }}>
-            {filterPopover.type === 'text' ? (
-              <>
-                <FiFilter size={13} className="sh-filter-icon" />
-                <input autoFocus className="sh-filter-input" placeholder="Filtrar…"
-                  value={colFilters[filterPopover.field]?.text || ''}
-                  onChange={e => setColFilter(filterPopover.field, 'text', 'text', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setFilterPopover(null); }}
-                />
-                {colFilters[filterPopover.field]?.text && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, 'text', 'text', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className="sh-filter-range">
-                <span className="sh-filter-range-label">De</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.from || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'from', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                <span className="sh-filter-range-label">A</span>
-                <input className="sh-filter-input sh-filter-input-range"
-                  type={filterPopover.type === 'date' ? 'date' : 'number'}
-                  value={colFilters[filterPopover.field]?.to || ''}
-                  onChange={e => setColFilter(filterPopover.field, filterPopover.type, 'to', e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Escape') setFilterPopover(null); }}
-                />
-                {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
-                  <button className="sh-filter-clear" onClick={() => { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); setFilterPopover(null); }}>
-                    <FiX size={13} />
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </>,
-        document.body,
+      {filterPopover && (
+        <ColFilterPopover
+          popover={filterPopover}
+          value={colFilters[filterPopover.field]}
+          onChange={(key, val) => setColFilter(filterPopover.field, filterPopover.type, key, val)}
+          onClear={() => {
+            if (filterPopover.type === 'text') setColFilter(filterPopover.field, 'text', 'text', '');
+            else { setColFilter(filterPopover.field, filterPopover.type, 'from', ''); setColFilter(filterPopover.field, filterPopover.type, 'to', ''); }
+          }}
+          onClose={() => setFilterPopover(null)}
+        />
       )}
 
       {/* ── Kebab dropdown portal ───────────────────────────────────── */}

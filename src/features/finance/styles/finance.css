@@ -22,29 +22,34 @@
   font-weight: 600;
 }
 
-/* ── Badge clicable (toggle de estado inline) ──────────────────────────── */
-/* La capa visual base la pone .aur-badge (color + radius). Aquí sólo
-   sumamos cursor + comportamiento de hover. El ring sutil al hover hace
-   evidente que el badge es clickable — antes el opacity 0.75 era tan
-   sutil que pasaba desapercibido (audit UX, 2026-05). */
-.aur-badge--clickable {
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.15s, box-shadow 0.15s, transform 0.12s;
-  font-family: inherit;
+/* ── Filas de tabla: estado inactivo + highlight "recién tocada" ─────────── */
+/* `row-anulado` no tenía CSS en ninguna parte (clase muerta); las filas
+   inactivas nunca se atenuaban. `row-inactive` sí las distingue. Mismo
+   criterio que .pg-row-inactive en inventory/agroquimicos.css. */
+.siembra-table-historial tbody tr.row-inactive td {
+  opacity: 0.5;
 }
-.aur-badge--clickable:hover:not(:disabled) {
+.siembra-table-historial tbody tr.row-inactive:hover td {
+  opacity: 0.75;
+}
+/* La columna de acciones (kebab) no se atenúa: debe seguir siendo usable
+   para reactivar la fila. */
+.siembra-table-historial tbody tr.row-inactive td:last-child {
   opacity: 1;
-  box-shadow: 0 0 0 2px var(--aur-bg-card), 0 0 0 3px currentColor;
 }
-.aur-badge--clickable:active:not(:disabled) {
-  transform: scale(0.96);
+
+/* Flash sutil de la fila recién creada/editada/togglada, para que el usuario
+   la localice tras la acción (el toast no la ubica en una lista larga). */
+.siembra-table-historial tbody tr.row-recent td {
+  animation: fin-row-flash 2s ease-out;
 }
-.aur-badge--clickable:focus-visible {
-  outline: 2px solid var(--aur-accent);
-  outline-offset: 2px;
+@keyframes fin-row-flash {
+  0%   { background: var(--aur-accent-tint); }
+  100% { background: transparent; }
 }
-.aur-badge--clickable:disabled { cursor: wait; opacity: 0.55; }
+@media (prefers-reduced-motion: reduce) {
+  .siembra-table-historial tbody tr.row-recent td { animation: none; }
+}
 
 /* ── Layout — mirror del patrón grupo-page--selected ────────────────────── */
 .budgets-page {
