@@ -48,12 +48,14 @@ router.get('/api/financing/profile/snapshots/:id/export', authenticate, exportSn
 router.get('/api/financing/profile/snapshots/:id', authenticate, getSnapshot);
 
 // Fase 5.2 — credit product catalog.
-router.get('/api/financing/credit-products', authenticate, listCreditProducts);
-router.post('/api/financing/credit-products', authenticate, createCreditProduct);
+// List fans out to a full-collection scan + in-memory filtering → costly_read.
+// Mutations share the 'write' tier so an abusive admin can't spam the catalog.
+router.get('/api/financing/credit-products', authenticate, rateLimit('financing_credit_read', 'costly_read'), listCreditProducts);
+router.post('/api/financing/credit-products', authenticate, rateLimit('financing_credit_write', 'write'), createCreditProduct);
 router.post('/api/financing/credit-products/:id/simulate-cost', authenticate, simulateCreditCost);
 router.get('/api/financing/credit-products/:id', authenticate, getCreditProduct);
-router.put('/api/financing/credit-products/:id', authenticate, updateCreditProduct);
-router.delete('/api/financing/credit-products/:id', authenticate, deleteCreditProduct);
+router.put('/api/financing/credit-products/:id', authenticate, rateLimit('financing_credit_write', 'write'), updateCreditProduct);
+router.delete('/api/financing/credit-products/:id', authenticate, rateLimit('financing_credit_write', 'write'), deleteCreditProduct);
 
 // Fase 5.3 — eligibility analysis.
 // `analyze` loads the snapshot + catalog and (opt-in ?useClaude=1) fans out

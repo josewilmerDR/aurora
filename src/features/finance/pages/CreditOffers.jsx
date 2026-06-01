@@ -16,6 +16,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
 import { formatMoney, formatNumber, formatPct } from '../../../lib/formatMoney';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../../planting/styles/siembra.css';
 import '../../planting/styles/siembra-historial.css';
 import '../styles/finance.css';
@@ -166,8 +167,10 @@ function CreditOffers() {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Error al guardar.');
+        // El backend responde { code, message:<dev-message en inglés> }; mostramos
+        // la traducción al español por `code`, no el dev-message crudo.
+        const body = await res.json().catch(() => ({}));
+        throw new Error(translateApiError(body, 'Error al guardar.'));
       }
       const saved = await res.json().catch(() => ({}));
       toast.success(isEdit ? 'Oferta actualizada.' : 'Oferta registrada.');

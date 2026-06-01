@@ -9,6 +9,15 @@ const { buildCreditProductDoc } = require('../../lib/financing/creditProductVali
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const repo = require('./repository');
 
+// Campos de autoría internos que la UI no muestra. Se omiten del payload para
+// no exponer uid/email del admin que creó o editó la oferta a roles supervisor
+// (que pueden listar/ver pero no gestionar el catálogo). Mismo criterio que
+// getDebtSimulation.
+function publicView(prod) {
+  const { createdBy, createdByEmail, updatedBy, ...rest } = prod;
+  return rest;
+}
+
 // ─── Filtering ────────────────────────────────────────────────────────────
 
 // Aplica los predicates en memoria que Firestore no combina en una sola
@@ -54,7 +63,7 @@ async function listCreditProducts(req, res) {
       return (a.tipo || '').localeCompare(b.tipo || '');
     });
 
-    res.json(filtered);
+    res.json(filtered.map(publicView));
   } catch (error) {
     console.error('[FINANCING] credit-products list failed:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to list credit products.', 500);
@@ -72,7 +81,7 @@ async function getCreditProduct(req, res) {
     const ownership = await verifyOwnership('credit_products', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
-    res.json({ id: ownership.doc.id, ...ownership.doc.data() });
+    res.json({ id: ownership.doc.id, ...publicView(ownership.doc.data()) });
   } catch (error) {
     console.error('[FINANCING] credit-products get failed:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch credit product.', 500);

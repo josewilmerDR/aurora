@@ -160,7 +160,19 @@ const creditProductInputSchema = z.object({
   aprMax: aprField('aprMax'),
   requisitos: requisitosField,
   fuente: fuenteField,
-  activo: z.unknown().transform((v) => v !== false),
+  // activo gobierna si la oferta aparece en simulaciones (listActiveCreditProducts
+  // filtra activo !== false). Ausente → true (default). Presente debe ser un
+  // booleano real: rechazamos no-booleanos (p. ej. activo:"false") en vez de
+  // coaccionarlos a true silenciosamente, que dejaría visible una oferta que el
+  // admin intentó desactivar.
+  activo: z.unknown().transform((v, ctx) => {
+    if (v === undefined || v === null) return true;
+    if (typeof v !== 'boolean') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'activo must be a boolean.' });
+      return z.NEVER;
+    }
+    return v;
+  }),
   descripcion: z.unknown().transform((v) => str(v, MAX_DESCRIPCION) || null),
 });
 
