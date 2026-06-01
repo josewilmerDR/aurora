@@ -1,16 +1,12 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiActivity, FiPlus } from 'react-icons/fi';
-import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { formatMoney } from '../../lib/format';
 import WidgetSkeleton from './WidgetSkeleton';
+import WidgetError from './WidgetError';
 
-const fmt = (n, currency = 'USD') => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return `${currency} ${v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-};
-
-// Mini sparkline — saldos semanales del horizonte.
+// Mini sparkline — saldos semanales del horizonte. Decorativo: los valores
+// clave (proyectado, mínimo) ya están en .fin-widget-stats, así que va
+// marcado aria-hidden para no ensuciar la navegación del lector de pantalla.
 function Sparkline({ series }) {
   if (!Array.isArray(series) || series.length < 2) return null;
   const values = series.map(w => w.closingBalance);
@@ -29,7 +25,7 @@ function Sparkline({ series }) {
   const zeroY = y(0);
 
   return (
-    <svg className="fin-sparkline" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+    <svg className="fin-sparkline" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
       {yMin < 0 && yMax > 0 && (
         <line className="fin-sparkline-baseline" x1="0" x2={W} y1={zeroY} y2={zeroY} />
       )}
@@ -39,22 +35,16 @@ function Sparkline({ series }) {
   );
 }
 
-function CashWidget() {
-  const apiFetch = useApiFetch();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    apiFetch('/api/treasury/projection?weeks=12')
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setError('No se pudo cargar la proyección.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch]);
-
+// CashWidget — prop-driven. La proyección de tesorería (weeks=12) la fetchea
+// la página una sola vez y la comparte con Compromisos, evitando 2 llamadas
+// al mismo endpoint pesado. Recibe { data, loading, error, reload }.
+function CashWidget({ data, loading, error, reload }) {
   const currency = data?.startingBalanceSource?.currency || 'USD';
   const isNegativeEnd = data?.summary?.endingBalance < 0;
+  // El saldo actual se colorea por SU PROPIO signo, no por el proyectado:
+  // un saldo positivo hoy no debe verse rojo solo porque la proyección
+  // termine negativa (eso se señala en "Proyectado").
+  const isNegativeNow = data?.startingBalance < 0;
   // Sin saldo registrado = sin proyección útil. El backend devuelve data
   // con startingBalance=0 y startingBalanceSource=null en este caso.
   const hasBalance = !!data?.startingBalanceSource;
@@ -70,14 +60,14 @@ function CashWidget() {
         <h3 className="aur-section-title">Caja</h3>
         {data?.weeks ? <span className="aur-section-count">Proyección {data.weeks}s</span> : null}
         {hasBalance && (
-          <Link className="fin-widget-header-cta" to="/finance/tesoreria">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/tesoreria">
             Ver Tesorería →
           </Link>
         )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando saldo de caja…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && data && !hasBalance && (
         <div className="fin-widget-empty-state">
@@ -98,8 +88,8 @@ function CashWidget() {
       {!loading && !error && data && hasBalance && (
         <>
           <div>
-            <div className={`fin-widget-primary${isNegativeEnd ? ' fin-widget-primary--negative' : ''}`}>
-              {fmt(data.startingBalance, currency)}
+            <div className={`fin-widget-primary${isNegativeNow ? ' fin-widget-primary--negative' : ''}`}>
+              {formatMoney(data.startingBalance, currency)}
             </div>
             <div className="fin-widget-sub">Saldo actual</div>
           </div>
@@ -109,12 +99,12 @@ function CashWidget() {
           <div className="fin-widget-stats">
             <div>
               <span>Proyectado</span>
-              <strong className={isNegativeEnd ? 'fin-widget-primary--negative' : ''}>{fmt(data.summary?.endingBalance, currency)}</strong>
+              <strong className={isNegativeEnd ? 'fin-widget-primary--negative' : ''}>{formatMoney(data.summary?.endingBalance, currency)}</strong>
             </div>
             <div>
               <span>Mínimo</span>
               <strong className={data.summary?.minBalance < 0 ? 'fin-widget-primary--negative' : ''}>
-                {fmt(data.summary?.minBalance, currency)}
+                {formatMoney(data.summary?.minBalance, currency)}
               </strong>
             </div>
             {data.summary?.negativeWeeks > 0 && (
@@ -126,10 +116,6 @@ function CashWidget() {
           </div>
         </>
       )}
-
-      {/* CTA secundaria "Ver Tesorería" se movió al header (top-right) para
-          liberar el footer y darle protagonismo al CTA primario del empty
-          state cuando aplica. */}
     </section>
   );
 }
