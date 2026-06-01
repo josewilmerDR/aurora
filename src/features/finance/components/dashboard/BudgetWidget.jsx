@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { FiTrendingUp, FiPlus } from 'react-icons/fi';
-import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { FiTrendingUp, FiPlus, FiAlertTriangle } from 'react-icons/fi';
+import { formatMoney, currentMonthPeriod, FUNCTIONAL_CURRENCY } from '../../lib/format';
+import { useFinanceResource } from '../../hooks/useFinanceResource';
 import WidgetSkeleton from './WidgetSkeleton';
+import WidgetError from './WidgetError';
 
 const CATEGORY_LABELS = {
   combustible:      'Combustible',
@@ -15,16 +17,7 @@ const CATEGORY_LABELS = {
   otro:             'Otro',
 };
 
-const fmt = (n) => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-};
-
-function currentMonthPeriod() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
+const MAX_ROWS = 6;
 
 function pctClass(pct) {
   if (pct == null) return '';
@@ -34,26 +27,18 @@ function pctClass(pct) {
 }
 
 function BudgetWidget() {
-  const apiFetch = useApiFetch();
-  const period = currentMonthPeriod();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const period = useMemo(currentMonthPeriod, []);
+  const { data, loading, error, reload } = useFinanceResource(
+    `/api/budgets/execution?period=${period}`,
+    { errorMessage: 'No se pudo cargar la ejecución.' }
+  );
 
-  useEffect(() => {
-    apiFetch(`/api/budgets/execution?period=${period}`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setError('No se pudo cargar la ejecución.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch, period]);
-
-  // Solo mostramos filas con budget asignado > 0; priorizamos las más
-  // consumidas primero. Máximo 6 para no saturar.
-  const rowsWithBudget = (data?.rows || [])
+  // Solo filas con budget asignado > 0; priorizamos las más consumidas.
+  const allWithBudget = (data?.rows || [])
     .filter(r => r.assignedAmount > 0)
-    .sort((a, b) => (b.percentConsumed || 0) - (a.percentConsumed || 0))
-    .slice(0, 6);
+    .sort((a, b) => (b.percentConsumed || 0) - (a.percentConsumed || 0));
+  const rowsWithBudget = allWithBudget.slice(0, MAX_ROWS);
+  const hiddenRows = allWithBudget.length - rowsWithBudget.length;
 
   const summary = data?.summary;
 
@@ -68,14 +53,14 @@ function BudgetWidget() {
         <h3 className="aur-section-title">Presupuesto</h3>
         <span className="aur-section-count">{period}</span>
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta" to="/finance/presupuestos">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/presupuestos">
             Ver Presupuestos →
           </Link>
         )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando ejecución del presupuesto…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && data && (
         <>
@@ -83,11 +68,11 @@ function BudgetWidget() {
             <div className="fin-widget-stats">
               <div>
                 <span>Asignado</span>
-                <strong>{fmt(summary.totalAssigned)}</strong>
+                <strong>{formatMoney(summary.totalAssigned, FUNCTIONAL_CURRENCY)}</strong>
               </div>
               <div>
                 <span>Ejecutado</span>
-                <strong>{fmt(summary.totalExecuted)}</strong>
+                <strong>{formatMoney(summary.totalExecuted, FUNCTIONAL_CURRENCY)}</strong>
               </div>
               <div>
                 <span>% Consumido</span>
@@ -102,8 +87,8 @@ function BudgetWidget() {
             <div className="fin-widget-empty-state">
               <FiTrendingUp size={28} className="fin-widget-empty-icon" />
               <p className="fin-widget-empty-text">
-                Sin presupuestos asignados para {period}. Definí tus metas para
-                comparar contra el gasto real.
+                Sin presupuestos con monto asignado para {period}. Definí tus
+                metas para comparar contra el gasto real.
               </p>
               <Link
                 to="/finance/presupuestos"
@@ -117,14 +102,18 @@ function BudgetWidget() {
               {rowsWithBudget.map(r => {
                 const pct = r.percentConsumed;
                 const widthPct = Math.min(pct ?? 0, 100);
+                const isOver = pct > 100;
                 let fillCls = 'finance-progress-fill';
-                if (pct > 100) fillCls += ' finance-progress-fill--over';
+                if (isOver) fillCls += ' finance-progress-fill--over';
                 else if (pct >= 80) fillCls += ' finance-progress-fill--warn';
                 return (
                   <div key={r.category} className="fin-budget-row">
                     <div className="fin-budget-row-head">
                       <span className="fin-budget-row-cat">{CATEGORY_LABELS[r.category] || r.category}</span>
                       <span className={`fin-budget-row-pct ${pctClass(pct)}`}>
+                        {/* Icono además del color: el sobregiro no puede
+                            depender solo de rojo (daltonismo). */}
+                        {isOver && <FiAlertTriangle size={10} aria-hidden="true" />}
                         {pct != null ? `${pct.toFixed(0)}%` : '—'}
                       </span>
                     </div>
@@ -134,13 +123,15 @@ function BudgetWidget() {
                   </div>
                 );
               })}
+              {hiddenRows > 0 && (
+                <Link to="/finance/presupuestos" className="fin-commits-more">
+                  +{hiddenRows} categorías más
+                </Link>
+              )}
             </div>
           )}
         </>
       )}
-
-      {/* CTA secundaria movida al header (top-right, ver C3). El footer queda
-          libre para el CTA primario del empty state cuando aplica. */}
     </section>
   );
 }

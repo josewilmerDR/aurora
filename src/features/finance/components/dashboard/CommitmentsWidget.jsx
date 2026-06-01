@@ -1,46 +1,24 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiCalendar } from 'react-icons/fi';
-import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { formatMoney, formatDateShort } from '../../lib/format';
 import WidgetSkeleton from './WidgetSkeleton';
+import WidgetError from './WidgetError';
 
-const fmt = (n) => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-};
+// Horizonte corto de "próximos compromisos": las primeras 4 semanas de la
+// proyección. Antes este widget pedía su propia /treasury/projection?weeks=4;
+// ahora reusa la proyección de 12 semanas que ya fetchea la página (CashWidget
+// comparte el mismo response) y la recorta acá. Una llamada menos al endpoint.
+const HORIZON_WEEKS = 4;
 
-// "2026-04-22" → "22 abr"
-const fmtDate = (iso) => {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-  } catch {
-    return iso;
-  }
-};
+// Moneda del horizonte = la del saldo registrado (igual que Caja). Si aún no
+// hay saldo, no habrá outflows que mostrar, así que el fallback no se ve.
+function CommitmentsWidget({ data, loading, error, reload }) {
+  const currency = data?.startingBalanceSource?.currency || 'USD';
 
-function CommitmentsWidget() {
-  const apiFetch = useApiFetch();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    // Horizonte corto (4 semanas) — es lo que queremos ver como "próximas".
-    apiFetch('/api/treasury/projection?weeks=4')
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setError('No se pudieron cargar los compromisos.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch]);
-
-  // Aplanamos todos los outflows de las 4 semanas en una sola lista
-  // ordenada por fecha. Top 8 para mantener la tarjeta compacta.
+  // Aplanamos los outflows de las primeras 4 semanas en una lista ordenada
+  // por fecha. Top 8 para mantener la tarjeta compacta.
   const outflows = [];
-  for (const w of data?.series || []) {
+  for (const w of (data?.series || []).slice(0, HORIZON_WEEKS)) {
     for (const ev of w.outflows || []) outflows.push(ev);
   }
   outflows.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -59,14 +37,14 @@ function CommitmentsWidget() {
         <h3 className="aur-section-title">Compromisos próximos</h3>
         <span className="aur-section-count">4 semanas</span>
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta" to="/finance/tesoreria">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/finance/tesoreria">
             Ver Tesorería →
           </Link>
         )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando compromisos próximos…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && data && (
         <>
@@ -74,7 +52,7 @@ function CommitmentsWidget() {
             <div className="fin-widget-stats">
               <div>
                 <span>Total salidas</span>
-                <strong className="fin-widget-primary--negative">{fmt(totalOutflows)}</strong>
+                <strong className="fin-widget-primary--negative">{formatMoney(totalOutflows, currency)}</strong>
               </div>
               <div>
                 <span>Eventos</span>
@@ -98,11 +76,17 @@ function CommitmentsWidget() {
             </div>
           ) : (
             <div className="fin-commits-list">
-              {top.map((ev, i) => (
-                <div key={i} className="fin-commit-item">
-                  <span className="fin-commit-date">{fmtDate(ev.date)}</span>
-                  <span className="fin-commit-label" title={ev.source}>{ev.label}</span>
-                  <span className="fin-commit-amount">{fmt(ev.amount)}</span>
+              {top.map((ev) => (
+                <div
+                  key={`${ev.date}|${ev.label}|${ev.amount}`}
+                  className="fin-commit-item"
+                  title={ev.source || undefined}
+                >
+                  <span className="fin-commit-date">{formatDateShort(ev.date)}</span>
+                  <span className="fin-commit-label">{ev.label}</span>
+                  {/* Sin prefijo de moneda por fila: la unidad ya la fija el
+                      stat "Total salidas" del header. Evita repetir "CRC" ×8. */}
+                  <span className="fin-commit-amount">{formatMoney(ev.amount)}</span>
                 </div>
               ))}
               {outflows.length > top.length && (
@@ -112,8 +96,6 @@ function CommitmentsWidget() {
           )}
         </>
       )}
-
-      {/* CTA secundaria movida al header (top-right, ver C3). */}
     </section>
   );
 }

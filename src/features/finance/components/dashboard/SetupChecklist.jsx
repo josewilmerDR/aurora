@@ -25,14 +25,26 @@ import { useApiFetch } from '../../../../hooks/useApiFetch';
  * suficiente y evita un endpoint nuevo.
  */
 
+// Las claves se sufijan con la finca activa para que el estado del onboarding
+// sea por-finca: un admin multi-finca que completa el setup en la Finca A no
+// debe perder el checklist en la Finca B (cero data). Leemos la finca del
+// mismo localStorage que usa UserContext (ACTIVE_FINCA_KEY) para no depender
+// del provider acá. Sin finca activa, el sufijo queda vacío (back-compat).
+const ACTIVE_FINCA_KEY = 'aurora_active_finca';
 const STORAGE_KEY_DONE = 'aurora_finance_setup_done';
 const STORAGE_KEY_DISMISSED = 'aurora_finance_checklist_dismissed';
 
+function fincaSuffix() {
+  try {
+    const finca = localStorage.getItem(ACTIVE_FINCA_KEY);
+    return finca ? `_${finca}` : '';
+  } catch { return ''; }
+}
 function readFlag(key) {
-  try { return localStorage.getItem(key) === '1'; } catch { return false; }
+  try { return localStorage.getItem(key + fincaSuffix()) === '1'; } catch { return false; }
 }
 function writeFlag(key) {
-  try { localStorage.setItem(key, '1'); } catch { /* ignore */ }
+  try { localStorage.setItem(key + fincaSuffix(), '1'); } catch { /* ignore */ }
 }
 
 export default function SetupChecklist() {

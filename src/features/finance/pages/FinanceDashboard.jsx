@@ -5,18 +5,21 @@ import BudgetWidget from '../components/dashboard/BudgetWidget';
 import RoiWidget from '../components/dashboard/RoiWidget';
 import CommitmentsWidget from '../components/dashboard/CommitmentsWidget';
 import SetupChecklist from '../components/dashboard/SetupChecklist';
+import { useFinanceResource } from '../hooks/useFinanceResource';
+import { currentMonthLabel } from '../lib/format';
 import '../styles/finance-dashboard.css';
-
-// Etiqueta del mes actual capitalizada en español: "Mayo 2026".
-function currentMonthLabel() {
-  const now = new Date();
-  const raw = now.toLocaleDateString('es-CR', { month: 'long', year: 'numeric' });
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
 
 // Dashboard financiero ejecutivo — 4 widgets autocontenidos. El rol mínimo
 // (administrador) lo aplica la ruta en App.jsx vía RoleRoute, no aquí.
 function FinanceDashboard() {
+  // La proyección de tesorería (12 semanas) se fetchea UNA vez acá y se
+  // comparte entre Caja y Compromisos. Antes cada widget llamaba al mismo
+  // endpoint pesado por separado (12s + 4s); ahora Compromisos recorta las
+  // primeras 4 semanas del mismo response en cliente.
+  const projection = useFinanceResource('/api/treasury/projection?weeks=12', {
+    errorMessage: 'No se pudo cargar la información de tesorería.',
+  });
+
   return (
     <div className="page-container">
       <div className="page-header fin-dashboard-header">
@@ -36,18 +39,24 @@ function FinanceDashboard() {
           financiero — recibe 2/3 del ancho mientras Compromisos toma el
           1/3 restante. En mobile (<960px) ambos colapsan a una columna.
           El modificador --liquidity ancla los delays de stagger (C2). */}
-      <section className="fin-dashboard-section fin-dashboard-section--liquidity">
-        <p className="fin-dashboard-section-label">Liquidez y caja</p>
+      <section
+        className="fin-dashboard-section fin-dashboard-section--liquidity"
+        aria-labelledby="fin-section-liquidity"
+      >
+        <p className="fin-dashboard-section-label" id="fin-section-liquidity">Liquidez y caja</p>
         <div className="fin-dashboard-row fin-dashboard-row--liquidity">
-          <CashWidget />
-          <CommitmentsWidget />
+          <CashWidget {...projection} />
+          <CommitmentsWidget {...projection} />
         </div>
       </section>
 
       {/* Sección 2: Rentabilidad. Presupuesto y ROI tienen el mismo peso
           (ambas son lecturas comparables del desempeño del período). */}
-      <section className="fin-dashboard-section fin-dashboard-section--profit">
-        <p className="fin-dashboard-section-label">Rentabilidad del período</p>
+      <section
+        className="fin-dashboard-section fin-dashboard-section--profit"
+        aria-labelledby="fin-section-profit"
+      >
+        <p className="fin-dashboard-section-label" id="fin-section-profit">Rentabilidad del período</p>
         <div className="fin-dashboard-row fin-dashboard-row--profit">
           <BudgetWidget />
           <RoiWidget />

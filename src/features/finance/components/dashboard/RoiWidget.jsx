@@ -1,55 +1,36 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { FiBarChart2, FiPlus } from 'react-icons/fi';
-import { useApiFetch } from '../../../../hooks/useApiFetch';
+import { formatMoney, formatPct, currentMonthRange, FUNCTIONAL_CURRENCY } from '../../lib/format';
+import { useFinanceResource } from '../../hooks/useFinanceResource';
 import WidgetSkeleton from './WidgetSkeleton';
-
-const fmt = (n) => {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-};
-
-const fmtPct = (n) => (n == null ? '—' : `${Number(n).toFixed(1)}%`);
-
-// Rango: desde el primer día del mes actual hasta hoy. Consistente con el
-// período que se muestra en BudgetWidget.
-function currentMonthRange() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const today = d.toISOString().slice(0, 10);
-  return { desde: `${y}-${m}-01`, hasta: today };
-}
+import WidgetError from './WidgetError';
 
 function RoiWidget() {
-  const apiFetch = useApiFetch();
   const { desde, hasta } = useMemo(currentMonthRange, []);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data, loading, error, reload } = useFinanceResource(
+    `/api/roi/live?desde=${desde}&hasta=${hasta}`,
+    { errorMessage: 'No se pudo cargar la rentabilidad.' }
+  );
 
-  useEffect(() => {
-    apiFetch(`/api/roi/live?desde=${desde}&hasta=${hasta}`)
-      .then(r => r.json())
-      .then(setData)
-      .catch(() => setError('No se pudo cargar la rentabilidad.'))
-      .finally(() => setLoading(false));
-  }, [apiFetch, desde, hasta]);
-
-  // Filtramos lotes con al menos algo de actividad (ingreso o costo > 0).
+  // Lotes con al menos algo de actividad (ingreso o costo > 0).
   const active = (data?.porLote || []).filter(r => r.ingresos > 0 || r.costos > 0);
   const sorted = [...active].sort((a, b) => b.margen - a.margen);
   const top = sorted.slice(0, 3);
-  // Solo mostramos "peores" si hay al menos 4 lotes, para no mostrar
-  // duplicados con "mejores".
-  const worst = sorted.length > 3 ? sorted.slice(-3).reverse() : [];
+  // "Peores" = los 3 del fondo, SIEMPRE disjuntos del top: arrancamos desde
+  // el índice 3 para que ningún lote aparezca en ambas listas. Antes se usaba
+  // slice(-3) sobre el total, que con 4–5 lotes solapaba con el top.
+  const worst = sorted.length > 3 ? sorted.slice(3).slice(-3).reverse() : [];
+  const shown = top.length + worst.length;
+  const hiddenLotes = active.length - shown;
+
+  const resumen = data?.resumen;
 
   const renderItem = (r) => (
     <div key={r.loteId} className="fin-roi-item">
       <span className="fin-roi-item-name">{r.loteNombre}</span>
       <span className={`fin-roi-item-value${r.margen < 0 ? ' fin-widget-primary--negative' : ''}`}>
-        {fmt(r.margen)} · {fmtPct(r.margenPct)}
+        {formatMoney(r.margen)} · {formatPct(r.margenPct)}
       </span>
     </div>
   );
@@ -65,28 +46,28 @@ function RoiWidget() {
         <h3 className="aur-section-title">Rentabilidad</h3>
         <span className="aur-section-count">Mes actual</span>
         {!isEmptyState && (
-          <Link className="fin-widget-header-cta" to="/costos">
+          <Link className="fin-widget-header-cta aur-touch-target" to="/costos">
             Ver Centro de Costos →
           </Link>
         )}
       </div>
 
       {loading && <WidgetSkeleton label="Cargando rentabilidad…" />}
-      {error && <div className="fin-widget-error">{error}</div>}
+      {error && <WidgetError message={error} onRetry={reload} />}
 
       {!loading && !error && data && (
         <>
           <div className="fin-widget-stats">
             <div>
               <span>Margen total</span>
-              <strong className={data.resumen.margen < 0 ? 'fin-widget-primary--negative' : ''}>
-                {fmt(data.resumen.margen)}
+              <strong className={resumen?.margen < 0 ? 'fin-widget-primary--negative' : ''}>
+                {formatMoney(resumen?.margen, FUNCTIONAL_CURRENCY)}
               </strong>
             </div>
             <div>
               <span>Margen %</span>
-              <strong className={data.resumen.margen < 0 ? 'fin-widget-primary--negative' : ''}>
-                {fmtPct(data.resumen.margenPct)}
+              <strong className={resumen?.margen < 0 ? 'fin-widget-primary--negative' : ''}>
+                {formatPct(resumen?.margenPct)}
               </strong>
             </div>
           </div>
@@ -117,12 +98,16 @@ function RoiWidget() {
                   {worst.map(renderItem)}
                 </div>
               )}
+
+              {hiddenLotes > 0 && (
+                <Link to="/costos" className="fin-commits-more">
+                  +{hiddenLotes} lotes más
+                </Link>
+              )}
             </>
           )}
         </>
       )}
-
-      {/* CTA secundaria movida al header (top-right, ver C3). */}
     </section>
   );
 }

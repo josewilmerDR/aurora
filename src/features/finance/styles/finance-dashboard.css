@@ -63,16 +63,19 @@
   .fin-dashboard-row--profit { grid-template-columns: 1fr; }
 }
 
-/* La altura mínima de los widgets aplica también dentro de los nuevos rows
-   (no sólo del legacy .fin-dashboard-grid). */
-.fin-dashboard-row > .aur-section {
+/* Altura mínima + layout de los widgets, compartido por el row nuevo y la
+   grid legacy (.fin-dashboard-grid sigue viva en FinancingDashboard y
+   ProcurementDashboard). Una sola fuente de verdad para no divergir. */
+.fin-dashboard-row > .aur-section,
+.fin-dashboard-grid > .aur-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 220px;
 }
 @media (min-width: 960px) {
-  .fin-dashboard-row > .aur-section {
+  .fin-dashboard-row > .aur-section,
+  .fin-dashboard-grid > .aur-section {
     min-height: 280px;
   }
 }
@@ -83,24 +86,23 @@
    "placeholder visible". El modificador lo aplica cada widget cuando
    detecta que está en empty state.
 
-   Altura FIJA (no min-height) para que todos los empty cards midan igual
-   independientemente del ancho de columna y del wrapping de su texto. Sin
-   esto, Compromisos (1/3 de row) wrapeaba a más líneas que Caja (2/3) y
-   los cards quedaban dispares. La altura es lo bastante alta como para
-   absorber el peor caso de wrapping; el contenido va centrado vertical. */
+   Usamos min-height (no height fija): un empty card debe poder crecer si,
+   p.ej., Presupuesto renderiza su bloque de stats por encima del empty state
+   (summary.totalAssigned > 0 pero sin filas con monto). Con height fija eso
+   desbordaba. El min-height garantiza que todos midan al menos lo mismo. */
 .fin-widget--empty {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.08);
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.012), rgba(255, 255, 255, 0)),
     var(--aur-bg-card);
-  height: 240px;
+  min-height: 240px;
 }
 html[data-theme="light"] .fin-widget--empty {
   border-color: rgba(13, 26, 38, 0.12);
 }
 @media (min-width: 960px) {
-  .fin-widget--empty { height: 320px; }
+  .fin-widget--empty { min-height: 320px; }
 }
 
 /* ── C2: stagger fade-in al montar el dashboard ───────────────────────────
@@ -155,57 +157,12 @@ html[data-theme="light"] .fin-widget--empty {
   border-radius: 3px;
 }
 
-.fin-dashboard-intro {
-  margin: 0 0 4px 0;
-  color: var(--aur-text-3);
-  font-size: var(--aur-fs-footnote);
-  text-align: left;
-}
-
-/* aur-section ya provee bg/border/radius/padding/typography. Cuando el
-   aur-section es hijo directo del grid, asegura altura mínima común y
-   apila el contenido con gap consistente para que los 4 widgets queden
-   visualmente balanceados. En desktop (>=960px) sube a 280px para
-   reducir la sensación de densidad cuando el grid es 2x2 (audit UX). */
-.fin-dashboard-grid > .aur-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 220px;
-}
-
-@media (min-width: 960px) {
-  .fin-dashboard-grid > .aur-section {
-    min-height: 280px;
-  }
-}
-
-/* ── Sub-clases fin-widget-* compartidas — finance + CEO + procurement
-   ────────────────────────────────────────────────────────────────────────
-   El shell .fin-widget {} fue eliminado: ya no había JSX que lo usara
-   como contenedor (finance migró a .aur-section; CEO y procurement
-   también). Las sub-clases siguen vivas porque varios widgets las
-   reusan para títulos, stats y CTAs sobre cualquier shell de card.
-   ────────────────────────────────────────────────────────────────────── */
-.fin-widget-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.fin-widget-title {
-  font-size: var(--aur-fs-caption);
-  font-weight: 600;
-  color: var(--aur-text-2);
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* ── Sub-classes compartidas — finance + CEO + procurement las usan ──── */
+/* ── Sub-classes compartidas — finance + CEO + procurement las usan ────────
+   El shell .fin-widget {} y las clases .fin-widget-header / .fin-widget-title
+   se eliminaron: ya no había JSX que las usara (finance migró a .aur-section
+   con .aur-section-header/.aur-section-title; CEO y procurement también).
+   Las sub-clases de abajo siguen vivas porque varios widgets las reusan para
+   valores, stats y CTAs sobre cualquier shell de card. ──────────────────── */
 .fin-widget-primary {
   font-size: var(--aur-fs-title2);
   font-weight: 700;
@@ -255,6 +212,15 @@ html[data-theme="light"] .fin-widget--empty {
   font-size: var(--aur-fs-footnote);
   text-align: center;
   padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+/* Botón "Reintentar" del estado de error. aur-btn-text aporta el reset y el
+   touch-target; acá sólo lo achicamos al tamaño del contexto del widget. */
+.fin-widget-retry {
+  font-size: var(--aur-fs-caption);
 }
 
 /* ── SetupChecklist (onboarding del dashboard) ────────────────────────────
@@ -484,6 +450,9 @@ html[data-theme="light"] .fin-widget--empty {
   font-size: var(--aur-fs-caption);
   font-variant-numeric: tabular-nums;
   color: var(--aur-text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 .fin-budget-row-pct--warn { color: var(--aur-warn); font-weight: 600; }
 .fin-budget-row-pct--over { color: var(--aur-danger); font-weight: 600; }
@@ -547,9 +516,17 @@ html[data-theme="light"] .fin-widget--empty {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+/* Indicador "+N más". Se usa como <div> (Compromisos) o como <a> de enlace al
+   detalle (Presupuesto, Rentabilidad) — de ahí los resets de link. */
 .fin-commits-more {
+  display: block;
   text-align: center;
   margin-top: 4px;
   color: var(--aur-text-3);
   font-size: var(--aur-fs-caption);
+  text-decoration: none;
+}
+a.fin-commits-more:hover {
+  color: var(--aur-text-2);
+  text-decoration: underline;
 }
