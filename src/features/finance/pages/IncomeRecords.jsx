@@ -228,7 +228,15 @@ function IncomeRecords() {
   }, [records, searchQuery]);
 
   const exportCSV = useCallback(() => {
-    const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Anti CSV/formula injection: campos como comprador/lote/unidad son texto
+    // libre del usuario. Un valor que empieza con = + - @ o tab/CR es
+    // interpretado como fórmula por Excel/Sheets aun entre comillas, así que lo
+    // prefijamos con comilla simple para forzar su lectura como texto.
+    const escape = v => {
+      const s = String(v ?? '');
+      const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     // Insertamos "Total (CRC)" justo después de "Total": el CSV en moneda
     // original no se puede sumar mezclando CRC/USD; esta columna da el
     // equivalente normalizado que usan los stats (audit #14).

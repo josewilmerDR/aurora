@@ -4,6 +4,7 @@ const { Router } = require('express');
 const { authenticate } = require('../../lib/middleware');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
 const {
   listIncome,
   createIncome,
@@ -26,9 +27,12 @@ function requireRole(min) {
   };
 }
 
-router.get('/api/income', authenticate, requireRole('encargado'), listIncome);
-router.post('/api/income', authenticate, requireRole('encargado'), createIncome);
-router.put('/api/income/:id', authenticate, requireRole('encargado'), updateIncome);
-router.delete('/api/income/:id', authenticate, requireRole('encargado'), deleteIncome);
+// rateLimit: el GET hace un orderBy de colección completa por request; los
+// writes escriben sin tope. Buckets propios para no compartir presupuesto entre
+// lecturas y escrituras (mismo patrón que buyers).
+router.get('/api/income', authenticate, requireRole('encargado'), rateLimit('income_read', 'write'), listIncome);
+router.post('/api/income', authenticate, requireRole('encargado'), rateLimit('income_write', 'write'), createIncome);
+router.put('/api/income/:id', authenticate, requireRole('encargado'), rateLimit('income_write', 'write'), updateIncome);
+router.delete('/api/income/:id', authenticate, requireRole('encargado'), rateLimit('income_write', 'write'), deleteIncome);
 
 module.exports = router;
