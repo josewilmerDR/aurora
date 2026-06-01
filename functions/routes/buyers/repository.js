@@ -1,9 +1,10 @@
 // Repositorio del dominio `buyers`. Único archivo del dominio que toca
 // db.collection().
 //
-// Nota: a diferencia de budgets, el dominio buyers no estampa `createdBy` ni
-// campos de auditoría en updates. Preservamos esa convención hasta que el
-// equipo decida estandarizarlo (issue: estampado de auditoría uniforme).
+// Nota: a diferencia de budgets, el dominio buyers no estampa el autor
+// (`createdBy`/`updatedBy`) en las escrituras. Sí estampa `createdAt` y
+// `updatedAt` para tener trazabilidad temporal mínima; el estampado de autor
+// queda pendiente hasta que el equipo lo estandarice (issue: auditoría uniforme).
 
 const { db, FieldValue } = require('../../lib/firebase');
 
@@ -35,7 +36,10 @@ async function create(fincaId, data) {
 }
 
 async function update(id, data) {
-  await db.collection(COLLECTION).doc(id).update(data);
+  await db.collection(COLLECTION).doc(id).update({
+    ...data,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
 }
 
 async function remove(id) {
