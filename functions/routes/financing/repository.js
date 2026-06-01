@@ -52,6 +52,7 @@ async function listSnapshots(fincaId) {
 async function listCreditProducts(fincaId) {
   const snap = await db.collection(COL_CREDIT_PRODUCTS)
     .where('fincaId', '==', fincaId)
+    .limit(LIST_LIMIT)
     .get();
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
