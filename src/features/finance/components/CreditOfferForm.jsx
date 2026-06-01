@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 
 // Para "ofertas personales" un banco típicamente cotiza un monto, plazo y tasa
 // específicos. El backend guarda rangos (min/max) — acá presentamos un solo
@@ -40,13 +41,35 @@ function toForm(doc) {
 function CreditOfferForm({ initial, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const errorRef = useRef(null);
+  // Snapshot del estado inicial para detectar cambios sin guardar al cancelar.
+  const initialRef = useRef(EMPTY);
 
-  useEffect(() => { setForm(toForm(initial)); setError(null); }, [initial]);
+  useEffect(() => {
+    const next = toForm(initial);
+    setForm(next);
+    initialRef.current = next;
+    setError(null);
+  }, [initial]);
+
+  // El error de validación vive al pie de un form largo (más de un viewport en
+  // mobile). Al aparecer lo traemos a la vista y le movemos el foco para que el
+  // lector de pantalla lo anuncie (el contenedor tiene role="alert").
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      errorRef.current.focus();
+    }
+  }, [error]);
 
   const update = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm(prev => ({ ...prev, [field]: val }));
   };
+
+  const isDirty = () => JSON.stringify(form) !== JSON.stringify(initialRef.current);
+  const handleCancel = () => { if (isDirty()) setConfirmCancel(true); else onCancel(); };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -83,6 +106,9 @@ function CreditOfferForm({ initial, onSubmit, onCancel, saving }) {
   };
 
   return (
+    // noValidate: la validación real es handleSubmit (mensajes en español y
+    // control del foco). Los min/max/required de los inputs quedan sólo como
+    // hint visual del navegador, no gobiernan el submit.
     <form onSubmit={handleSubmit} noValidate>
       <section className="aur-section">
         <div className="aur-section-header">
@@ -243,19 +269,31 @@ function CreditOfferForm({ initial, onSubmit, onCancel, saving }) {
       </section>
 
       {error && (
-        <div className="aur-row aur-row--multiline">
+        <div className="aur-row aur-row--multiline" ref={errorRef} tabIndex={-1} role="alert">
           <span className="aur-field-error">{error}</span>
         </div>
       )}
 
       <div className="aur-form-actions">
-        <button type="button" className="aur-btn-text" onClick={onCancel} disabled={saving}>
+        <button type="button" className="aur-btn-text" onClick={handleCancel} disabled={saving}>
           <FiX /> Cancelar
         </button>
         <button type="submit" className="aur-btn-pill" disabled={saving}>
           <FiSave /> {saving ? 'Guardando…' : 'Guardar oferta'}
         </button>
       </div>
+
+      {confirmCancel && (
+        <AuroraConfirmModal
+          danger
+          title="Descartar cambios"
+          body="Tenés cambios sin guardar en esta oferta. Si salís ahora se pierden."
+          confirmLabel="Descartar"
+          cancelLabel="Seguir editando"
+          onConfirm={() => { setConfirmCancel(false); onCancel(); }}
+          onCancel={() => setConfirmCancel(false)}
+        />
+      )}
     </form>
   );
 }
