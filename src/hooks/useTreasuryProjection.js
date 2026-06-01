@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApiFetch } from './useApiFetch';
 
 // Tiempo máximo de espera antes de abortar la llamada. Evita que una red
@@ -85,7 +85,12 @@ export function useTreasuryProjection(weeks) {
         const decorated = timedOut ? Object.assign(err || new Error('timeout'), { isTimeout: true }) : err;
         const kind = classifyError(decorated, decorated?.status);
         console.error('[Treasury] projection fetch failed', { kind, status: decorated?.status, err: decorated });
-        setProjection(null);
+        // No anulamos la proyección previa: si esto es un refetch (cambio de
+        // horizonte o reload tras guardar), mantener la serie en pantalla y
+        // dejar que la página muestre el error como banner (stale-while-error)
+        // en vez de borrar todo. El estado inicial (projection === null) ya
+        // arranca en null, así que el error de primera carga sigue mostrando
+        // la pantalla de error completa.
         setError({ kind, message: ERROR_MESSAGES[kind] });
       })
       .finally(() => {
@@ -101,15 +106,4 @@ export function useTreasuryProjection(weeks) {
   }, [apiFetch, weeks, reloadKey]);
 
   return { projection, loading, error, reload };
-}
-
-// Helper para guardar un saldo desde fuera del hook, con mount-awareness para
-// evitar setState sobre componentes desmontados.
-export function useIsMounted() {
-  const ref = useRef(true);
-  useEffect(() => {
-    ref.current = true;
-    return () => { ref.current = false; };
-  }, []);
-  return ref;
 }

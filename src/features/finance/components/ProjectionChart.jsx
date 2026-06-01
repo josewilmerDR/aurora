@@ -1,5 +1,8 @@
 // Chart SVG simple sin dependencias — serie de saldos semanales.
-// Dibuja una línea + área bajo la curva + línea base en cero.
+// Dibuja una línea + área bajo la curva + línea base en cero + puntos con
+// tooltip nativo por semana para poder leer el valor exacto al hover.
+
+import { formatMoney, DEFAULT_CURRENCY } from '../../../lib/formatMoney';
 
 const PAD = { top: 10, right: 12, bottom: 24, left: 52 };
 const WIDTH = 720;
@@ -7,11 +10,13 @@ const HEIGHT = 220;
 
 function fmt(n) {
   if (!Number.isFinite(n)) return '0';
-  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toFixed(0);
 }
 
-function ProjectionChart({ series }) {
+function ProjectionChart({ series, currency = DEFAULT_CURRENCY }) {
   if (!Array.isArray(series) || series.length === 0) {
     return <p className="finance-empty">No hay datos para graficar.</p>;
   }
@@ -37,9 +42,24 @@ function ProjectionChart({ series }) {
   // Eje Y con 3 marcas: max, 0 (si entra en rango), min.
   const yTicks = [yMax, 0, yMin].filter((v, i, arr) => arr.indexOf(v) === i);
 
+  // Con muchas semanas los puntos se amontonan: achicamos el radio para que la
+  // línea siga legible pero mantenemos el <title> para el tooltip nativo.
+  const dotR = series.length > 40 ? 1.5 : 2.5;
+
+  const endBalance = values[values.length - 1];
+  const ariaLabel = `Proyección de saldo de caja desde ${series[0].weekStart} hasta ${series[series.length - 1].weekEnd}. `
+    + `Saldo final estimado ${formatMoney(endBalance, currency)}.`;
+
   return (
     <div className="treasury-chart-wrap">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+      <svg
+        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+        width="100%"
+        height="100%"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label={ariaLabel}
+      >
         {/* Grid Y */}
         {yTicks.map((t, i) => (
           <g key={i}>
@@ -50,7 +70,7 @@ function ProjectionChart({ series }) {
               y1={y(t)}
               y2={y(t)}
             />
-            <text x={PAD.left - 6} y={y(t) + 3} fontSize="10" fill="#8ba5bf" textAnchor="end">{fmt(t)}</text>
+            <text x={PAD.left - 6} y={y(t) + 3} fontSize="10" fill="var(--aur-text-3)" textAnchor="end">{fmt(t)}</text>
           </g>
         ))}
 
@@ -63,11 +83,24 @@ function ProjectionChart({ series }) {
         <path className="treasury-chart-area" d={areaPath} />
         <path className="treasury-chart-line" d={linePath} />
 
+        {/* Puntos por semana con tooltip nativo (saldo de cierre exacto) */}
+        {series.map((w, i) => (
+          <circle
+            key={w.weekStart}
+            className={`treasury-chart-dot${w.closingBalance < 0 ? ' treasury-chart-dot--negative' : ''}`}
+            cx={x(i)}
+            cy={y(w.closingBalance)}
+            r={dotR}
+          >
+            <title>{`${w.weekStart} → ${w.weekEnd}: ${formatMoney(w.closingBalance, currency)}`}</title>
+          </circle>
+        ))}
+
         {/* Labels X — primer y último */}
-        <text x={PAD.left} y={HEIGHT - 6} fontSize="10" fill="#8ba5bf">
+        <text x={PAD.left} y={HEIGHT - 6} fontSize="10" fill="var(--aur-text-3)">
           {series[0].weekStart}
         </text>
-        <text x={WIDTH - PAD.right} y={HEIGHT - 6} fontSize="10" fill="#8ba5bf" textAnchor="end">
+        <text x={WIDTH - PAD.right} y={HEIGHT - 6} fontSize="10" fill="var(--aur-text-3)" textAnchor="end">
           {series[series.length - 1].weekEnd}
         </text>
       </svg>

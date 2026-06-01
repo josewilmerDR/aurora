@@ -16,12 +16,40 @@ const makeEmpty = () => ({
 
 function CashBalanceForm({ onSubmit, onCancel, saving }) {
   const [form, setForm] = useState(makeEmpty);
+  const [errors, setErrors] = useState({});
   const needsFx = form.currency !== 'CRC';
 
-  const update = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+  const update = (field) => (e) => {
+    const { value } = e.target;
+    setForm(prev => ({ ...prev, [field]: value }));
+    // Limpiamos el error del campo en cuanto el usuario lo edita.
+    setErrors(prev => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
+
+  const validate = () => {
+    const next = {};
+    const amount = Number(form.amount);
+    // `noValidate` desactiva la validación nativa, así que el `required` no
+    // frena nada: validamos a mano para no registrar un saldo de ₡0 fantasma.
+    if (form.amount === '' || !Number.isFinite(amount)) {
+      next.amount = 'Ingresá un saldo.';
+    }
+    if (needsFx) {
+      const fx = Number(form.exchangeRateToCRC);
+      if (form.exchangeRateToCRC === '' || !Number.isFinite(fx) || fx <= 0) {
+        next.exchangeRateToCRC = 'Ingresá el tipo de cambio.';
+      }
+    }
+    return next;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const next = validate();
+    if (Object.keys(next).length > 0) {
+      setErrors(next);
+      return;
+    }
     const payload = { ...form, amount: Number(form.amount) };
     payload.exchangeRateToCRC = needsFx ? Number(form.exchangeRateToCRC) : 1;
     onSubmit(payload);
@@ -46,14 +74,19 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
           <input
             id="cb-amount"
             type="number"
-            className="aur-input aur-input--num"
+            className={`aur-input aur-input--num${errors.amount ? ' aur-input--error' : ''}`}
             step="0.01"
             min={-MAX_AMOUNT}
             max={MAX_AMOUNT}
             value={form.amount}
             onChange={update('amount')}
+            aria-invalid={!!errors.amount}
+            aria-describedby={errors.amount ? 'cb-amount-error' : undefined}
             required
           />
+          {errors.amount && (
+            <span id="cb-amount-error" className="aur-field-error">{errors.amount}</span>
+          )}
         </div>
         <div className="aur-row">
           <label className="aur-row-label" htmlFor="cb-currency">Moneda</label>
@@ -85,16 +118,21 @@ function CashBalanceForm({ onSubmit, onCancel, saving }) {
             <input
               id="cb-fx"
               type="number"
-              className="aur-input aur-input--num"
+              className={`aur-input aur-input--num${errors.exchangeRateToCRC ? ' aur-input--error' : ''}`}
               step="0.01"
               min="0.01"
               max={MAX_FX}
               value={form.exchangeRateToCRC}
               onChange={update('exchangeRateToCRC')}
               placeholder="ej. 520.00"
+              aria-invalid={!!errors.exchangeRateToCRC}
+              aria-describedby={errors.exchangeRateToCRC ? 'cb-fx-error' : 'cb-fx-hint'}
               required
             />
-            <span className="aur-field-hint">
+            {errors.exchangeRateToCRC && (
+              <span id="cb-fx-error" className="aur-field-error">{errors.exchangeRateToCRC}</span>
+            )}
+            <span id="cb-fx-hint" className="aur-field-hint">
               1 {form.currency} = ? CRC. Se usa para convertir a la moneda funcional.
             </span>
           </div>
