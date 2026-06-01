@@ -1,12 +1,7 @@
 import { FiArrowLeft, FiAlertTriangle, FiInfo, FiDollarSign, FiTrendingUp, FiTrendingDown } from 'react-icons/fi';
 import CashflowDualChart from './CashflowDualChart';
 import { formatMoney, formatNumber } from '../../../lib/formatMoney';
-
-const RECOMMENDATION_BADGE_VARIANT = {
-  tomar:             { label: 'Tomar',                cls: 'aur-badge--green' },
-  tomar_condicional: { label: 'Tomar (condicional)',  cls: 'aur-badge--yellow' },
-  no_tomar:          { label: 'No tomar',             cls: 'aur-badge--gray' },
-};
+import { RECOMMENDATION_VARIANT } from '../lib/recommendation';
 
 const SCENARIO_TOOLTIP = {
   Pesimista: 'Promedio del tercio inferior de corridas MC (peor año posible).',
@@ -52,7 +47,7 @@ function DebtSimulationDetail({ simulation, onBack }) {
   if (!simulation) return null;
 
   const rec = simulation.recommendation || {};
-  const recBadge = RECOMMENDATION_BADGE_VARIANT[rec.recommendation];
+  const recBadge = RECOMMENDATION_VARIANT[rec.recommendation];
   const delta = simulation.delta || {};
   const resumenDelta = delta.resumen || {};
   const scenarioDelta = delta.byScenario || {};
@@ -172,7 +167,14 @@ function DebtSimulationDetail({ simulation, onBack }) {
               <div key={name} className="debt-sim-scenario-card">
                 <div className="debt-sim-scenario-header">
                   <strong>{name}</strong>
-                  <span title={SCENARIO_TOOLTIP[name]}><FiInfo size={11} /></span>
+                  <span
+                    role="img"
+                    tabIndex={0}
+                    aria-label={SCENARIO_TOOLTIP[name]}
+                    title={SCENARIO_TOOLTIP[name]}
+                  >
+                    <FiInfo size={11} />
+                  </span>
                 </div>
                 <div className="debt-sim-scenario-row">
                   <span>Margen sin deuda</span>
@@ -222,24 +224,26 @@ function DebtSimulationDetail({ simulation, onBack }) {
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p, i) => {
-                  const payment = Number(p) || 0;
-                  const extraRev = Number(simulation.useCaseImpact?.extraRevenueByMonth?.[i]) || 0;
-                  const extraCostDelta = Number(simulation.useCaseImpact?.extraCostByMonth?.[i]) || 0;
-                  const netReturn = extraRev - extraCostDelta;
-                  const net = netReturn - payment;
-                  if (payment === 0 && netReturn === 0) return null;
-                  return (
-                    <tr key={i}>
-                      <td>m{i + 1}</td>
-                      <td className="aur-td-num">{formatMoney(payment, currency, { decimals: 0 })}</td>
-                      <td className="aur-td-num">{formatMoney(netReturn, currency, { decimals: 0 })}</td>
-                      <td className={`aur-td-num ${net >= 0 ? 'debt-sim-net-positive' : 'debt-sim-net-negative'}`}>
-                        {formatMoney(net, currency, { decimals: 0 })}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {payments
+                  .map((p, i) => {
+                    const payment = Number(p) || 0;
+                    const extraRev = Number(simulation.useCaseImpact?.extraRevenueByMonth?.[i]) || 0;
+                    const extraCostDelta = Number(simulation.useCaseImpact?.extraCostByMonth?.[i]) || 0;
+                    const netReturn = extraRev - extraCostDelta;
+                    const net = netReturn - payment;
+                    if (payment === 0 && netReturn === 0) return null;
+                    return (
+                      <tr key={i}>
+                        <td>m{i + 1}</td>
+                        <td className="aur-td-num">{formatMoney(payment, currency, { decimals: 0 })}</td>
+                        <td className="aur-td-num">{formatMoney(netReturn, currency, { decimals: 0 })}</td>
+                        <td className={`aur-td-num ${net >= 0 ? 'debt-sim-net-positive' : 'debt-sim-net-negative'}`}>
+                          {formatMoney(net, currency, { decimals: 0 })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                  .filter(Boolean)}
               </tbody>
             </table>
           </div>

@@ -131,6 +131,10 @@ async function listDebtSimulations(fincaId) {
   return snap.docs.map((d) => ({ id: d.id, data: d.data() }));
 }
 
+async function removeDebtSimulation(id) {
+  await db.collection(COL_DEBT_SIMS).doc(id).delete();
+}
+
 // ─── Autopilot config (cross-domain read) ─────────────────────────────────
 // Lectura compartida con el dominio autopilot. Necesaria aquí porque el
 // kill switch del dominio financing inspecciona `dominios.financing` antes
@@ -158,6 +162,7 @@ module.exports = {
   // Debt simulations
   createDebtSimulation,
   listDebtSimulations,
+  removeDebtSimulation,
   // Cross-domain
   getAutopilotConfig,
 };

@@ -313,10 +313,33 @@ async function getDebtSimulation(req, res) {
   }
 }
 
+// ─── Delete ─────────────────────────────────────────────────────────────────
+
+// Las simulaciones son append-only por diseño (trazabilidad), pero el usuario
+// necesita poder limpiar corridas exploratorias/descartadas que ensucian la
+// tabla. Borrado duro, restringido a supervisor+ (mismo gate que crear/listar)
+// y validando ownership por finca.
+async function deleteDebtSimulation(req, res) {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Requires supervisor role or above.', 403);
+    }
+    const ownership = await verifyOwnership('debt_simulations', req.params.id, req.fincaId);
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+
+    await repo.removeDebtSimulation(req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[FINANCING] debt-simulations delete failed:', error);
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete debt simulation.', 500);
+  }
+}
+
 module.exports = {
   simulateDebtRoiHandler,
   listDebtSimulations,
   getDebtSimulation,
+  deleteDebtSimulation,
   // exported for tests
   _internals: { deriveBaseline, validateUseCase },
 };

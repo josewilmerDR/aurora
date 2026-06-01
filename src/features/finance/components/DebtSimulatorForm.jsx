@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiPlay, FiX, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 import { formatMoney } from '../../../lib/formatMoney';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 
 // Form del simulador de deuda. La oferta define amount/plazo/APR (min=max en
 // nuestra UI de ofertas personales) — acá el usuario solo aporta el useCase,
@@ -38,6 +39,16 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
   const [form, setForm] = useState(EMPTY);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  // Datos cargados sin guardar: si el usuario configuró algo y cancela, pedimos
+  // confirmación antes de descartar (antes se perdía en silencio).
+  const [touched, setTouched] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+
+  const requestCancel = () => {
+    if (touched) setConfirmCancel(true);
+    else onCancel();
+  };
 
   useEffect(() => {
     setForm(prev => ({
@@ -53,7 +64,42 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
   );
 
   const update = (field) => (e) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }));
+    const value = e.target.value;
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      // Al bajar el horizonte, re-clampeamos el mes de inicio del retorno
+      // diferido: el input no debe mostrar un valor por encima de su máximo.
+      if (field === 'horizonteMeses') {
+        const h = Number(value);
+        const s = Number(next.startMonth);
+        if (Number.isFinite(h) && Number.isInteger(s) && s > h - 1) {
+          next.startMonth = String(Math.max(0, h - 1));
+        }
+      }
+      return next;
+    });
+    // El error inline del campo se limpia apenas el usuario lo edita.
+    setFieldErrors(prev => (prev[field] ? { ...prev, [field]: null } : prev));
+    setTouched(true);
+  };
+
+  // Validación inline en blur: el usuario ve el problema junto al campo, no
+  // recién al pie tras apretar "Simular".
+  const validateField = (field) => () => {
+    let msg = null;
+    if (field === 'monthlyIncrease' && (form.returnKind === 'linear' || form.returnKind === 'delayed_revenue')) {
+      const v = Number(form.monthlyIncrease);
+      if (form.monthlyIncrease !== '' && (!Number.isFinite(v) || v <= 0)) msg = 'Debe ser mayor que 0.';
+    } else if (field === 'monthlyCostReduction' && form.returnKind === 'cost_reduction') {
+      const v = Number(form.monthlyCostReduction);
+      if (form.monthlyCostReduction !== '' && (!Number.isFinite(v) || v <= 0)) msg = 'Debe ser mayor que 0.';
+    } else if (field === 'startMonth' && form.returnKind === 'delayed_revenue') {
+      const s = Number(form.startMonth);
+      if (form.startMonth !== '' && (!Number.isInteger(s) || s < 0 || s >= Number(form.horizonteMeses))) {
+        msg = `Debe estar entre 0 y ${Number(form.horizonteMeses) - 1}.`;
+      }
+    }
+    setFieldErrors(prev => ({ ...prev, [field]: msg }));
   };
 
   const handleSubmit = (e) => {
@@ -230,7 +276,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
 
         {(form.returnKind === 'linear' || form.returnKind === 'delayed_revenue') && (
           <div className="aur-list">
-            <div className="aur-row">
+            <div className="aur-row aur-row--multiline">
               <label className="aur-row-label" htmlFor="ds-monthly">
                 Ingreso adicional mensual ({selectedOffer?.moneda || 'USD'})
               </label>
@@ -242,8 +288,11 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
                 step="0.01"
                 value={form.monthlyIncrease}
                 onChange={update('monthlyIncrease')}
+                onBlur={validateField('monthlyIncrease')}
+                aria-invalid={!!fieldErrors.monthlyIncrease}
                 required
               />
+              {fieldErrors.monthlyIncrease && <span className="aur-field-error">{fieldErrors.monthlyIncrease}</span>}
             </div>
           </div>
         )}
@@ -261,16 +310,19 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
                 step="1"
                 value={form.startMonth}
                 onChange={update('startMonth')}
+                onBlur={validateField('startMonth')}
+                aria-invalid={!!fieldErrors.startMonth}
                 required
               />
               <span className="aur-field-hint">0 = este mes. Ej: una siembra que rinde a los 4 meses → 4.</span>
+              {fieldErrors.startMonth && <span className="aur-field-error">{fieldErrors.startMonth}</span>}
             </div>
           </div>
         )}
 
         {form.returnKind === 'cost_reduction' && (
           <div className="aur-list">
-            <div className="aur-row">
+            <div className="aur-row aur-row--multiline">
               <label className="aur-row-label" htmlFor="ds-costred">
                 Reducción mensual de costo ({selectedOffer?.moneda || 'USD'})
               </label>
@@ -282,8 +334,11 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
                 step="0.01"
                 value={form.monthlyCostReduction}
                 onChange={update('monthlyCostReduction')}
+                onBlur={validateField('monthlyCostReduction')}
+                aria-invalid={!!fieldErrors.monthlyCostReduction}
                 required
               />
+              {fieldErrors.monthlyCostReduction && <span className="aur-field-error">{fieldErrors.monthlyCostReduction}</span>}
             </div>
           </div>
         )}
@@ -317,7 +372,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
                 onChange={update('horizonteMeses')}
               />
             </div>
-            <div className="aur-row">
+            <div className="aur-row aur-row--multiline">
               <label className="aur-row-label" htmlFor="ds-trials">N° de corridas Monte Carlo</label>
               <input
                 id="ds-trials"
@@ -329,6 +384,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
                 value={form.nTrials}
                 onChange={update('nTrials')}
               />
+              <span className="aur-field-hint">Más corridas = más precisión, pero la simulación tarda más. 500 es un buen punto medio.</span>
             </div>
             <div className="aur-row aur-row--multiline">
               <label className="aur-row-label" htmlFor="ds-seed">Semilla</label>
@@ -354,7 +410,7 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
       )}
 
       <div className="aur-form-actions">
-        <button type="button" className="aur-btn-text" onClick={onCancel} disabled={submitting}>
+        <button type="button" className="aur-btn-text" onClick={requestCancel} disabled={submitting}>
           <FiX /> Cancelar
         </button>
         <button
@@ -365,6 +421,18 @@ function DebtSimulatorForm({ snapshots, offers, onSubmit, onCancel, submitting }
           <FiPlay /> {submitting ? 'Corriendo Monte Carlo…' : 'Simular'}
         </button>
       </div>
+
+      {confirmCancel && (
+        <AuroraConfirmModal
+          danger
+          title="Descartar simulación"
+          body="Perderás los datos que cargaste en este formulario. ¿Querés salir igual?"
+          confirmLabel="Descartar"
+          cancelLabel="Seguir editando"
+          onConfirm={() => { setConfirmCancel(false); onCancel(); }}
+          onCancel={() => setConfirmCancel(false)}
+        />
+      )}
     </form>
   );
 }
