@@ -44,7 +44,10 @@ router.get('/api/financing/profile/live', authenticate, getLiveProfile);
 // admin) can't hammer expensive Firestore reads.
 router.post('/api/financing/profile/snapshot', authenticate, rateLimit('financing_snapshot', 'costly_read'), createSnapshot);
 router.get('/api/financing/profile/snapshots', authenticate, listSnapshots);
-router.get('/api/financing/profile/snapshots/:id/export', authenticate, exportSnapshot);
+// Export serializes the full financial profile (HTML/JSON) and is a data
+// exfiltration channel; cap it like the snapshot create so a token can't
+// script a mass pull. Same costly_read tier.
+router.get('/api/financing/profile/snapshots/:id/export', authenticate, rateLimit('financing_snapshot_export', 'costly_read'), exportSnapshot);
 router.get('/api/financing/profile/snapshots/:id', authenticate, getSnapshot);
 
 // Fase 5.2 — credit product catalog.

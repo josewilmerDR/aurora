@@ -23,6 +23,14 @@ function isValidISODate(s) {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
+// Firestore document ids that are safe to pass to db.collection().doc(): a
+// non-empty string without path separators. Guards against a malformed `:id`
+// (empty after decode, `..`, slashes) throwing inside the Admin SDK and
+// surfacing as a 500 instead of the correct 400.
+function isValidDocId(id) {
+  return typeof id === 'string' && id.length > 0 && id.length <= 1500 && !id.includes('/');
+}
+
 // ─── Live profile ─────────────────────────────────────────────────────────
 
 async function getLiveProfile(req, res) {
@@ -119,16 +127,23 @@ async function getSnapshot(req, res) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Requires supervisor role or above.', 403);
     }
 
+    if (!isValidDocId(req.params.id)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid snapshot id.', 400);
+    }
+
     const ownership = await verifyOwnership('financial_profile_snapshots', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
     // generatedBy (uid) y generatedByRole son identificadores internos que la
-    // UI no usa; los omitimos del payload. generatedByEmail sí se conserva
-    // porque SnapshotDetail lo muestra ("Generado por …").
-    const { generatedBy, generatedByRole, ...data } = ownership.doc.data();
+    // UI no usa; los omitimos del payload. generatedByEmail es PII de otro
+    // usuario (el admin autor) → solo se proyecta a administradores; un
+    // supervisor ve el corte sin el email del autor. SnapshotDetail ya
+    // renderiza el bloque "generado por …" condicionalmente.
+    const { generatedBy, generatedByRole, generatedByEmail, ...data } = ownership.doc.data();
     res.json({
       id: ownership.doc.id,
       ...data,
+      ...(hasMinRoleBE(req.userRole, 'administrador') ? { generatedByEmail } : {}),
       generatedAt: data.generatedAt?.toDate?.()?.toISOString?.() || null,
     });
   } catch (error) {
@@ -143,6 +158,10 @@ async function exportSnapshot(req, res) {
   try {
     if (!hasMinRoleBE(req.userRole, 'administrador')) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Only administrador can export snapshots.', 403);
+    }
+
+    if (!isValidDocId(req.params.id)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid snapshot id.', 400);
     }
 
     const ownership = await verifyOwnership('financial_profile_snapshots', req.params.id, req.fincaId);
@@ -170,6 +189,18 @@ async function exportSnapshot(req, res) {
       generatedAt: data.generatedAt?.toDate?.()?.toISOString?.() || null,
       generatedByEmail: data.generatedByEmail || '',
     };
+
+    // El export saca del sistema el estado financiero completo de la finca en
+    // un documento bank-presentable; registramos su salida (mismo criterio que
+    // AUDIT_EXPORT del CSV forense). Fail-open: no se await ni rompe el export.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.FINANCING_SNAPSHOT_EXPORT,
+      target: { type: 'financial_profile_snapshot', id: ownership.doc.id },
+      metadata: { asOf: data.asOf, format },
+      severity: SEVERITY.INFO,
+    });
 
     if (format === 'html') {
       res.set('Content-Type', 'text/html; charset=utf-8');

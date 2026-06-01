@@ -5,6 +5,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import PageHeader from '../../../components/PageHeader';
 import AuroraSectionIntro from '../../../components/ui/AuroraSectionIntro';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useFinanceResource } from '../hooks/useFinanceResource';
 import { formatMoney, formatPct, FUNCTIONAL_CURRENCY } from '../lib/format';
@@ -51,7 +52,15 @@ function SnapshotDetail() {
     setExporting(true);
     try {
       const res = await apiFetch(`/api/financing/profile/snapshots/${id}/export?format=json`);
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Traducimos códigos accionables (403 rol perdido, 429 rate-limit, …)
+        // con el mismo mapa que el resto de la app; el genérico queda de fallback.
+        let body = null;
+        try { body = await res.json(); } catch { /* body vacío o no-JSON */ }
+        const e = new Error(translateApiError(body, 'No se pudo exportar el snapshot.'));
+        e.userFacing = true;
+        throw e;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -62,8 +71,10 @@ function SnapshotDetail() {
       a.remove();
       URL.revokeObjectURL(url);
       toast.success('Snapshot exportado.');
-    } catch {
-      toast.error('No se pudo exportar el snapshot.');
+    } catch (err) {
+      // Solo exponemos el mensaje si viene traducido del API; un fallo de red
+      // (fetch reject) NO debe mostrar su texto crudo al usuario.
+      toast.error(err?.userFacing ? err.message : 'No se pudo exportar el snapshot.');
     } finally {
       setExporting(false);
     }
