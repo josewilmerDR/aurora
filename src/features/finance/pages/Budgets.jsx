@@ -5,47 +5,15 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import BudgetForm from '../components/BudgetForm';
 import BudgetExecutionPanel from '../components/BudgetExecutionPanel';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { formatPeriod, shortPeriod } from '../../../lib/periodFormat';
+import {
+  formatPeriod,
+  shortPeriod,
+  currentMonthPeriod,
+  buildPeriodOptions,
+} from '../../../lib/periodFormat';
+import { formatMoney } from '../../../lib/formatMoney';
+import { BUDGET_CATEGORY_LABELS } from '../lib/budgetCategories';
 import '../styles/finance.css';
-
-// Período por defecto: mes actual (YYYY-MM).
-function currentMonthPeriod() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-// Opciones para el selector de período: últimos 12 meses, últimos 4 trimestres
-// y los 3 años recientes. Valores en formato canónico (YYYY-MM, YYYY-Qn, YYYY);
-// labels en español vía formatPeriod.
-function buildPeriodOptions(now = new Date()) {
-  const y = now.getFullYear();
-  const m = now.getMonth();
-
-  const monthValues = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(y, m - i, 1);
-    monthValues.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-  }
-
-  const currentQ = Math.floor(m / 3) + 1;
-  const quarterValues = [];
-  for (let i = 0; i < 4; i++) {
-    let q = currentQ - i;
-    let yr = y;
-    while (q <= 0) { q += 4; yr -= 1; }
-    quarterValues.push(`${yr}-Q${q}`);
-  }
-
-  const yearValues = [];
-  for (let i = 0; i < 3; i++) yearValues.push(String(y - i));
-
-  const toOption = v => ({ value: v, label: formatPeriod(v) });
-  return {
-    months: monthValues.map(toOption),
-    quarters: quarterValues.map(toOption),
-    years: yearValues.map(toOption),
-  };
-}
 
 function Budgets() {
   const apiFetch = useApiFetch();
@@ -56,10 +24,15 @@ function Budgets() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  // Guardamos el presupuesto COMPLETO (no solo el id) para poder mostrar su
+  // detalle en el modal de confirmación de borrado.
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [executionRefreshKey, setExecutionRefreshKey] = useState(0);
   const carouselRef = useRef(null);
+  const formPanelRef = useRef(null);
+  const headerCreateRef = useRef(null);
+  const prevShowForm = useRef(false);
 
   const periodOptions = useMemo(() => buildPeriodOptions(), []);
   const allPeriodOptions = useMemo(
@@ -93,6 +66,20 @@ function Budgets() {
     active?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [period]);
 
+  // Gestión de foco del formulario inline (no es un modal, así que no hereda el
+  // focus-trap de AuroraModal). Al abrir movemos el foco a su primer control —el
+  // botón que lo disparó se oculta y si no el foco caería al <body>—; al cerrar
+  // lo devolvemos al botón "Nuevo presupuesto" del header, que reaparece.
+  useEffect(() => {
+    if (showForm) {
+      const first = formPanelRef.current?.querySelector('input, select, textarea, button');
+      first?.focus();
+    } else if (prevShowForm.current) {
+      headerCreateRef.current?.focus();
+    }
+    prevShowForm.current = showForm;
+  }, [showForm]);
+
   const filteredBudgets = useMemo(
     () => (period ? budgets.filter(b => b.period === period) : budgets),
     [budgets, period]
@@ -116,6 +103,9 @@ function Budgets() {
       setToast({ type: 'success', message: isEdit ? 'Presupuesto actualizado.' : 'Presupuesto creado.' });
       setShowForm(false);
       setEditing(null);
+      // Saltamos al período del presupuesto recién guardado para que el usuario
+      // vea el cambio (puede haberlo creado para un período distinto al activo).
+      if (payload.period) setPeriod(payload.period);
       setExecutionRefreshKey(k => k + 1);
     } catch (e) {
       setToast({ type: 'error', message: e.message });
@@ -126,13 +116,17 @@ function Budgets() {
 
   const handleDelete = async () => {
     if (!confirmDelete || deleting) return;
+    const id = confirmDelete.id;
     setDeleting(true);
     try {
-      const res = await apiFetch(`/api/budgets/${confirmDelete}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/budgets/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Error al eliminar.');
       }
+      // Update optimista: sacamos la fila de inmediato y refrescamos la
+      // ejecución (que sí necesita recálculo del backend).
+      setBudgets(prev => prev.filter(b => b.id !== id));
       setToast({ type: 'success', message: 'Presupuesto eliminado.' });
       setExecutionRefreshKey(k => k + 1);
     } catch (e) {
@@ -151,37 +145,50 @@ function Budgets() {
     <div className="budgets-period-section">
       <p className="budgets-period-section-title">{title}</p>
       <ul className="lote-list">
-        {items.map(opt => (
-          <li
-            key={opt.value}
-            className={`lote-list-item${period === opt.value ? ' active' : ''}`}
-            onClick={() => setPeriod(opt.value)}
-          >
-            <div className="lote-list-info">
-              <span className="lote-list-code">{opt.label}</span>
-            </div>
-            <FiChevronRight size={14} className="lote-list-arrow" />
-          </li>
-        ))}
+        {items.map(opt => {
+          const isActive = period === opt.value;
+          return (
+            <li key={opt.value} className={`lote-list-item${isActive ? ' active' : ''}`}>
+              <button
+                type="button"
+                className="lote-list-item-btn"
+                aria-current={isActive ? 'true' : undefined}
+                onClick={() => setPeriod(opt.value)}
+              >
+                <span className="lote-list-info">
+                  <span className="lote-list-code">{opt.label}</span>
+                </span>
+                <FiChevronRight size={14} className="lote-list-arrow" />
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
+
+  // ¿El período activo no tiene ningún presupuesto pero sí hay otros cargados?
+  const periodEmpty = !loading && budgets.length > 0 && filteredBudgets.length === 0;
 
   return (
     <div className={`budgets-page budgets-page--selected${showForm ? ' budgets-page--form' : ''}`}>
       {/* ── Carrusel móvil ── */}
       {!showForm && (
         <div className="lote-carousel" ref={carouselRef}>
-          {allPeriodOptions.map(opt => (
-            <button
-              key={opt.value}
-              className={`lote-bubble${period === opt.value ? ' lote-bubble--active' : ''}`}
-              onClick={() => setPeriod(opt.value)}
-            >
-              <span className="lote-bubble-avatar">{shortPeriod(opt.value)}</span>
-              <span className="lote-bubble-label">{opt.label}</span>
-            </button>
-          ))}
+          {allPeriodOptions.map(opt => {
+            const isActive = period === opt.value;
+            return (
+              <button
+                key={opt.value}
+                className={`lote-bubble${isActive ? ' lote-bubble--active' : ''}`}
+                aria-current={isActive ? 'true' : undefined}
+                onClick={() => setPeriod(opt.value)}
+              >
+                <span className="lote-bubble-avatar">{shortPeriod(opt.value)}</span>
+                <span className="lote-bubble-label">{opt.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -189,7 +196,7 @@ function Budgets() {
       <div className="lote-page-header">
         <h2 className="lote-page-title"><FiDollarSign /> Presupuestos</h2>
         {!showForm && (
-          <button className="aur-btn-pill" onClick={startCreate}>
+          <button className="aur-btn-pill" onClick={startCreate} ref={headerCreateRef}>
             <FiPlus /> Nuevo presupuesto
           </button>
         )}
@@ -197,7 +204,7 @@ function Budgets() {
 
       <div className="lote-management-layout">
         {/* ── Panel principal (izquierda) ── */}
-        <div className="budgets-main-panel">
+        <div className="budgets-main-panel" ref={formPanelRef}>
           {showForm ? (
             <BudgetForm
               initial={editing}
@@ -215,6 +222,16 @@ function Budgets() {
               onEdit={startEdit}
               onDelete={setConfirmDelete}
             />
+          )}
+          {!showForm && periodEmpty && (
+            <div className="budgets-period-empty">
+              <span className="fin-page-empty-hint">
+                No hay presupuestos asignados para {formatPeriod(period)}.
+              </span>
+              <button className="aur-btn-pill" onClick={startCreate}>
+                <FiPlus /> Crear presupuesto para este período
+              </button>
+            </div>
           )}
           {!showForm && !loading && budgets.length === 0 && (
             <div className="siembra-empty-state">
@@ -239,7 +256,15 @@ function Budgets() {
         <AuroraConfirmModal
           danger
           title="Eliminar presupuesto"
-          body="Esta acción no se puede deshacer."
+          body={
+            <>
+              Vas a eliminar el presupuesto de{' '}
+              <strong>{BUDGET_CATEGORY_LABELS[confirmDelete.category] || confirmDelete.category}</strong>
+              {confirmDelete.subcategory ? ` (${confirmDelete.subcategory})` : ''} por{' '}
+              <strong>{formatMoney(confirmDelete.assignedAmount, confirmDelete.currency)}</strong>{' '}
+              de {formatPeriod(confirmDelete.period)}. Esta acción no se puede deshacer.
+            </>
+          }
           confirmLabel="Eliminar"
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(null)}
