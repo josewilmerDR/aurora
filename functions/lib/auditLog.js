@@ -115,6 +115,14 @@ const ACTIONS = Object.freeze({
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
   INCOME_CREATE: 'income.create',
   INCOME_DELETE: 'income.delete',
+  // Presupuestos. Mutaciones de la configuración financiera de la finca:
+  // definen el techo de gasto por categoría/período contra el que se mide la
+  // ejecución. CREATE/UPDATE van como INFO; DELETE como WARNING porque es
+  // irreversible y borra el punto de comparación del período. Forensic:
+  // quién cambió el presupuesto, de qué categoría/período y por cuánto.
+  BUDGET_CREATE: 'budget.create',
+  BUDGET_UPDATE: 'budget.update',
+  BUDGET_DELETE: 'budget.delete',
   // Centro de Costos. Solo los DELETE quedan auditados: borrar un costo
   // indirecto o un snapshot es irreversible y distorsiona los agregados de
   // costo/ROI de toda la finca (los snapshots son la base de comparación

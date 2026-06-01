@@ -13,6 +13,7 @@ import {
   buildPeriodOptions,
 } from '../../../lib/periodFormat';
 import { formatMoney } from '../../../lib/formatMoney';
+import { translateApiError } from '../../../lib/errorMessages';
 import { BUDGET_CATEGORY_LABELS } from '../lib/budgetCategories';
 import '../styles/finance.css';
 
@@ -99,8 +100,10 @@ function Budgets() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Error al guardar.');
+        // Mapeamos por `code` a español (errorMessages.js) en vez de mostrar el
+        // dev message en inglés que devuelve el backend.
+        const body = await res.json().catch(() => null);
+        throw new Error(translateApiError(body, 'No se pudo guardar el presupuesto.'));
       }
       toast.success(isEdit ? 'Presupuesto actualizado.' : 'Presupuesto creado.');
       setShowForm(false);
@@ -123,8 +126,8 @@ function Budgets() {
     try {
       const res = await apiFetch(`/api/budgets/${id}`, { method: 'DELETE' });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Error al eliminar.');
+        const body = await res.json().catch(() => null);
+        throw new Error(translateApiError(body, 'No se pudo eliminar el presupuesto.'));
       }
       // Update optimista: sacamos la fila de inmediato y refrescamos la
       // ejecución (que sí necesita recálculo del backend).
