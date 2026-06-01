@@ -12,6 +12,7 @@ import HorizonSelector from '../components/HorizonSelector';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useTreasuryProjection } from '../../../hooks/useTreasuryProjection';
 import { DEFAULT_CURRENCY, formatMoney } from '../../../lib/formatMoney';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/finance.css';
 
 const DEFAULT_HORIZON_WEEKS = 26;
@@ -39,7 +40,9 @@ function Treasury() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        const err = new Error(body.message || 'Error al guardar el saldo.');
+        // Traducimos el `code` del backend a español (errorMessages.js) en vez
+        // de mostrar el devMessage en inglés/interno directo al usuario.
+        const err = new Error(translateApiError(body, 'Error al guardar el saldo.'));
         err.status = res.status;
         throw err;
       }

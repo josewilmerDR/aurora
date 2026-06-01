@@ -9,12 +9,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { FiTrash2, FiChevronDown } from 'react-icons/fi';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { formatMoney } from '../../../lib/formatMoney';
 
 const SOURCE_LABELS = { manual: 'Manual', bank: 'Bancario' };
 
 function CashBalanceList({ refreshKey, onDeleted, onToast }) {
   const apiFetch = useApiFetch();
+  const { currentUser } = useUser();
+  // Eliminar un saldo es supervisor+ en el backend (borrado irreversible que
+  // cambia la proyección de toda la finca). Ocultamos el botón a roles
+  // inferiores como defensa secundaria; el backend manda igual.
+  const canDelete = hasMinRole(currentUser?.rol || 'trabajador', 'supervisor');
   const [open, setOpen] = useState(false);
   const [balances, setBalances] = useState(null); // null = aún sin cargar
   const [loading, setLoading] = useState(false);
@@ -116,15 +122,17 @@ function CashBalanceList({ refreshKey, onDeleted, onToast }) {
                         <td>{SOURCE_LABELS[b.source] || b.source || '—'}</td>
                         <td>{b.note || '—'}</td>
                         <td className="aur-td-num">
-                          <button
-                            type="button"
-                            className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger aur-touch-target"
-                            onClick={() => setConfirmDelete(b)}
-                            aria-label={`Eliminar saldo del ${b.dateAsOf}`}
-                            title="Eliminar saldo"
-                          >
-                            <FiTrash2 size={15} />
-                          </button>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger aur-touch-target"
+                              onClick={() => setConfirmDelete(b)}
+                              aria-label={`Eliminar saldo del ${b.dateAsOf}`}
+                              title="Eliminar saldo"
+                            >
+                              <FiTrash2 size={15} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
