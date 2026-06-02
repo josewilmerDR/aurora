@@ -8,6 +8,7 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import LeaveCalendar from '../components/LeaveCalendar';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import { todayLocal } from '../lib/dateHelpers';
 
 const TIPOS = [
   { value: 'vacaciones',        label: 'Vacaciones',          conGoce: true  },
@@ -20,14 +21,6 @@ const TIPOS = [
 const MESES = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 const MOTIVO_MAX = 500;
 const MAX_DIAS = 365;
-
-const todayLocal = () => {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
 
 function calcDias(inicio, fin) {
   if (!inicio || !fin) return 1;
