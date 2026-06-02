@@ -145,9 +145,21 @@
   font-size: var(--aur-fs-footnote);
   color: var(--aur-text);
 }
+/* Variante con merma debajo del número: apila y alinea a la derecha. #11. */
+.harvest-inline-cell--col {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
 .harvest-inline-cell:hover {
   border-color: var(--aur-divider-2);
   background: var(--aur-bg-hover);
+}
+/* Foco visible por teclado (role=button alcanzable con Tab). #5. */
+.harvest-inline-cell:focus-visible {
+  outline: none;
+  border-color: var(--aur-accent);
+  box-shadow: var(--aur-ring);
 }
 .harvest-inline-cell--pending {
   color: var(--aur-text-3);
@@ -158,6 +170,16 @@
   color: var(--aur-accent);
   background: var(--aur-accent-tint);
 }
+/* Merma vs cantidad de campo. Warn cuando recibido > campo (sospechoso). #11. */
+.harvest-merma {
+  font-size: 10px;
+  font-style: normal;
+  color: var(--aur-text-3);
+  letter-spacing: -0.01em;
+}
+.harvest-merma--warn {
+  color: var(--aur-warn);
+}
 .harvest-inline-edit {
   display: inline-flex;
   align-items: center;
@@ -166,7 +188,7 @@
 .harvest-inline-input {
   width: 90px;
   background: var(--aur-bg-input);
-  border: 1px solid transparent;
+  border: 1px solid var(--aur-divider-2);
   color: var(--aur-text);
   font-size: var(--aur-fs-footnote);
   font-variant-numeric: tabular-nums;
@@ -176,11 +198,16 @@
   font-family: inherit;
   text-align: right;
   letter-spacing: -0.01em;
-  box-shadow: 0 0 0 2px var(--aur-accent-tint-2);
 }
+/* Halo accent sólo en foco (antes era permanente y competía con el foco
+   real, rompiendo la convención del resto de inputs del DS). #19. */
 .harvest-inline-input:focus {
   background: var(--aur-bg-hover);
   box-shadow: var(--aur-ring);
+}
+.harvest-inline-input--error {
+  border-color: var(--aur-danger);
+  box-shadow: 0 0 0 2px var(--aur-danger-tint);
 }
 
 /* ── Nota expandible (CosechaRegistro) ────────────────────────────────── */
@@ -366,5 +393,15 @@ a.harvest-badge--linked:hover {
   /* Filas de selección de boleta con hit-area táctil ≥44px. Punto #14 audit. */
   .harvest-boleta-item {
     min-height: 44px;
+  }
+  /* Botones check/cancel del inline-edit: expanden el área táctil a ~44px sin
+     agrandar el ícono (26px visibles + pseudo-elemento). Punto #6 audit. */
+  .harvest-inline-btn {
+    position: relative;
+  }
+  .harvest-inline-btn::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
   }
 }

@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { FiPlus, FiCheck, FiX, FiTrash2, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiAlertTriangle, FiInbox } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
 import AuroraDataTable from '../../../components/AuroraDataTable';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import CosechaRegistroModal from '../components/CosechaRegistroModal';
 import NotaCell from '../components/NotaCell';
+import InlineNumberEdit from '../components/InlineNumberEdit';
 import { fmt, num } from '../lib/format';
 import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/harvest.css';
+
+// Tope de cantidad recibida en planta (espejo del backend: < 16384). #22.
+const RECIBIDO_MAX = 16384;
 
 // ── Column definitions ───────────────────────────────────────────────────────
 const COLUMNS = [
@@ -35,7 +39,9 @@ const MOBILE_COLS = new Set(['consecutivo', 'fecha', 'lote', 'cantidad', 'unidad
 function getColVal(r, key) {
   switch (key) {
     case 'consecutivo': return (r.consecutivo || '').toLowerCase();
-    case 'fecha':       return r.fecha?.slice(0, 10) || '';
+    // String() defensivo: docs legacy podrían traer fecha como Timestamp y no
+    // como string ISO; sin esto slice() rompía sort/filter. Punto #12 audit.
+    case 'fecha':       return String(r.fecha || '').slice(0, 10);
     case 'lote':        return (r.loteNombre || '').toLowerCase();
     case 'grupo':       return (r.grupo || '').toLowerCase();
     case 'bloque':      return (r.bloque || '').toLowerCase();
@@ -48,71 +54,6 @@ function getColVal(r, key) {
     case 'recibido':    return r.cantidadRecibidaPlanta || 0;
     default:            return '';
   }
-}
-
-// ── Cell editable inline para cantidadRecibidaPlanta ─────────────────────────
-function InlineRecibido({ value, onSave }) {
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving]   = useState(false);
-  const [val, setVal]         = useState('');
-  const inputRef              = useRef(null);
-
-  const open   = () => { setVal(value ?? ''); setEditing(true); };
-  const cancel = () => setEditing(false);
-  const save   = async () => {
-    if (saving) return;
-    setSaving(true);
-    try { await onSave(val); } finally { setSaving(false); setEditing(false); }
-  };
-
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
-
-  if (editing) {
-    return (
-      <span className="harvest-inline-edit">
-        <input
-          ref={inputRef}
-          type="number"
-          min="0"
-          step="0.01"
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
-          className="harvest-inline-input"
-          disabled={saving}
-        />
-        <button
-          type="button"
-          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--success"
-          onClick={save}
-          title="Guardar"
-          disabled={saving}
-        >
-          <FiCheck size={13} />
-        </button>
-        <button
-          type="button"
-          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-          onClick={cancel}
-          title="Cancelar"
-          disabled={saving}
-        >
-          <FiX size={13} />
-        </button>
-      </span>
-    );
-  }
-
-  const isPending = !(value != null && value !== '');
-  return (
-    <span
-      className={`harvest-inline-cell${isPending ? ' harvest-inline-cell--pending' : ''}`}
-      onClick={open}
-      title="Clic para ingresar el valor recibido en planta"
-    >
-      {isPending ? 'Pendiente' : num(value)}
-    </span>
-  );
 }
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -191,7 +132,8 @@ export default function CosechaRegistro() {
     return () => clearTimeout(t);
   }, [highlightId]);
 
-  // Inline update de cantidadRecibidaPlanta
+  // Inline update de cantidadRecibidaPlanta. Re-lanza en fallo para que el
+  // editor inline quede abierto y permita reintentar (lo maneja InlineNumberEdit).
   const handleRecibido = async (reg, rawVal) => {
     const parsed = rawVal !== '' ? parseFloat(rawVal) : null;
     const cantidadRecibidaPlanta = parsed != null && !isNaN(parsed) ? parsed : null;
@@ -201,14 +143,18 @@ export default function CosechaRegistro() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cantidadRecibidaPlanta }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(translateApiError(body, 'No se pudo guardar.'));
+      }
       if (!mountedRef.current) return;
       setRegistros(prev =>
         prev.map(r => r.id === reg.id ? { ...r, cantidadRecibidaPlanta } : r),
       );
       showToast('Cantidad recibida en planta actualizada.');
-    } catch {
-      if (mountedRef.current) showToast('Error al guardar.', 'error');
+    } catch (err) {
+      if (mountedRef.current) showToast(err.message || 'Error al guardar.', 'error');
+      throw err;
     }
   };
 
@@ -249,9 +195,15 @@ export default function CosechaRegistro() {
       {visibleCols.nota        && <td><NotaCell text={reg.nota} /></td>}
       {visibleCols.recibido    && (
         <td className="aur-td-num">
-          <InlineRecibido
+          <InlineNumberEdit
             value={reg.cantidadRecibidaPlanta}
             onSave={(v) => handleRecibido(reg, v)}
+            min={0}
+            max={RECIBIDO_MAX}
+            compareTo={reg.cantidad}
+            compareLabel="merma"
+            ariaLabel={`Cantidad recibida en planta del registro ${reg.consecutivo || ''}`.trim()}
+            openHint="Clic para ingresar el valor recibido en planta"
           />
         </td>
       )}
@@ -319,6 +271,9 @@ export default function CosechaRegistro() {
             trailingHead={<th>Acciones</th>}
             trailingCell={trailingCell}
             rowClassName={(r) => r.id === highlightId ? 'harvest-row--new' : ''}
+            emptyIcon={<FiInbox size={26} />}
+            emptyText="No hay registros con los filtros aplicados."
+            emptySubtitle="Ajustá o limpiá los filtros de columna para ver más resultados."
           />
         )}
       </div>

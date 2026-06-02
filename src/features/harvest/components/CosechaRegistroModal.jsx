@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { FiPlusCircle } from 'react-icons/fi';
+import { FiPlusCircle, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraCombobox from '../../../components/AuroraCombobox';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { todayISO, isValidISODate } from '../lib/dates';
 
 const CANTIDAD_MAX = 16384;
@@ -58,13 +59,20 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
 
   const [form, setForm]   = useState(makeEmptyForm);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [toast, setToast]   = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
   const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
 
+  // ESC cierra el modal (salvo durante un guardado en vuelo). #3 audit.
+  useEscapeClose(saving ? null : onClose);
+
   useEffect(() => {
     if (prereqs) return; // datos ya disponibles vía props
     let alive = true;
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       apiFetch('/api/lotes').then(r => r.json()),
       apiFetch('/api/grupos').then(r => r.json()),
@@ -80,10 +88,13 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
       setUnidades(Array.isArray(unidadesData) ? unidadesData : []);
       setUsuarios(Array.isArray(usersData) ? usersData.filter(u => u.empleadoPlanilla) : []);
       setMaquinaria(Array.isArray(maqData) ? maqData : []);
-    }).catch(() => {})
-      .finally(() => { if (alive) setLoading(false); });
+    }).catch(() => {
+      // Sin esto el catch era silencioso: el usuario abría el modal con los
+      // selects de Lote vacíos y sin saber por qué no podía guardar. #15 audit.
+      if (alive) setLoadError(true);
+    }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [prereqs, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Listas derivadas (lote → grupo → bloque) ─────────────────────────────
   const gruposDelLote = useMemo(() => {
@@ -192,6 +203,7 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
         bloque: form.bloque,
         cantidad: form.cantidad,
         unidad: form.unidad,
+        unidadId: form.unidadId,
         operarioId: form.operarioId,
         operarioNombre: form.operarioNombre,
         activoId: form.activoId,
@@ -233,6 +245,16 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
         {loading ? (
           <div className="aur-modal-content">
             <div className="aur-page-loading" />
+          </div>
+        ) : loadError ? (
+          <div className="aur-modal-content">
+            <div className="aur-banner aur-banner--danger">
+              <FiAlertTriangle size={15} />
+              <span>
+                No se pudieron cargar los catálogos (lotes, grupos, unidades…).{' '}
+                <button type="button" className="aur-btn-text" onClick={() => setReloadKey(k => k + 1)}>Reintentar</button>
+              </span>
+            </div>
           </div>
         ) : (
           <form className="aur-modal-content" onSubmit={handleSubmit} noValidate>

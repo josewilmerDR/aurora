@@ -100,6 +100,14 @@ function validateCosechaPayload(body, { partial = false } = {}) {
     }
   }
 
+  // unidadId — id de catálogo persistido para poder pre-seleccionar la unidad
+  // si en el futuro se edita el registro (round-trip). #13 audit.
+  if (body.unidadId !== undefined && body.unidadId !== null && body.unidadId !== '') {
+    if (typeof body.unidadId !== 'string' || body.unidadId.length > 128) {
+      return 'Invalid unit identifier.';
+    }
+  }
+
   // operarioId / operarioNombre
   if (body.operarioId !== undefined && body.operarioId !== null && body.operarioId !== '') {
     if (typeof body.operarioId !== 'string' || body.operarioId.length > 128) {
@@ -168,7 +176,7 @@ router.post('/api/cosecha/registros', authenticate, async (req, res) => {
   try {
     const allowed = [
       'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
-      'cantidad', 'unidad',
+      'cantidad', 'unidad', 'unidadId',
       'operarioId', 'operarioNombre',
       'activoId', 'activoNombre',
       'implementoId', 'implementoNombre',
@@ -209,7 +217,7 @@ router.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const allowed = [
       'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
-      'cantidad', 'unidad',
+      'cantidad', 'unidad', 'unidadId',
       'operarioId', 'operarioNombre',
       'activoId', 'activoNombre',
       'implementoId', 'implementoNombre',
