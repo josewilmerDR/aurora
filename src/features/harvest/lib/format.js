@@ -10,9 +10,16 @@ export const fmt = (v) => {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
-// Número con separador de miles es-ES. null/'' → guion.
-export const num = (v) => {
+// Número con separador de miles es-ES. null/'' → guion. `dec` opcional fija
+// los decimales (con locale, no toFixed) — útil para magnitudes fraccionarias
+// como cajas, donde redondear a entero esconde producto. Sin `dec` formatea
+// como entero localizado (comportamiento histórico que consumen las hermanas).
+export const num = (v, dec) => {
   if (v == null || v === '') return '—';
   const n = Number(v);
-  return isNaN(n) ? '—' : n.toLocaleString('es-ES');
+  if (isNaN(n)) return '—';
+  if (dec != null) {
+    return n.toLocaleString('es-ES', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+  return n.toLocaleString('es-ES');
 };
