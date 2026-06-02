@@ -4,28 +4,7 @@ import { FiPlusCircle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import AuroraCombobox from '../../../components/AuroraCombobox';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
-
-// Fecha local en formato YYYY-MM-DD (sin shift por UTC).
-const toLocalISODate = (d) => {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-};
-const todayISO = () => toLocalISODate(new Date());
-
-// Validación estricta: rechaza fechas inexistentes ("2026-02-30").
-const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
-const isValidISODate = (s) => {
-  if (typeof s !== 'string' || !FECHA_RE.test(s)) return false;
-  const [y, m, d] = s.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return (
-    dt.getFullYear() === y &&
-    dt.getMonth() === m - 1 &&
-    dt.getDate() === d
-  );
-};
+import { todayISO, isValidISODate } from '../lib/dates';
 
 const CANTIDAD_MAX = 16384;
 const NOTA_MAX     = 288;

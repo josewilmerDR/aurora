@@ -4,6 +4,8 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
 import AuroraDataTable from '../../../components/AuroraDataTable';
 import CosechaRegistroModal from '../components/CosechaRegistroModal';
+import NotaCell from '../components/NotaCell';
+import { fmt, num } from '../lib/format';
 import '../styles/harvest.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────
@@ -23,18 +25,6 @@ const COLUMNS = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const fmt = (v) => {
-  if (!v) return '—';
-  const d = new Date(v);
-  if (isNaN(d)) return v;
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
-};
-const num = (v) => {
-  if (v == null || v === '') return '—';
-  const n = Number(v);
-  return isNaN(n) ? '—' : n.toLocaleString('es-ES');
-};
-
 function getColVal(r, key) {
   switch (key) {
     case 'consecutivo': return (r.consecutivo || '').toLowerCase();
@@ -51,33 +41,6 @@ function getColVal(r, key) {
     case 'recibido':    return r.cantidadRecibidaPlanta || 0;
     default:            return '';
   }
-}
-
-// ── Nota cell con expand/collapse ────────────────────────────────────────────
-function NotaCell({ text }) {
-  const [expanded, setExpanded] = useState(false);
-  const [clamped, setClamped]   = useState(false);
-  const textRef = useRef(null);
-
-  useEffect(() => {
-    const el = textRef.current;
-    if (el) setClamped(el.scrollHeight > el.clientHeight + 1);
-  }, [text]);
-
-  if (!text) return <span className="harvest-td-empty">—</span>;
-
-  return (
-    <span className="harvest-nota">
-      <span ref={textRef} className={`harvest-nota-text${expanded ? ' harvest-nota-text--open' : ''}`}>
-        {text}
-      </span>
-      {(clamped || expanded) && (
-        <button type="button" className="harvest-nota-toggle" onClick={() => setExpanded(p => !p)}>
-          {expanded ? 'ver menos' : 'ver más'}
-        </button>
-      )}
-    </span>
-  );
 }
 
 // ── Cell editable inline para cantidadRecibidaPlanta ─────────────────────────

@@ -68,8 +68,13 @@ export const ACTION_OPTIONS = [
   { value: 'costo_indirecto.delete',        label: 'Costo indirecto eliminado' },
   { value: 'costo_snapshot.delete',         label: 'Snapshot de costos eliminado' },
 
+  // Tesorería — saldo de caja
+  { value: 'cash_balance.create',           label: 'Saldo de caja registrado' },
+  { value: 'cash_balance.delete',           label: 'Saldo de caja eliminado' },
+
   // Financiamiento externo (Fase 5)
   { value: 'financing.snapshot.create',     label: 'Snapshot financiero generado' },
+  { value: 'financing.snapshot.export',     label: 'Snapshot financiero exportado' },
   { value: 'financing.credit_product.delete',   label: 'Producto de crédito eliminado' },
   { value: 'financing.debt_simulation.delete',  label: 'Simulación de deuda eliminada' },
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { extractLinkedDispatchIds } from '../lib/linkedDispatches';
 
 // Selector multi-despacho — patrón idéntico al BoletasSelect del módulo
 // Despacho de Cosecha. Filtra por buyerId y excluye despachos ya ligados
@@ -21,15 +22,7 @@ function DispatchesSelect({ buyerId, selected, onChange, usedIds = new Set(), ex
       .then(([dispatchData, incomeData]) => {
         if (cancelled) return;
         setDespachos(Array.isArray(dispatchData) ? dispatchData : []);
-        const ids = new Set();
-        for (const inc of Array.isArray(incomeData) ? incomeData : []) {
-          if (excludeIncomeId && inc.id === excludeIncomeId) continue;
-          if (Array.isArray(inc.despachoIds)) {
-            for (const d of inc.despachoIds) if (d?.id) ids.add(d.id);
-          }
-          if (inc.despachoId) ids.add(inc.despachoId);
-        }
-        setLinkedIds(ids);
+        setLinkedIds(extractLinkedDispatchIds(incomeData, { excludeIncomeId }));
       })
       .catch(() => {
         if (!cancelled) { setDespachos([]); setLinkedIds(new Set()); }

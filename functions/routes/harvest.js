@@ -289,10 +289,11 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
     if (data.fecha > limitStr) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid or future date.', 400);
     }
-    // Validate quantity
+    // Validate quantity (must be strictly positive — a zero-quantity dispatch
+    // has no business meaning and can still be linked to an income).
     data.cantidad = parseFloat(data.cantidad);
-    if (isNaN(data.cantidad) || data.cantidad < 0 || data.cantidad > 32768) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be between 0 and 32768.', 400);
+    if (isNaN(data.cantidad) || data.cantidad <= 0 || data.cantidad > 32768) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be greater than 0 and at most 32768.', 400);
     }
     // Verify referenced IDs exist in Firestore
     const loteDoc = await db.collection('lotes').doc(data.loteId).get();
@@ -366,6 +367,22 @@ router.put('/api/cosecha/despachos/:id', authenticate, async (req, res) => {
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const allowed = ['estado', 'notaAnulacion'];
     const data = pick(req.body, allowed);
+    // Sólo se admiten transiciones de estado conocidas.
+    if (data.estado != null && data.estado !== 'activo' && data.estado !== 'anulado') {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid dispatch state.', 400);
+    }
+    // Anular exige un motivo (trazabilidad). El front lo pide en el modal.
+    if (data.estado === 'anulado') {
+      if (typeof data.notaAnulacion !== 'string' || !data.notaAnulacion.trim()) {
+        return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'notaAnulacion is required to void a dispatch.', 400);
+      }
+      data.notaAnulacion = data.notaAnulacion.slice(0, 288);
+      data.anuladoEn = Timestamp.now();
+    } else if (data.estado === 'activo') {
+      // Reactivar limpia el motivo previo.
+      data.notaAnulacion = '';
+      data.anuladoEn = null;
+    }
     await db.collection('cosecha_despachos').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
     res.status(200).json({ id, ...data });
   } catch (error) {
