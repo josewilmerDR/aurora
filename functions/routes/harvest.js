@@ -1,10 +1,60 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership } = require('../lib/helpers');
+const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 
 const router = Router();
+
+// Cosecha es un módulo operativo de encargado+ (gateado así en el frontend,
+// routeRoles.js → '/cosecha/*': 'encargado'). El backend re-aplica el piso para
+// que un trabajador no pueda crear/anular despachos ni tocar registros llamando
+// la API directamente.
+function requireEncargado(req, res, next) {
+  if (!hasMinRoleBE(req.userRole, 'encargado')) {
+    return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Only encargado or above can access harvest data.', 403);
+  }
+  next();
+}
+
+// Normaliza y valida el array de boletas que compone un despacho. Cada boleta
+// debe ser un objeto con un id de registro (string), y opcionalmente consecutivo
+// (string) y cantidad (número). Descarta cualquier campo no whitelisteado para
+// que el cliente no pueda inyectar objetos arbitrarios/anidados al doc, y capa
+// el tamaño del array. Devuelve { error, boletas }.
+const MAX_BOLETAS = 256;
+function normalizeBoletas(raw) {
+  if (raw === undefined || raw === null) return { boletas: [] };
+  if (!Array.isArray(raw)) return { error: 'Boletas must be an array.' };
+  if (raw.length > MAX_BOLETAS) return { error: `Too many boletas (max ${MAX_BOLETAS}).` };
+  const boletas = [];
+  for (const b of raw) {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) {
+      return { error: 'Each boleta must be an object.' };
+    }
+    if (typeof b.id !== 'string' || b.id.length === 0 || b.id.length > 1500) {
+      return { error: 'Each boleta requires a valid id.' };
+    }
+    const boleta = { id: b.id };
+    if (b.consecutivo !== undefined && b.consecutivo !== null) {
+      if (typeof b.consecutivo !== 'string' || b.consecutivo.length > 64) {
+        return { error: 'Invalid boleta consecutivo.' };
+      }
+      boleta.consecutivo = b.consecutivo;
+    }
+    if (b.cantidad !== undefined && b.cantidad !== null && b.cantidad !== '') {
+      const c = Number(b.cantidad);
+      if (!Number.isFinite(c) || c < 0 || c >= 16384) {
+        return { error: 'Invalid boleta cantidad.' };
+      }
+      boleta.cantidad = c;
+    }
+    boletas.push(boleta);
+  }
+  return { boletas };
+}
 
 // ── Harvest record payload validation ────────────────────────────────────────
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -157,7 +207,7 @@ function validateCosechaPayload(body, { partial = false } = {}) {
 // ══════════════════════════════════════════════════════════════════════════════
 // Harvest Records
 // ══════════════════════════════════════════════════════════════════════════════
-router.get('/api/cosecha/registros', authenticate, async (req, res) => {
+router.get('/api/cosecha/registros', authenticate, requireEncargado, async (req, res) => {
   try {
     const snapshot = await db.collection('cosecha_registros')
       .where('fincaId', '==', req.fincaId)
@@ -172,7 +222,7 @@ router.get('/api/cosecha/registros', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/cosecha/registros', authenticate, async (req, res) => {
+router.post('/api/cosecha/registros', authenticate, requireEncargado, rateLimit('cosecha_write', 'write'), async (req, res) => {
   try {
     const allowed = [
       'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
@@ -185,6 +235,12 @@ router.post('/api/cosecha/registros', authenticate, async (req, res) => {
     const data = pick(req.body, allowed);
     const validationError = validateCosechaPayload(data);
     if (validationError) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationError, 400);
+    // El loteId debe pertenecer a la finca: evita registros que referencien lotes
+    // de otra finca (o inexistentes) y deriva el nombre del lote del lado servidor
+    // en vez de confiar en el loteNombre del cliente.
+    const loteOwnership = await verifyOwnership('lotes', data.loteId, req.fincaId);
+    if (!loteOwnership.ok) return sendApiError(res, loteOwnership.code, loteOwnership.message, loteOwnership.status);
+    data.loteNombre = loteOwnership.doc.data().nombreLote || '';
     data.cantidad = parseFloat(data.cantidad);
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;
@@ -210,7 +266,7 @@ router.post('/api/cosecha/registros', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
+router.put('/api/cosecha/registros/:id', authenticate, requireEncargado, rateLimit('cosecha_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
@@ -226,6 +282,12 @@ router.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
     const data = pick(req.body, allowed);
     const validationError = validateCosechaPayload(data, { partial: true });
     if (validationError) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationError, 400);
+    // Si cambia el loteId, validá ownership y deriva el nombre del servidor.
+    if (data.loteId !== undefined) {
+      const loteOwnership = await verifyOwnership('lotes', data.loteId, req.fincaId);
+      if (!loteOwnership.ok) return sendApiError(res, loteOwnership.code, loteOwnership.message, loteOwnership.status);
+      data.loteNombre = loteOwnership.doc.data().nombreLote || '';
+    }
     if (data.cantidad != null) data.cantidad = parseFloat(data.cantidad);
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;
@@ -238,7 +300,7 @@ router.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/cosecha/registros/:id', authenticate, async (req, res) => {
+router.delete('/api/cosecha/registros/:id', authenticate, requireEncargado, rateLimit('cosecha_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
@@ -262,7 +324,18 @@ router.delete('/api/cosecha/registros/:id', authenticate, async (req, res) => {
         409,
       );
     }
+    const registro = ownership.doc.data();
     await db.collection('cosecha_registros').doc(id).delete();
+    // Borrado irreversible de una boleta de cosecha: dejá rastro de quién/cuándo
+    // y qué registro (consecutivo) se borró.
+    await writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.COSECHA_RECORD_DELETE,
+      target: { type: 'cosecha_registro', id },
+      metadata: { consecutivo: registro.consecutivo || null, loteNombre: registro.loteNombre || null },
+      severity: SEVERITY.WARNING,
+    });
     res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Error deleting cosecha record:', error);
@@ -272,7 +345,7 @@ router.delete('/api/cosecha/registros/:id', authenticate, async (req, res) => {
 
 // Harvest Dispatches
 // ══════════════════════════════════════════════════════════════════════════════
-router.get('/api/cosecha/despachos', authenticate, async (req, res) => {
+router.get('/api/cosecha/despachos', authenticate, requireEncargado, async (req, res) => {
   try {
     const snapshot = await db.collection('cosecha_despachos')
       .where('fincaId', '==', req.fincaId)
@@ -287,7 +360,7 @@ router.get('/api/cosecha/despachos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
+router.post('/api/cosecha/despachos', authenticate, requireEncargado, rateLimit('cosecha_write', 'write'), async (req, res) => {
   try {
     const allowed = [
       'fecha', 'loteId', 'loteNombre',
@@ -322,49 +395,46 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
     if (isNaN(data.cantidad) || data.cantidad <= 0 || data.cantidad > 32768) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Quantity must be greater than 0 and at most 32768.', 400);
     }
-    // Verify referenced IDs exist in Firestore
-    const loteDoc = await db.collection('lotes').doc(data.loteId).get();
-    if (!loteDoc.exists) {
-      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'The specified lote does not exist.', 400);
-    }
-    data.loteNombre = loteDoc.data().nombreLote || '';
+    // Verify referenced IDs exist AND belong to this finca (verifyOwnership
+    // folds both into a 404, evitando enumeración cross-tenant y la fuga del
+    // nombre del lote/usuario/unidad de otra finca). Los nombres se derivan
+    // siempre del lado servidor.
+    const loteOwnership = await verifyOwnership('lotes', data.loteId, req.fincaId);
+    if (!loteOwnership.ok) return sendApiError(res, loteOwnership.code, loteOwnership.message, loteOwnership.status);
+    data.loteNombre = loteOwnership.doc.data().nombreLote || '';
 
     if (data.despachadorId) {
-      const despDoc = await db.collection('users').doc(data.despachadorId).get();
-      if (!despDoc.exists) {
-        return sendApiError(res, ERROR_CODES.NOT_FOUND, 'The specified dispatcher does not exist.', 400);
-      }
-      data.despachadorNombre = despDoc.data().nombre || '';
+      const despOwnership = await verifyOwnership('users', data.despachadorId, req.fincaId);
+      if (!despOwnership.ok) return sendApiError(res, despOwnership.code, despOwnership.message, despOwnership.status);
+      data.despachadorNombre = despOwnership.doc.data().nombre || '';
     }
     if (data.encargadoId) {
-      const encDoc = await db.collection('users').doc(data.encargadoId).get();
-      if (!encDoc.exists) {
-        return sendApiError(res, ERROR_CODES.NOT_FOUND, 'The specified encargado does not exist.', 400);
-      }
-      data.encargadoNombre = encDoc.data().nombre || '';
+      const encOwnership = await verifyOwnership('users', data.encargadoId, req.fincaId);
+      if (!encOwnership.ok) return sendApiError(res, encOwnership.code, encOwnership.message, encOwnership.status);
+      data.encargadoNombre = encOwnership.doc.data().nombre || '';
     }
     if (data.unidadId) {
-      const uniDoc = await db.collection('unidades_medida').doc(data.unidadId).get();
-      if (!uniDoc.exists) {
-        return sendApiError(res, ERROR_CODES.NOT_FOUND, 'The specified unit does not exist.', 400);
-      }
-      data.unidad = uniDoc.data().nombre || '';
+      const uniOwnership = await verifyOwnership('unidades_medida', data.unidadId, req.fincaId);
+      if (!uniOwnership.ok) return sendApiError(res, uniOwnership.code, uniOwnership.message, uniOwnership.status);
+      data.unidad = uniOwnership.doc.data().nombre || '';
     }
-    const buyerDoc = await db.collection('buyers').doc(data.buyerId).get();
-    if (!buyerDoc.exists) {
-      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'The specified buyer does not exist.', 400);
-    }
-    if (buyerDoc.data().fincaId !== req.fincaId) {
-      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Buyer belongs to another finca.', 403);
-    }
-    data.buyerName = buyerDoc.data().name || '';
+    const buyerOwnership = await verifyOwnership('buyers', data.buyerId, req.fincaId);
+    if (!buyerOwnership.ok) return sendApiError(res, buyerOwnership.code, buyerOwnership.message, buyerOwnership.status);
+    data.buyerName = buyerOwnership.doc.data().name || '';
 
-    // Truncate strings to max lengths
-    const strLimits = { operarioCamionNombre: 48, placaCamion: 12, nota: 288 };
+    // Coaccioná a string y truncá; un campo no-string se descarta en vez de
+    // persistirse crudo (un objeto/array en nota/placa rompería el render y la
+    // integridad del doc).
+    const strLimits = { operarioCamionNombre: 48, placaCamion: 12, nota: 288, unidad: 64 };
     for (const [field, max] of Object.entries(strLimits)) {
-      if (typeof data[field] === 'string') data[field] = data[field].slice(0, max);
+      if (data[field] === undefined || data[field] === null) continue;
+      data[field] = typeof data[field] === 'string' ? data[field].slice(0, max) : '';
     }
-    if (!Array.isArray(data.boletas)) data.boletas = [];
+    // Whitelist + cap del array de boletas (sin esto el cliente puede inyectar
+    // objetos arbitrarios/anidados o un array sin tope al documento).
+    const { error: boletasError, boletas } = normalizeBoletas(data.boletas);
+    if (boletasError) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, boletasError, 400);
+    data.boletas = boletas;
     data.estado = 'activo';
     const counterRef = db.collection('counters').doc(`cosecha_despachos_${req.fincaId}`);
     let seq;
@@ -387,11 +457,12 @@ router.post('/api/cosecha/despachos', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/cosecha/despachos/:id', authenticate, async (req, res) => {
+router.put('/api/cosecha/despachos/:id', authenticate, requireEncargado, rateLimit('cosecha_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('cosecha_despachos', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    const current = ownership.doc.data();
     const allowed = ['estado', 'notaAnulacion'];
     const data = pick(req.body, allowed);
     // Sólo se admiten transiciones de estado conocidas.
@@ -406,11 +477,52 @@ router.put('/api/cosecha/despachos/:id', authenticate, async (req, res) => {
       data.notaAnulacion = data.notaAnulacion.slice(0, 288);
       data.anuladoEn = Timestamp.now();
     } else if (data.estado === 'activo') {
+      // Reactivar libera... no: vuelve a reclamar las boletas de este despacho.
+      // Si otro despacho ACTIVO ya las tomó mientras éste estaba anulado, una
+      // reactivación ciega haría que ambos cuenten la misma boleta (doble conteo
+      // de cosecha→ingreso). Rechazá la reactivación si hay solapamiento.
+      if (current.estado === 'anulado') {
+        const myBoletaIds = Array.isArray(current.boletas)
+          ? current.boletas.map(b => b && b.id).filter(Boolean)
+          : [];
+        if (myBoletaIds.length > 0) {
+          const idSet = new Set(myBoletaIds);
+          // fincaId-only query (índice de campo único, sin índice compuesto) +
+          // filtro de estado en memoria — mismo patrón que el delete-guard.
+          const fincaSnap = await db.collection('cosecha_despachos')
+            .where('fincaId', '==', req.fincaId)
+            .get();
+          const clash = fincaSnap.docs.some(d =>
+            d.id !== id
+            && d.data().estado !== 'anulado'
+            && Array.isArray(d.data().boletas)
+            && d.data().boletas.some(b => b && idSet.has(b.id)));
+          if (clash) {
+            return sendApiError(res, ERROR_CODES.CONFLICT, 'A boleta of this dispatch is already used by another active dispatch.', 409);
+          }
+        }
+      }
       // Reactivar limpia el motivo previo.
       data.notaAnulacion = '';
       data.anuladoEn = null;
     }
     await db.collection('cosecha_despachos').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
+    // Anular es destructivo para la trazabilidad ingreso↔cosecha (libera boletas
+    // y saca el despacho del conteo): dejá rastro forense de quién/cuándo/por qué.
+    if (data.estado === 'anulado' && current.estado !== 'anulado') {
+      await writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.COSECHA_DISPATCH_VOID,
+        target: { type: 'cosecha_despacho', id },
+        metadata: {
+          consecutivo: current.consecutivo || null,
+          motivo: data.notaAnulacion || null,
+          cantidad: current.cantidad ?? null,
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
     res.status(200).json({ id, ...data });
   } catch (error) {
     console.error('Error updating cosecha dispatch:', error);
