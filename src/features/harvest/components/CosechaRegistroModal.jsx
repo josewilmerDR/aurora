@@ -209,7 +209,8 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message || 'Error al guardar.');
       }
-      onSuccess?.();
+      const created = await res.json().catch(() => ({}));
+      onSuccess?.(created);
       onClose?.();
     } catch (err) {
       showToast(err.message || 'Error al guardar.', 'error');

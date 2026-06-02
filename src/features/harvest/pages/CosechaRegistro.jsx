@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiCheck, FiX } from 'react-icons/fi';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { FiPlus, FiCheck, FiX, FiTrash2, FiAlertTriangle } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
 import AuroraDataTable from '../../../components/AuroraDataTable';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import CosechaRegistroModal from '../components/CosechaRegistroModal';
 import NotaCell from '../components/NotaCell';
 import { fmt, num } from '../lib/format';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/harvest.css';
 
 // ── Column definitions ───────────────────────────────────────────────────────
@@ -23,6 +25,11 @@ const COLUMNS = [
   { key: 'nota',           label: 'Nota',             type: 'text'   },
   { key: 'recibido',       label: 'Recibido planta',  type: 'number', align: 'right' },
 ];
+
+// Columnas que sobreviven en mobile (≤768px); el resto arranca oculto y el
+// usuario las habilita desde el col-menu. Evita el scroll-x ciego de 12
+// columnas en 360px. Punto #7 audit.
+const MOBILE_COLS = new Set(['consecutivo', 'fecha', 'lote', 'cantidad', 'unidad', 'recibido']);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getColVal(r, key) {
@@ -114,20 +121,41 @@ export default function CosechaRegistro() {
 
   const [registros, setRegistros] = useState([]);
   const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(false);
   const [toast,     setToast]     = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [prereqs,   setPrereqs]   = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [highlightId,  setHighlightId]  = useState(null);
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const fetchRegistros = () => {
+  // Guard contra setState tras unmount (los fetch/PUT no se cancelaban). #10.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  // initialVisibleCols sólo se evalúa al montar (mobile vs desktop). #7.
+  const initialVisibleCols = useMemo(() => {
+    const isMobile = typeof window !== 'undefined'
+      && window.matchMedia?.('(max-width: 768px)').matches;
+    if (!isMobile) return undefined; // desktop: todas visibles
+    return Object.fromEntries(COLUMNS.map(c => [c.key, MOBILE_COLS.has(c.key)]));
+  }, []);
+
+  const fetchRegistros = useCallback(() => {
     setLoading(true);
+    setError(false);
     apiFetch('/api/cosecha/registros')
       .then(r => r.json())
-      .then(data => setRegistros(Array.isArray(data) ? data : []))
-      .catch(() => showToast('Error al cargar el historial.', 'error'))
-      .finally(() => setLoading(false));
-  };
+      .then(data => { if (mountedRef.current) setRegistros(Array.isArray(data) ? data : []); })
+      .catch(() => {
+        // Error de red explícito: sin esto un fetch fallido se disfrazaba de
+        // "Sin registros" y mandaba al usuario a crear datos que ya existen. #9.
+        if (mountedRef.current) { setError(true); showToast('Error al cargar el historial.', 'error'); }
+      })
+      .finally(() => { if (mountedRef.current) setLoading(false); });
+  }, [apiFetch]);
 
   // Prefetch en paralelo de los catálogos que necesita el modal "Nuevo registro",
   // para que al abrirlo se renderice instantáneo en vez de esperar 6 fetches.
@@ -154,7 +182,14 @@ export default function CosechaRegistro() {
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchRegistros(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRegistros(); }, [fetchRegistros]);
+
+  // Resalta la fila recién creada unos segundos. #4.
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => { if (mountedRef.current) setHighlightId(null); }, 4000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
 
   // Inline update de cantidadRecibidaPlanta
   const handleRecibido = async (reg, rawVal) => {
@@ -167,12 +202,35 @@ export default function CosechaRegistro() {
         body: JSON.stringify({ cantidadRecibidaPlanta }),
       });
       if (!res.ok) throw new Error();
+      if (!mountedRef.current) return;
       setRegistros(prev =>
         prev.map(r => r.id === reg.id ? { ...r, cantidadRecibidaPlanta } : r),
       );
       showToast('Cantidad recibida en planta actualizada.');
     } catch {
-      showToast('Error al guardar.', 'error');
+      if (mountedRef.current) showToast('Error al guardar.', 'error');
+    }
+  };
+
+  // Borrado de registro con confirmación. El backend rechaza (409) si el
+  // registro está usado como boleta en un despacho activo. #1.
+  const handleDelete = async () => {
+    if (!deleteTarget || deleteSaving) return;
+    setDeleteSaving(true);
+    try {
+      const res = await apiFetch(`/api/cosecha/registros/${deleteTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(translateApiError(body, 'No se pudo eliminar el registro.'));
+      }
+      if (!mountedRef.current) return;
+      setDeleteTarget(null);
+      showToast('Registro eliminado.');
+      fetchRegistros();
+    } catch (err) {
+      if (mountedRef.current) showToast(err.message || 'No se pudo eliminar el registro.', 'error');
+    } finally {
+      if (mountedRef.current) setDeleteSaving(false);
     }
   };
 
@@ -200,6 +258,18 @@ export default function CosechaRegistro() {
     </>
   );
 
+  const trailingCell = (reg) => (
+    <td className="harvest-actions-cell">
+      <button
+        type="button"
+        className="aur-btn-text aur-btn-text--danger harvest-anular-btn"
+        onClick={() => setDeleteTarget(reg)}
+      >
+        <FiTrash2 size={13} /> Eliminar
+      </button>
+    </td>
+  );
+
   return (
     <div className="harvest-page harvest-registro-page">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -224,7 +294,14 @@ export default function CosechaRegistro() {
         </header>
 
         {loading ? (
-          <div className="empty-state"><p className="item-main-text">Cargando historial…</p></div>
+          <div className="empty-state" role="status"><p className="item-main-text">Cargando historial…</p></div>
+        ) : error ? (
+          <div className="aur-banner aur-banner--danger">
+            <FiAlertTriangle size={15} />
+            <span>
+              No se pudo cargar el historial. <button type="button" className="aur-btn-text" onClick={fetchRegistros}>Reintentar</button>
+            </span>
+          </div>
         ) : registros.length === 0 ? (
           <div className="empty-state">
             <p className="item-main-text">Sin registros de cosecha</p>
@@ -237,7 +314,11 @@ export default function CosechaRegistro() {
             getColVal={getColVal}
             initialSort={{ field: 'fecha', dir: 'desc' }}
             firstClickDir="desc"
+            initialVisibleCols={initialVisibleCols}
             renderRow={renderRow}
+            trailingHead={<th>Acciones</th>}
+            trailingCell={trailingCell}
+            rowClassName={(r) => r.id === highlightId ? 'harvest-row--new' : ''}
           />
         )}
       </div>
@@ -246,11 +327,34 @@ export default function CosechaRegistro() {
         <CosechaRegistroModal
           apiFetch={apiFetch}
           prereqs={prereqs}
-          onSuccess={() => {
+          onSuccess={(created) => {
             showToast('Registro guardado.');
+            if (created?.id) setHighlightId(created.id);
             fetchRegistros();
           }}
           onClose={() => setModalOpen(false)}
+        />
+      )}
+
+      {deleteTarget && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar registro de cosecha"
+          body={
+            <>
+              Vas a eliminar el registro <strong>{deleteTarget.consecutivo || '—'}</strong>
+              {deleteTarget.loteNombre ? <> del lote <strong>{deleteTarget.loteNombre}</strong></> : null}
+              {deleteTarget.cantidad != null
+                ? <> por <strong>{num(deleteTarget.cantidad)} {deleteTarget.unidad || ''}</strong></>
+                : null}. Esta acción no se puede deshacer. Si el registro ya está usado
+              como boleta en un despacho activo, el sistema lo va a impedir.
+            </>
+          }
+          confirmLabel="Eliminar registro"
+          loadingLabel="Eliminando…"
+          loading={deleteSaving}
+          onConfirm={handleDelete}
+          onCancel={() => { if (!deleteSaving) setDeleteTarget(null); }}
         />
       )}
     </div>

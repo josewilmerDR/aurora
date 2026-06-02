@@ -235,6 +235,25 @@ router.delete('/api/cosecha/registros/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    // Guardrail: un registro usado como boleta en un despacho ACTIVO no se puede
+    // borrar — dejaría el despacho apuntando a una boleta inexistente y rompería
+    // la trazabilidad ingreso↔cosecha. El front traduce RESOURCE_REFERENCED → 409.
+    const despachosSnap = await db.collection('cosecha_despachos')
+      .where('fincaId', '==', req.fincaId)
+      .get();
+    const despachoEnUso = despachosSnap.docs.find(d => {
+      const data = d.data();
+      if (data.estado === 'anulado') return false;
+      return Array.isArray(data.boletas) && data.boletas.some(b => b && b.id === id);
+    });
+    if (despachoEnUso) {
+      return sendApiError(
+        res,
+        ERROR_CODES.RESOURCE_REFERENCED,
+        `Cosecha record is used as a boleta in active dispatch ${despachoEnUso.data().consecutivo || despachoEnUso.id}; void that dispatch first.`,
+        409,
+      );
+    }
     await db.collection('cosecha_registros').doc(id).delete();
     res.status(200).json({ ok: true });
   } catch (error) {
