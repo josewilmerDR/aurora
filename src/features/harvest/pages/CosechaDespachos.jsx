@@ -8,6 +8,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import CosechaDespachoModal from '../components/CosechaDespachoModal';
 import NotaCell from '../components/NotaCell';
 import { fmt, num } from '../lib/format';
+import { translateApiError } from '../../../lib/errorMessages';
 import { buildDispatchIncomeMap } from '../../finance/lib/linkedDispatches';
 import '../styles/harvest.css';
 
@@ -155,7 +156,7 @@ export default function CosechaDespachos() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'No se pudo anular el despacho.');
+        throw new Error(translateApiError(body, 'No se pudo anular el despacho.'));
       }
       setAnularTarget(null);
       setAnularNota('');

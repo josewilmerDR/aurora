@@ -6,6 +6,7 @@ import AuroraCombobox from '../../../components/AuroraCombobox';
 import BuyerSelector from '../../finance/components/BuyerSelector';
 import HarvestBoletasSelect from './HarvestBoletasSelect';
 import { useUser } from '../../../contexts/UserContext';
+import { translateApiError } from '../../../lib/errorMessages';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { useDraft } from '../../../hooks/useDraft';
@@ -199,7 +200,7 @@ export default function CosechaDespachoModal({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Error al guardar.');
+        throw new Error(translateApiError(body, 'Error al guardar.'));
       }
       const created = await res.json().catch(() => ({}));
       clearDraft();

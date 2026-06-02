@@ -124,6 +124,14 @@ const ACTIONS = Object.freeze({
   // referencias desde ingresos ya registrados a su nombre. Create/update y el
   // toggle de estado quedan fuera del audit, alineado con la política del archivo.
   BUYER_DELETE: 'buyer.delete',
+  // Cosecha. Solo las operaciones destructivas/irreversibles quedan auditadas,
+  // alineado con la política del archivo. DISPATCH_VOID: anular un despacho
+  // libera sus boletas y lo saca de la justificación de ingresos (rompe el
+  // vínculo ingreso↔cosecha) → WARNING. RECORD_DELETE: borrar un registro de
+  // cosecha es irreversible y elimina una boleta que pudo alimentar despachos
+  // → WARNING. Creates/updates rutinarios no se auditan.
+  COSECHA_DISPATCH_VOID: 'cosecha.dispatch.void',
+  COSECHA_RECORD_DELETE: 'cosecha.record.delete',
   // Presupuestos. Mutaciones de la configuración financiera de la finca:
   // definen el techo de gasto por categoría/período contra el que se mide la
   // ejecución. CREATE/UPDATE van como INFO; DELETE como WARNING porque es
