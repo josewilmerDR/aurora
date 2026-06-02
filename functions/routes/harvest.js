@@ -100,6 +100,14 @@ function validateCosechaPayload(body, { partial = false } = {}) {
     }
   }
 
+  // unidadId — id de catálogo persistido para poder pre-seleccionar la unidad
+  // si en el futuro se edita el registro (round-trip). #13 audit.
+  if (body.unidadId !== undefined && body.unidadId !== null && body.unidadId !== '') {
+    if (typeof body.unidadId !== 'string' || body.unidadId.length > 128) {
+      return 'Invalid unit identifier.';
+    }
+  }
+
   // operarioId / operarioNombre
   if (body.operarioId !== undefined && body.operarioId !== null && body.operarioId !== '') {
     if (typeof body.operarioId !== 'string' || body.operarioId.length > 128) {
@@ -168,7 +176,7 @@ router.post('/api/cosecha/registros', authenticate, async (req, res) => {
   try {
     const allowed = [
       'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
-      'cantidad', 'unidad',
+      'cantidad', 'unidad', 'unidadId',
       'operarioId', 'operarioNombre',
       'activoId', 'activoNombre',
       'implementoId', 'implementoNombre',
@@ -209,7 +217,7 @@ router.put('/api/cosecha/registros/:id', authenticate, async (req, res) => {
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     const allowed = [
       'fecha', 'loteId', 'loteNombre', 'grupo', 'bloque',
-      'cantidad', 'unidad',
+      'cantidad', 'unidad', 'unidadId',
       'operarioId', 'operarioNombre',
       'activoId', 'activoNombre',
       'implementoId', 'implementoNombre',
@@ -235,6 +243,25 @@ router.delete('/api/cosecha/registros/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    // Guardrail: un registro usado como boleta en un despacho ACTIVO no se puede
+    // borrar — dejaría el despacho apuntando a una boleta inexistente y rompería
+    // la trazabilidad ingreso↔cosecha. El front traduce RESOURCE_REFERENCED → 409.
+    const despachosSnap = await db.collection('cosecha_despachos')
+      .where('fincaId', '==', req.fincaId)
+      .get();
+    const despachoEnUso = despachosSnap.docs.find(d => {
+      const data = d.data();
+      if (data.estado === 'anulado') return false;
+      return Array.isArray(data.boletas) && data.boletas.some(b => b && b.id === id);
+    });
+    if (despachoEnUso) {
+      return sendApiError(
+        res,
+        ERROR_CODES.RESOURCE_REFERENCED,
+        `Cosecha record is used as a boleta in active dispatch ${despachoEnUso.data().consecutivo || despachoEnUso.id}; void that dispatch first.`,
+        409,
+      );
+    }
     await db.collection('cosecha_registros').doc(id).delete();
     res.status(200).json({ ok: true });
   } catch (error) {

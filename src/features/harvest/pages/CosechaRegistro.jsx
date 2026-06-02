@@ -1,12 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
-import { FiPlus, FiCheck, FiX } from 'react-icons/fi';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { FiPlus, FiTrash2, FiAlertTriangle, FiInbox } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
 import AuroraDataTable from '../../../components/AuroraDataTable';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import CosechaRegistroModal from '../components/CosechaRegistroModal';
 import NotaCell from '../components/NotaCell';
+import InlineNumberEdit from '../components/InlineNumberEdit';
 import { fmt, num } from '../lib/format';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/harvest.css';
+
+// Tope de cantidad recibida en planta (espejo del backend: < 16384). #22.
+const RECIBIDO_MAX = 16384;
 
 // ── Column definitions ───────────────────────────────────────────────────────
 const COLUMNS = [
@@ -24,11 +30,18 @@ const COLUMNS = [
   { key: 'recibido',       label: 'Recibido planta',  type: 'number', align: 'right' },
 ];
 
+// Columnas que sobreviven en mobile (≤768px); el resto arranca oculto y el
+// usuario las habilita desde el col-menu. Evita el scroll-x ciego de 12
+// columnas en 360px. Punto #7 audit.
+const MOBILE_COLS = new Set(['consecutivo', 'fecha', 'lote', 'cantidad', 'unidad', 'recibido']);
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getColVal(r, key) {
   switch (key) {
     case 'consecutivo': return (r.consecutivo || '').toLowerCase();
-    case 'fecha':       return r.fecha?.slice(0, 10) || '';
+    // String() defensivo: docs legacy podrían traer fecha como Timestamp y no
+    // como string ISO; sin esto slice() rompía sort/filter. Punto #12 audit.
+    case 'fecha':       return String(r.fecha || '').slice(0, 10);
     case 'lote':        return (r.loteNombre || '').toLowerCase();
     case 'grupo':       return (r.grupo || '').toLowerCase();
     case 'bloque':      return (r.bloque || '').toLowerCase();
@@ -43,91 +56,47 @@ function getColVal(r, key) {
   }
 }
 
-// ── Cell editable inline para cantidadRecibidaPlanta ─────────────────────────
-function InlineRecibido({ value, onSave }) {
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving]   = useState(false);
-  const [val, setVal]         = useState('');
-  const inputRef              = useRef(null);
-
-  const open   = () => { setVal(value ?? ''); setEditing(true); };
-  const cancel = () => setEditing(false);
-  const save   = async () => {
-    if (saving) return;
-    setSaving(true);
-    try { await onSave(val); } finally { setSaving(false); setEditing(false); }
-  };
-
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
-
-  if (editing) {
-    return (
-      <span className="harvest-inline-edit">
-        <input
-          ref={inputRef}
-          type="number"
-          min="0"
-          step="0.01"
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
-          className="harvest-inline-input"
-          disabled={saving}
-        />
-        <button
-          type="button"
-          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--success"
-          onClick={save}
-          title="Guardar"
-          disabled={saving}
-        >
-          <FiCheck size={13} />
-        </button>
-        <button
-          type="button"
-          className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-          onClick={cancel}
-          title="Cancelar"
-          disabled={saving}
-        >
-          <FiX size={13} />
-        </button>
-      </span>
-    );
-  }
-
-  const isPending = !(value != null && value !== '');
-  return (
-    <span
-      className={`harvest-inline-cell${isPending ? ' harvest-inline-cell--pending' : ''}`}
-      onClick={open}
-      title="Clic para ingresar el valor recibido en planta"
-    >
-      {isPending ? 'Pendiente' : num(value)}
-    </span>
-  );
-}
-
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function CosechaRegistro() {
   const apiFetch = useApiFetch();
 
   const [registros, setRegistros] = useState([]);
   const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(false);
   const [toast,     setToast]     = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [prereqs,   setPrereqs]   = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [highlightId,  setHighlightId]  = useState(null);
 
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const fetchRegistros = () => {
+  // Guard contra setState tras unmount (los fetch/PUT no se cancelaban). #10.
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  // initialVisibleCols sólo se evalúa al montar (mobile vs desktop). #7.
+  const initialVisibleCols = useMemo(() => {
+    const isMobile = typeof window !== 'undefined'
+      && window.matchMedia?.('(max-width: 768px)').matches;
+    if (!isMobile) return undefined; // desktop: todas visibles
+    return Object.fromEntries(COLUMNS.map(c => [c.key, MOBILE_COLS.has(c.key)]));
+  }, []);
+
+  const fetchRegistros = useCallback(() => {
     setLoading(true);
+    setError(false);
     apiFetch('/api/cosecha/registros')
       .then(r => r.json())
-      .then(data => setRegistros(Array.isArray(data) ? data : []))
-      .catch(() => showToast('Error al cargar el historial.', 'error'))
-      .finally(() => setLoading(false));
-  };
+      .then(data => { if (mountedRef.current) setRegistros(Array.isArray(data) ? data : []); })
+      .catch(() => {
+        // Error de red explícito: sin esto un fetch fallido se disfrazaba de
+        // "Sin registros" y mandaba al usuario a crear datos que ya existen. #9.
+        if (mountedRef.current) { setError(true); showToast('Error al cargar el historial.', 'error'); }
+      })
+      .finally(() => { if (mountedRef.current) setLoading(false); });
+  }, [apiFetch]);
 
   // Prefetch en paralelo de los catálogos que necesita el modal "Nuevo registro",
   // para que al abrirlo se renderice instantáneo en vez de esperar 6 fetches.
@@ -154,9 +123,17 @@ export default function CosechaRegistro() {
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchRegistros(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRegistros(); }, [fetchRegistros]);
 
-  // Inline update de cantidadRecibidaPlanta
+  // Resalta la fila recién creada unos segundos. #4.
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => { if (mountedRef.current) setHighlightId(null); }, 4000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+
+  // Inline update de cantidadRecibidaPlanta. Re-lanza en fallo para que el
+  // editor inline quede abierto y permita reintentar (lo maneja InlineNumberEdit).
   const handleRecibido = async (reg, rawVal) => {
     const parsed = rawVal !== '' ? parseFloat(rawVal) : null;
     const cantidadRecibidaPlanta = parsed != null && !isNaN(parsed) ? parsed : null;
@@ -166,13 +143,40 @@ export default function CosechaRegistro() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cantidadRecibidaPlanta }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(translateApiError(body, 'No se pudo guardar.'));
+      }
+      if (!mountedRef.current) return;
       setRegistros(prev =>
         prev.map(r => r.id === reg.id ? { ...r, cantidadRecibidaPlanta } : r),
       );
       showToast('Cantidad recibida en planta actualizada.');
-    } catch {
-      showToast('Error al guardar.', 'error');
+    } catch (err) {
+      if (mountedRef.current) showToast(err.message || 'Error al guardar.', 'error');
+      throw err;
+    }
+  };
+
+  // Borrado de registro con confirmación. El backend rechaza (409) si el
+  // registro está usado como boleta en un despacho activo. #1.
+  const handleDelete = async () => {
+    if (!deleteTarget || deleteSaving) return;
+    setDeleteSaving(true);
+    try {
+      const res = await apiFetch(`/api/cosecha/registros/${deleteTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(translateApiError(body, 'No se pudo eliminar el registro.'));
+      }
+      if (!mountedRef.current) return;
+      setDeleteTarget(null);
+      showToast('Registro eliminado.');
+      fetchRegistros();
+    } catch (err) {
+      if (mountedRef.current) showToast(err.message || 'No se pudo eliminar el registro.', 'error');
+    } finally {
+      if (mountedRef.current) setDeleteSaving(false);
     }
   };
 
@@ -191,13 +195,31 @@ export default function CosechaRegistro() {
       {visibleCols.nota        && <td><NotaCell text={reg.nota} /></td>}
       {visibleCols.recibido    && (
         <td className="aur-td-num">
-          <InlineRecibido
+          <InlineNumberEdit
             value={reg.cantidadRecibidaPlanta}
             onSave={(v) => handleRecibido(reg, v)}
+            min={0}
+            max={RECIBIDO_MAX}
+            compareTo={reg.cantidad}
+            compareLabel="merma"
+            ariaLabel={`Cantidad recibida en planta del registro ${reg.consecutivo || ''}`.trim()}
+            openHint="Clic para ingresar el valor recibido en planta"
           />
         </td>
       )}
     </>
+  );
+
+  const trailingCell = (reg) => (
+    <td className="harvest-actions-cell">
+      <button
+        type="button"
+        className="aur-btn-text aur-btn-text--danger harvest-anular-btn"
+        onClick={() => setDeleteTarget(reg)}
+      >
+        <FiTrash2 size={13} /> Eliminar
+      </button>
+    </td>
   );
 
   return (
@@ -224,7 +246,14 @@ export default function CosechaRegistro() {
         </header>
 
         {loading ? (
-          <div className="empty-state"><p className="item-main-text">Cargando historial…</p></div>
+          <div className="empty-state" role="status"><p className="item-main-text">Cargando historial…</p></div>
+        ) : error ? (
+          <div className="aur-banner aur-banner--danger">
+            <FiAlertTriangle size={15} />
+            <span>
+              No se pudo cargar el historial. <button type="button" className="aur-btn-text" onClick={fetchRegistros}>Reintentar</button>
+            </span>
+          </div>
         ) : registros.length === 0 ? (
           <div className="empty-state">
             <p className="item-main-text">Sin registros de cosecha</p>
@@ -237,7 +266,14 @@ export default function CosechaRegistro() {
             getColVal={getColVal}
             initialSort={{ field: 'fecha', dir: 'desc' }}
             firstClickDir="desc"
+            initialVisibleCols={initialVisibleCols}
             renderRow={renderRow}
+            trailingHead={<th>Acciones</th>}
+            trailingCell={trailingCell}
+            rowClassName={(r) => r.id === highlightId ? 'harvest-row--new' : ''}
+            emptyIcon={<FiInbox size={26} />}
+            emptyText="No hay registros con los filtros aplicados."
+            emptySubtitle="Ajustá o limpiá los filtros de columna para ver más resultados."
           />
         )}
       </div>
@@ -246,11 +282,34 @@ export default function CosechaRegistro() {
         <CosechaRegistroModal
           apiFetch={apiFetch}
           prereqs={prereqs}
-          onSuccess={() => {
+          onSuccess={(created) => {
             showToast('Registro guardado.');
+            if (created?.id) setHighlightId(created.id);
             fetchRegistros();
           }}
           onClose={() => setModalOpen(false)}
+        />
+      )}
+
+      {deleteTarget && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar registro de cosecha"
+          body={
+            <>
+              Vas a eliminar el registro <strong>{deleteTarget.consecutivo || '—'}</strong>
+              {deleteTarget.loteNombre ? <> del lote <strong>{deleteTarget.loteNombre}</strong></> : null}
+              {deleteTarget.cantidad != null
+                ? <> por <strong>{num(deleteTarget.cantidad)} {deleteTarget.unidad || ''}</strong></>
+                : null}. Esta acción no se puede deshacer. Si el registro ya está usado
+              como boleta en un despacho activo, el sistema lo va a impedir.
+            </>
+          }
+          confirmLabel="Eliminar registro"
+          loadingLabel="Eliminando…"
+          loading={deleteSaving}
+          onConfirm={handleDelete}
+          onCancel={() => { if (!deleteSaving) setDeleteTarget(null); }}
         />
       )}
     </div>
