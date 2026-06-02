@@ -321,16 +321,12 @@ a.harvest-badge--linked:hover {
   color: var(--aur-text-3);
   font-style: italic;
 }
-.harvest-td-na {
-  text-align: right;
-  color: var(--aur-text-3);
-  font-style: italic;
-}
-.harvest-th-na {
-  text-align: right;
-  color: var(--aur-text-3);
-  font-style: italic;
-  cursor: default !important;
+
+/* Marcador de cosecha con tipo no reconocido en la Proyección: se proyecta
+   como I igual, pero el ícono avisa que el rótulo no declaró I/II. Punto #10. */
+.harvest-cosecha-flag {
+  color: var(--aur-warn);
+  vertical-align: middle;
 }
 
 /* ── Combobox dentro de aur-row: ocupa todo el ancho ───────────────────── */
