@@ -6,12 +6,64 @@ import AuroraCombobox from '../../../components/AuroraCombobox';
 import BuyerSelector from '../../finance/components/BuyerSelector';
 import HarvestBoletasSelect from './HarvestBoletasSelect';
 import { useUser } from '../../../contexts/UserContext';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import { useDraft } from '../../../hooks/useDraft';
+import { todayISO, isValidISODate } from '../lib/dates';
 
 // ── Validation constants ─────────────────────────────────────────────────────
 const MAX_OPERARIO   = 48;
 const MAX_PLACA      = 12;
 const MAX_NOTA       = 288;
 const MAX_CANTIDAD   = 32768;
+
+// Validación agregada (no secuencial): devuelve TODOS los errores de una, para
+// pintarlos inline bajo cada campo vía useBlurValidation. Punto #6 audit.
+function validate(form) {
+  const errors = {};
+  if (!form.fecha) {
+    errors.fecha = 'La fecha es requerida.';
+  } else if (!isValidISODate(form.fecha)) {
+    errors.fecha = 'Fecha inválida.';
+  } else if (form.fecha > todayISO()) {
+    errors.fecha = 'No puede ser posterior al día actual.';
+  }
+  if (!form.loteId) errors.loteId = 'El lote es requerido.';
+  if (!form.buyerId) errors.buyerId = 'El comprador es requerido.';
+  const cant = Number(form.cantidad);
+  if (!form.cantidad || !Number.isFinite(cant) || cant <= 0 || cant > MAX_CANTIDAD) {
+    errors.cantidad = `Debe ser mayor a 0 y máx. ${MAX_CANTIDAD}.`;
+  }
+  if (!form.unidadId) errors.unidad = 'La unidad es requerida.';
+  if ((form.operarioCamionNombre || '').length > MAX_OPERARIO) {
+    errors.operarioCamionNombre = `Máx. ${MAX_OPERARIO} caracteres.`;
+  }
+  if ((form.placaCamion || '').length > MAX_PLACA) {
+    errors.placaCamion = `Máx. ${MAX_PLACA} caracteres.`;
+  }
+  if ((form.nota || '').length > MAX_NOTA) {
+    errors.nota = `Máx. ${MAX_NOTA} caracteres.`;
+  }
+  return errors;
+}
+
+const makeEmptyForm = (currentUser) => ({
+  fecha:                todayISO(),
+  loteId:               '',
+  loteNombre:           '',
+  buyerId:              '',
+  operarioCamionNombre: '',
+  placaCamion:          '',
+  cantidad:             '',
+  unidadId:             '',
+  unidad:               '',
+  boletas:              [],
+  despachadorId:        currentUser?.id     || '',
+  despachadorNombre:    currentUser?.nombre || '',
+  encargadoId:          '',
+  encargadoNombre:      '',
+  nota:                 '',
+});
 
 export default function CosechaDespachoModal({
   apiFetch,
@@ -34,27 +86,13 @@ export default function CosechaDespachoModal({
   const [toast,  setToast]  = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Borrador persistido: el form tiene 6 secciones y un click fuera lo cierra;
+  // sin esto se perdía todo. Punto #8 audit.
+  const [form, setForm, clearDraft] = useDraft('cosecha-despacho-nuevo', () => makeEmptyForm(currentUser));
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
 
-  const emptyForm = useCallback(() => ({
-    fecha:                today,
-    loteId:               '',
-    loteNombre:           '',
-    buyerId:              '',
-    operarioCamionNombre: '',
-    placaCamion:          '',
-    cantidad:             '',
-    unidadId:             '',
-    unidad:               '',
-    boletas:              [],
-    despachadorId:        currentUser?.id     || '',
-    despachadorNombre:    currentUser?.nombre || '',
-    encargadoId:          '',
-    encargadoNombre:      '',
-    nota:                 '',
-  }), [currentUser, today]);
-
-  const [form, setForm] = useState(() => emptyForm());
+  // ESC cierra el modal (salvo durante un guardado en vuelo). Punto #4 audit.
+  useEscapeClose(saving ? null : onClose);
 
   useEffect(() => {
     if (prereqs) return;
@@ -75,6 +113,14 @@ export default function CosechaDespachoModal({
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lista de responsables: usuarios de planilla + el usuario actual aunque no
+  // sea de planilla (un admin puede despachar). Sin esto, el despachador
+  // pre-seteado quedaba con id sin item → combobox vacío. Punto #23 audit.
+  const responsables = useMemo(() => {
+    if (!currentUser?.id || usuarios.some(u => u.id === currentUser.id)) return usuarios;
+    return [{ id: currentUser.id, nombre: currentUser.nombre || 'Yo' }, ...usuarios];
+  }, [usuarios, currentUser]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -84,9 +130,11 @@ export default function CosechaDespachoModal({
         const l = lotes.find(x => x.id === value);
         next.loteNombre = l ? l.nombreLote : '';
         next.boletas = [];
+        next.cantidad = '';
       }
       return next;
     });
+    clearField(name);
   };
 
   const unidadLabel = useCallback(
@@ -97,10 +145,11 @@ export default function CosechaDespachoModal({
   const handleUnidadChange = (id) => {
     const u = unidades.find(x => x.id === id);
     setForm(prev => ({ ...prev, unidadId: id, unidad: u ? u.nombre : '' }));
+    clearField('unidad');
   };
 
   const makeUserHandler = (idField, nameField) => (id) => {
-    const u = usuarios.find(x => x.id === id);
+    const u = responsables.find(x => x.id === id);
     setForm(prev => ({ ...prev, [idField]: id, [nameField]: u ? u.nombre : '' }));
   };
 
@@ -116,47 +165,31 @@ export default function CosechaDespachoModal({
     [existingDespachos],
   );
 
+  // Suma de las boletas seleccionadas: alimenta la cantidad (derivada) y se
+  // muestra en el header de la sección para que el usuario no tenga que bajar
+  // a "Cantidad despachada" a verificar. Puntos #21 y #22 audit.
+  const boletasSuma = useMemo(
+    () => form.boletas.reduce((acc, b) => acc + (parseFloat(b.cantidad) || 0), 0),
+    [form.boletas],
+  );
+  const hasBoletas = form.boletas.length > 0;
+
   const handleBoletasChange = (boletas) => {
     const suma = boletas.reduce((acc, b) => acc + (parseFloat(b.cantidad) || 0), 0);
     setForm(prev => ({
       ...prev,
       boletas,
-      cantidad: suma > 0 ? String(suma) : '',
+      // Cuando hay boletas, la cantidad es derivada (no editable a mano) para
+      // que nunca diverja de la suma de las boletas que componen el despacho.
+      cantidad: suma > 0 ? String(suma) : (boletas.length ? '' : prev.cantidad),
     }));
+    if (suma > 0) clearField('cantidad');
   };
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     if (saving) return;
-    if (!form.fecha || !form.loteId || !form.cantidad) {
-      showToast('Fecha, lote y cantidad son obligatorios.', 'error');
-      return;
-    }
-    if (!form.buyerId) {
-      showToast('El comprador es obligatorio.', 'error');
-      return;
-    }
-    if (form.fecha > today) {
-      showToast('La fecha no puede ser futura.', 'error');
-      return;
-    }
-    const cantNum = parseFloat(form.cantidad);
-    if (isNaN(cantNum) || cantNum < 0 || cantNum > MAX_CANTIDAD) {
-      showToast(`Cantidad debe estar entre 0 y ${MAX_CANTIDAD}.`, 'error');
-      return;
-    }
-    if (form.operarioCamionNombre.length > MAX_OPERARIO) {
-      showToast(`Operario: máx. ${MAX_OPERARIO} caracteres.`, 'error');
-      return;
-    }
-    if (form.placaCamion.length > MAX_PLACA) {
-      showToast(`Placa: máx. ${MAX_PLACA} caracteres.`, 'error');
-      return;
-    }
-    if (form.nota.length > MAX_NOTA) {
-      showToast(`Observaciones: máx. ${MAX_NOTA} caracteres.`, 'error');
-      return;
-    }
+    if (!validateAll(form)) return;
     setSaving(true);
     try {
       const res = await apiFetch('/api/cosecha/despachos', {
@@ -164,11 +197,16 @@ export default function CosechaDespachoModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error();
-      onSuccess?.();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || 'Error al guardar.');
+      }
+      const created = await res.json().catch(() => ({}));
+      clearDraft();
+      onSuccess?.(created);
       onClose?.();
-    } catch {
-      showToast('Error al guardar.', 'error');
+    } catch (err) {
+      showToast(err.message || 'Error al guardar.', 'error');
       setSaving(false);
     }
   };
@@ -196,41 +234,46 @@ export default function CosechaDespachoModal({
                 <h3 className="aur-section-title">Fecha y comprador</h3>
               </div>
               <div className="aur-list">
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cd-fecha">Fecha</label>
                   <input
                     id="cd-fecha"
                     type="date"
                     name="fecha"
-                    className="aur-input"
+                    className={inputClass('fecha')}
                     value={form.fecha}
                     onChange={handleChange}
-                    max={today}
+                    onBlur={() => blurField('fecha', form)}
+                    max={todayISO()}
                     required
                   />
+                  {fieldErrors.fecha && <span className="aur-field-error">{fieldErrors.fecha}</span>}
                 </div>
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cd-lote">Lote</label>
                   <select
                     id="cd-lote"
                     name="loteId"
-                    className="aur-select"
+                    className={inputClass('loteId', 'aur-select')}
                     value={form.loteId}
                     onChange={handleChange}
+                    onBlur={() => blurField('loteId', form)}
                     required
                   >
                     <option value="">— Seleccionar —</option>
                     {lotes.map(l => <option key={l.id} value={l.id}>{l.nombreLote}</option>)}
                   </select>
+                  {fieldErrors.loteId && <span className="aur-field-error">{fieldErrors.loteId}</span>}
                 </div>
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cd-buyer">Comprador</label>
                   <BuyerSelector
                     value={form.buyerId}
-                    onChange={(v) => setForm(prev => ({ ...prev, buyerId: v }))}
+                    onChange={(v) => { setForm(prev => ({ ...prev, buyerId: v })); clearField('buyerId'); }}
                     required
-                    className="aur-select"
+                    className={inputClass('buyerId', 'aur-select')}
                   />
+                  {fieldErrors.buyerId && <span className="aur-field-error">{fieldErrors.buyerId}</span>}
                 </div>
               </div>
             </section>
@@ -240,31 +283,35 @@ export default function CosechaDespachoModal({
                 <h3 className="aur-section-title">Camión</h3>
               </div>
               <div className="aur-list">
-                <div className="aur-row">
-                  <label className="aur-row-label" htmlFor="cd-operario">Operario de camión</label>
+                <div className="aur-row aur-row--multiline">
+                  <label className="aur-row-label" htmlFor="cd-operario">Chofer</label>
                   <input
                     id="cd-operario"
                     type="text"
                     name="operarioCamionNombre"
-                    className="aur-input"
+                    className={inputClass('operarioCamionNombre')}
                     value={form.operarioCamionNombre}
                     onChange={handleChange}
+                    onBlur={() => blurField('operarioCamionNombre', form)}
                     placeholder="Nombre del chofer…"
                     maxLength={MAX_OPERARIO}
                   />
+                  {fieldErrors.operarioCamionNombre && <span className="aur-field-error">{fieldErrors.operarioCamionNombre}</span>}
                 </div>
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cd-placa">Placa</label>
                   <input
                     id="cd-placa"
                     type="text"
                     name="placaCamion"
-                    className="aur-input"
+                    className={inputClass('placaCamion')}
                     value={form.placaCamion}
                     onChange={handleChange}
+                    onBlur={() => blurField('placaCamion', form)}
                     placeholder="Ej. ABC-123"
                     maxLength={MAX_PLACA}
                   />
+                  {fieldErrors.placaCamion && <span className="aur-field-error">{fieldErrors.placaCamion}</span>}
                 </div>
               </div>
             </section>
@@ -273,6 +320,11 @@ export default function CosechaDespachoModal({
               <div className="aur-section-header">
                 <h3 className="aur-section-title">Boletas de cosecha</h3>
                 <span className="aur-section-count">{form.boletas.length}</span>
+                {boletasSuma > 0 && (
+                  <span className="harvest-section-hint">
+                    suma {boletasSuma.toLocaleString('es-ES')}{form.unidad ? ` ${form.unidad}` : ''}
+                  </span>
+                )}
               </div>
               <HarvestBoletasSelect
                 registros={registrosCosecha}
@@ -287,23 +339,29 @@ export default function CosechaDespachoModal({
                 <h3 className="aur-section-title">Cantidad despachada</h3>
               </div>
               <div className="aur-list">
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label" htmlFor="cd-cantidad">Cantidad</label>
                   <input
                     id="cd-cantidad"
                     type="number"
                     name="cantidad"
-                    className="aur-input aur-input--num"
+                    className={inputClass('cantidad', 'aur-input aur-input--num')}
                     min="0"
                     max={MAX_CANTIDAD}
                     step="any"
                     value={form.cantidad}
                     onChange={handleChange}
+                    onBlur={() => blurField('cantidad', form)}
                     placeholder="0"
+                    readOnly={hasBoletas}
+                    title={hasBoletas ? 'Calculada a partir de las boletas seleccionadas' : undefined}
                     required
                   />
+                  {hasBoletas
+                    ? <span className="aur-field-hint">Derivada de las boletas seleccionadas.</span>
+                    : fieldErrors.cantidad && <span className="aur-field-error">{fieldErrors.cantidad}</span>}
                 </div>
-                <div className="aur-row">
+                <div className="aur-row aur-row--multiline">
                   <label className="aur-row-label">Unidad</label>
                   <AuroraCombobox
                     value={form.unidadId}
@@ -312,6 +370,7 @@ export default function CosechaDespachoModal({
                     labelFn={unidadLabel}
                     placeholder="Buscar unidad…"
                   />
+                  {fieldErrors.unidad && <span className="aur-field-error">{fieldErrors.unidad}</span>}
                 </div>
               </div>
             </section>
@@ -326,7 +385,7 @@ export default function CosechaDespachoModal({
                   <AuroraCombobox
                     value={form.despachadorId}
                     onChange={handleDespachador}
-                    items={usuarios}
+                    items={responsables}
                     labelKey="nombre"
                     placeholder="Buscar despachador…"
                   />
@@ -336,7 +395,7 @@ export default function CosechaDespachoModal({
                   <AuroraCombobox
                     value={form.encargadoId}
                     onChange={handleEncargado}
-                    items={usuarios}
+                    items={responsables}
                     labelKey="nombre"
                     placeholder="Buscar encargado…"
                   />
@@ -354,13 +413,15 @@ export default function CosechaDespachoModal({
                   <textarea
                     id="cd-nota"
                     name="nota"
-                    className="aur-textarea"
+                    className={inputClass('nota', 'aur-textarea')}
                     value={form.nota}
                     onChange={handleChange}
+                    onBlur={() => blurField('nota', form)}
                     placeholder="Observaciones adicionales…"
                     rows={2}
                     maxLength={MAX_NOTA}
                   />
+                  {fieldErrors.nota && <span className="aur-field-error">{fieldErrors.nota}</span>}
                 </div>
               </div>
             </section>
