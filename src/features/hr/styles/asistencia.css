@@ -7,6 +7,14 @@
   color: var(--aurora-light);
   max-width: 1100px;
   margin: 0 auto;
+  /* Colores de estado: ausente/permiso alineados a la paleta de
+     .status-badge--* (hr.css) para no tener dos rojos/azules distintos del
+     mismo concepto entre pantallas del módulo. */
+  --asist-presente:    var(--aurora-green);
+  --asist-ausente:     #ff5050;
+  --asist-vacaciones:  #ffb020;
+  --asist-incapacidad: var(--aurora-magenta);
+  --asist-permiso:     #5599ff;
 }
 
 .asist-header {
@@ -83,6 +91,19 @@
   color: var(--aurora-green);
 }
 
+/* Badge "ya registrado" — indica que la fecha tiene asistencia guardada (#16). */
+.asist-registered-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  color: var(--aurora-green);
+  background: rgba(51, 255, 153, 0.1);
+  border: 1px solid rgba(51, 255, 153, 0.3);
+  border-radius: 12px;
+  padding: 3px 10px;
+}
+
 /* ── Stats row override ─────────────────────────────────────────────────── */
 .asist-stats {
   margin-bottom: 16px;
@@ -96,17 +117,19 @@
 }
 
 /* ── Grid (one row per worker) ─────────────────────────────────────────── */
-.asist-loading {
-  text-align: center;
-  padding: 32px;
-  opacity: 0.6;
-}
-
 .asist-grid {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-bottom: 80px; /* deja espacio para la barra fija de guardar */
+}
+
+/* Recarga al cambiar de fecha: atenúa el grid sin colapsarlo a un texto
+   (preserva el layout y evita el flash desorientador — #8). */
+.asist-grid.is-refetching {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.15s;
 }
 
 .asist-row {
@@ -121,17 +144,23 @@
   transition: border-color 0.15s;
 }
 
-/* Color en el borde izquierdo según estado seleccionado */
-.asist-row--presente    { border-left: 3px solid var(--aurora-green); }
-.asist-row--ausente     { border-left: 3px solid #c0392b; }
-.asist-row--vacaciones  { border-left: 3px solid #f39c12; }
-.asist-row--incapacidad { border-left: 3px solid #9b59b6; }
-.asist-row--permiso     { border-left: 3px solid #3498db; }
+/* Color en el borde izquierdo según estado seleccionado. La fila sin marcar
+   (--empty) lleva un borde neutro tenue para que se lea como "pendiente" y
+   resalte del resto al escanear la lista (#25). */
+.asist-row--empty       { border-left: 3px solid var(--aurora-border); }
+.asist-row--presente    { border-left: 3px solid var(--asist-presente); }
+.asist-row--ausente     { border-left: 3px solid var(--asist-ausente); }
+.asist-row--vacaciones  { border-left: 3px solid var(--asist-vacaciones); }
+.asist-row--incapacidad { border-left: 3px solid var(--asist-incapacidad); }
+.asist-row--permiso     { border-left: 3px solid var(--asist-permiso); }
 
 .asist-name {
   font-weight: 600;
   color: var(--aurora-light);
   font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .asist-estados {
@@ -170,11 +199,24 @@
   font-weight: 600;
 }
 
-.asist-estado-btn--presente.is-active    { background: var(--aurora-green);   color: var(--aurora-dark-blue); }
-.asist-estado-btn--ausente.is-active     { background: #c0392b;               color: #fff; }
-.asist-estado-btn--vacaciones.is-active  { background: #f39c12;               color: var(--aurora-dark-blue); }
-.asist-estado-btn--incapacidad.is-active { background: #9b59b6;               color: #fff; }
-.asist-estado-btn--permiso.is-active     { background: #3498db;               color: #fff; }
+/* Check dentro del botón activo: señal redundante al color para daltónicos (#7). */
+.asist-estado-check {
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+.asist-estado-btn--presente.is-active    { background: var(--asist-presente);    color: var(--aurora-dark-blue); }
+.asist-estado-btn--ausente.is-active     { background: var(--asist-ausente);     color: #fff; }
+.asist-estado-btn--vacaciones.is-active  { background: var(--asist-vacaciones);  color: var(--aurora-dark-blue); }
+.asist-estado-btn--incapacidad.is-active { background: var(--asist-incapacidad); color: #fff; }
+.asist-estado-btn--permiso.is-active     { background: var(--asist-permiso);     color: #fff; }
+
+/* Foco visible para navegación por teclado dentro del radiogroup (#6). */
+.asist-estado-btn:focus-visible {
+  outline: 2px solid var(--aurora-green);
+  outline-offset: -2px;
+  opacity: 1;
+}
 
 .asist-horas {
   display: inline-flex;
@@ -185,6 +227,8 @@
   opacity: 0.85;
 }
 
+/* El input usa la primitiva .aur-input--num (tabular + sin spinners nativos);
+   acá solo definimos el chrome y el ancho compacto de la columna. */
 .asist-horas input {
   background: var(--aurora-dark-blue);
   color: var(--aurora-light);
@@ -193,6 +237,11 @@
   padding: 4px 8px;
   width: 70px;
   font-size: 0.85rem;
+}
+
+.asist-horas input:focus {
+  outline: none;
+  border-color: var(--aurora-green);
 }
 
 .asist-notas-input {
@@ -223,10 +272,40 @@
   padding: 12px 24px;
   background: var(--aurora-dark-blue);
   border-top: 1px solid var(--aurora-border);
-  display: flex;
-  justify-content: flex-end;
   z-index: 50;
 }
+
+/* Inner contenido al mismo ancho centrado que la página, para que el botón
+   no flote pegado al borde del viewport en pantallas anchas (#10). */
+.asist-save-bar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.asist-dirty-hint {
+  font-size: 0.8rem;
+  color: var(--aurora-magenta);
+}
+
+/* Resumen de impacto dentro del modal de confirmación de guardado (#3). */
+.asist-confirm-summary {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+.asist-confirm-summary li { opacity: 0.85; }
+/* Token global (no el local --asist-*): el modal se renderiza en un portal
+   fuera de .asist-page y no heredaría la variable de página. */
+.asist-confirm-summary .asist-confirm-warn { color: var(--aur-warn); opacity: 1; }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 800px) {
@@ -239,6 +318,8 @@
   }
   .asist-estado-btn {
     flex: 1 1 auto;
+    /* Hit-area táctil ≥44px: captura en campo con el dedo (#20). */
+    padding: 12px 10px;
   }
   .asist-controls {
     flex-direction: column;
