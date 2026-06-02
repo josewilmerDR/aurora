@@ -62,6 +62,8 @@ export const ACTION_OPTIONS = [
   { value: 'income.update',                 label: 'Ingreso actualizado' },
   { value: 'income.delete',                 label: 'Ingreso eliminado' },
   { value: 'buyer.delete',                  label: 'Comprador eliminado' },
+  { value: 'cosecha.dispatch.void',         label: 'Despacho de cosecha anulado' },
+  { value: 'cosecha.record.delete',         label: 'Registro de cosecha eliminado' },
   { value: 'budget.create',                 label: 'Presupuesto creado' },
   { value: 'budget.update',                 label: 'Presupuesto actualizado' },
   { value: 'budget.delete',                 label: 'Presupuesto eliminado' },
