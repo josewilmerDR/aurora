@@ -5,6 +5,23 @@ import { FiBox, FiTool, FiTruck, FiDroplet, FiPackage } from 'react-icons/fi';
 // ── Icon map ───────────────────────────────────────────────────────────────
 export const ICON_MAP = { FiBox, FiTool, FiTruck, FiDroplet, FiPackage };
 
+// Etiquetas legibles para el picker de íconos (fuente única; no redefinir el
+// set de íconos en las páginas). El orden define el orden visual del picker.
+export const ICON_LABELS = {
+  FiBox:     'Caja',
+  FiTool:    'Herramienta',
+  FiTruck:   'Camión',
+  FiDroplet: 'Líquido',
+  FiPackage: 'Paquete',
+};
+
+// Array derivado para iterar en pickers: [{ key, Icon, label }].
+export const ICON_OPTIONS = Object.keys(ICON_MAP).map(key => ({
+  key,
+  Icon: ICON_MAP[key],
+  label: ICON_LABELS[key] || key,
+}));
+
 // ── Formateo ───────────────────────────────────────────────────────────────
 // Locale unificado es-CR (la finca real) para números y fechas.
 const LOCALE = 'es-CR';
