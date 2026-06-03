@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiPrinter, FiArrowLeft, FiShare2, FiDownload } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { CCSS_RATE, fmt } from '../lib/payroll-format';
 import '../styles/fixed-payroll-report.css';
 
 // CSV (RFC 4180): cita campos con coma, comilla o salto de línea; escapa
@@ -15,10 +16,6 @@ function csvEscape(val) {
 function csvRow(cells) {
   return cells.map(csvEscape).join(',') + '\r\n';
 }
-
-const CCSS_RATE = 0.1083;
-
-const fmt = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
 
 const fmtDateLong = (iso) => {
   if (!iso) return '—';
