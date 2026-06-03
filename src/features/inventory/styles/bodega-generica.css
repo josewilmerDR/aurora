@@ -86,9 +86,6 @@
 .bg-stock.low { color: #f0c040; }
 .bg-warn-icon { color: #f0c040; margin-left: 0.3rem; vertical-align: middle; }
 
-.bg-date { font-size: 0.8rem; color: #7a9bbf; white-space: nowrap; }
-.bg-nota { font-size: 0.82rem; color: #7a9bbf; }
-
 /* ── Type badge ── */
 .bg-badge {
   display: inline-flex;
@@ -135,39 +132,26 @@
 }
 .bg-btn-mov.salida:hover { background: rgba(255,107,107,0.18); }
 
-/* ── Movimiento modal ── */
-.bg-tipo-toggle {
-  display: flex;
-  gap: 0.6rem;
-  margin-bottom: 1.2rem;
-}
-.bg-tipo-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--aurora-border);
-  background: var(--aurora-dark-blue);
-  color: #7a9bbf;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-.bg-tipo-btn.active.entrada {
-  border-color: var(--aurora-green);
-  color: var(--aurora-green);
-  background: rgba(51,255,153,0.08);
-}
-.bg-tipo-btn.active.salida {
-  border-color: #ff6b6b;
+/* Botón eliminar fila: color de peligro en REPOSO (se distingue del editar). */
+.ba-btn-icon.bg-btn-del { color: #ff6b6b; }
+.ba-btn-icon.bg-btn-del:hover {
   color: #ff6b6b;
-  background: rgba(255,107,107,0.08);
+  border-color: rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.07);
 }
 
+/* ── Validación inline ── */
+.aur-input.aur-input--error {
+  border-color: #ff6b6b;
+}
+.bg-field-error {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: #ff6b6b;
+}
+
+/* ── Movimiento modal ── */
 .bg-stock-hint {
   font-size: 0.82rem;
   color: #7a9bbf;
@@ -274,17 +258,24 @@
 .bgm-th-sortable.is-sorted { color: var(--aurora-green); }
 .bgm-th-sortable.has-col-filter { border-bottom: 2px solid var(--aurora-green); }
 .bgm-th-content { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.bgm-th-arrow { font-size: 0.7rem; opacity: 0.45; }
+.bgm-th-arrow { font-size: 0.7rem; opacity: 0.55; }
 .bgm-th-sortable.is-sorted .bgm-th-arrow { opacity: 1; }
 .bgm-th-funnel {
-  display: inline-flex; align-items: center;
+  display: inline-flex; align-items: center; justify-content: center;
   opacity: 0; cursor: pointer;
+  background: none; border: none; padding: 4px; margin: -4px;
   transition: opacity 0.15s, color 0.15s;
   color: var(--aurora-light);
 }
-.bgm-th-sortable:hover .bgm-th-funnel { opacity: 0.45; }
-.bgm-th-funnel:hover { opacity: 1 !important; }
+.bgm-th-sortable:hover .bgm-th-funnel { opacity: 0.55; }
+.bgm-th-funnel:hover,
+.bgm-th-funnel:focus-visible { opacity: 1 !important; }
 .bgm-th-funnel.is-active { opacity: 1 !important; color: var(--aurora-green); }
+
+/* En táctil (sin hover) el embudo debe verse siempre y tener hit-target ≥40px. */
+@media (hover: none) {
+  .bgm-th-funnel { opacity: 0.5; min-width: 40px; min-height: 40px; }
+}
 
 /* ── Column visibility toggle ─────────────────────────────────────────────── */
 .bgm-th-settings { width: 28px; padding: 0 8px !important; cursor: default !important; text-align: right; }
@@ -292,7 +283,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   background: none; border: none; cursor: pointer;
   padding: 3px 4px; border-radius: 4px;
-  color: rgba(230, 242, 255, 0.2);
+  color: rgba(230, 242, 255, 0.55);
   transition: color 0.15s, background 0.15s;
 }
 .bgm-col-toggle-btn:hover,
@@ -321,33 +312,7 @@
 .bgm-col-menu-item input[type="checkbox"] { accent-color: var(--aurora-green); width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
 .bgm-col-menu-item--disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Filter popover (portal) ──────────────────────────────────────────────── */
-.bgm-filter-backdrop { position: fixed; inset: 0; z-index: 1099; }
-.bgm-filter-popover {
-  position: fixed; z-index: 1100;
-  display: flex; align-items: center; gap: 6px;
-  background: var(--aurora-background); border: 1px solid var(--aurora-border);
-  border-radius: 7px; padding: 7px 10px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.5); min-width: 200px; flex-wrap: wrap;
-}
-.bgm-filter-range { display: flex; align-items: center; gap: 6px; width: 100%; flex-wrap: wrap; }
-.bgm-filter-range-label { font-size: 0.78rem; color: var(--aurora-light); opacity: 0.6; white-space: nowrap; }
-.bgm-filter-icon { color: var(--aurora-green); opacity: 0.7; flex-shrink: 0; }
-.bgm-filter-input {
-  flex: 1; background: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border); border-radius: 5px;
-  color: var(--aurora-light); padding: 5px 8px; font-size: 0.82rem;
-  outline: none; transition: border-color 0.15s; min-width: 80px;
-}
-.bgm-filter-input:focus { border-color: var(--aurora-green); }
-.bgm-filter-input-range { flex: 1; min-width: 80px; }
-.bgm-filter-clear {
-  display: flex; align-items: center;
-  background: none; border: none; color: var(--aurora-light);
-  opacity: 0.45; cursor: pointer; padding: 3px; border-radius: 3px;
-  transition: opacity 0.15s, color 0.15s; flex-shrink: 0;
-}
-.bgm-filter-clear:hover { opacity: 1; color: var(--aurora-magenta); }
+/* El popover de filtro ahora usa AuroraFilterPopover (.aur-filter-*). */
 
 /* ── Clear filters button ─────────────────────────────────────────────────── */
 .bgm-clear-filters {
@@ -365,5 +330,9 @@
   .bg-form-row { grid-template-columns: 1fr; }
   .bg-tabs { flex-wrap: wrap; }
   .bg-tabs button { font-size: 0.75rem; padding: 0.4rem 0.6rem; }
-  .bgm-filter-popover { left: 8px !important; right: 8px; min-width: unset; max-width: calc(100vw - 16px); }
+}
+
+/* Hit-area táctil ≥40px para icon-buttons de fila (editar/eliminar). */
+@media (hover: none) {
+  .bg-row-actions .ba-btn-icon { min-width: 40px; min-height: 40px; justify-content: center; }
 }
