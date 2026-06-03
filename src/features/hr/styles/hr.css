@@ -254,7 +254,7 @@
 
 .status-badge--pendiente   { background: rgba(255,200,0,0.15);   color: #ffc800; }
 .status-badge--aprobado    { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
-.status-badge--rechazado   { background: rgba(255,80,80,0.15);   color: #ff5050; }
+.status-badge--rechazado   { background: rgba(255,91,91,0.15);   color: var(--hr-negative); }
 .status-badge--contratado  { background: rgba(51,153,255,0.15);  color: #5599ff; }
 .status-badge--presente    { background: rgba(51,255,153,0.12);  color: var(--aurora-green); }
 .status-badge--ausente     { background: rgba(255,80,80,0.12);   color: #ff5050; }
@@ -342,7 +342,7 @@ button.collapsible-section-header:hover { opacity: 1; }
 }
 
 .hr-toggle-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
@@ -350,9 +350,23 @@ button.collapsible-section-header:hover { opacity: 1; }
   color: var(--aurora-light);
   opacity: 0.8;
   user-select: none;
+  /* Reset: ahora es <button> para que toda la fila (no sólo el switch) togglee
+     y reciba foco/teclado nativo. */
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-family: inherit;
+  text-align: left;
+}
+
+.hr-toggle-label:focus-visible {
+  outline: none;
+  box-shadow: var(--aur-ring, 0 0 0 2px var(--aurora-green));
+  border-radius: 6px;
 }
 
 .hr-toggle-switch {
+  display: inline-block;
   width: 36px;
   height: 20px;
   background: var(--aurora-border);
@@ -388,6 +402,53 @@ button.collapsible-section-header:hover { opacity: 1; }
   border: 1px solid rgba(51, 255, 153, 0.3);
   display: inline-flex;
   align-items: center;
+}
+
+/* Token único para "negativo / sin goce / rechazado" (antes #ff5050, #ff6b6b
+   sueltos). Es semántica financiera-negativa, distinta del --aur-danger
+   (magenta destructivo). */
+:root { --hr-negative: #ff5b5b; }
+
+/* Badge de "goce de salario": color NEUTRO, no reusa verde/rojo de estado
+   (un permiso aprobado sin goce no es un rechazo). */
+.hr-goce-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--aurora-border);
+  background: rgba(230, 242, 255, 0.06);
+  color: var(--aurora-light);
+}
+.hr-goce-badge--con { border-color: rgba(51, 162, 219, 0.5); color: #5cb6e6; }
+.hr-goce-badge--sin { border-color: rgba(255, 91, 91, 0.5);  color: var(--hr-negative); }
+
+.hr-stat-value--danger { color: var(--hr-negative); }
+
+.hr-char-counter {
+  font-size: 0.7rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  text-align: right;
+  margin-top: 2px;
+}
+
+.hr-confirm-detail {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--aurora-light);
+  opacity: 0.8;
+}
+
+/* Highlight transitorio de la fila recién aprobada/rechazada/revertida. */
+@keyframes hr-row-flash {
+  from { background: rgba(51, 255, 153, 0.18); }
+  to   { background: transparent; }
+}
+.hr-row-flash {
+  animation: hr-row-flash 2.5s ease-out;
+  border-radius: 6px;
 }
 
 /* ── Planilla hub cards ───────────────────────────────────────────────────── */

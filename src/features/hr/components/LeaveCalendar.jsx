@@ -1,23 +1,23 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { FiCheck, FiX, FiTrash2, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiCheck, FiX, FiTrash2, FiRotateCcw, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { TIPO_LABELS, tipoLabel } from '../lib/leaveHelpers';
 import '../styles/leave-calendar.css';
 
 // Vista mensual de permisos. Recibe la lista ya cargada (no fetchea por sí
 // solo — comparte data con LeaveRequests). Cada día muestra bandas por
 // trabajador, coloreadas por tipo y con estilo según estado. Click en una
-// banda abre un popover con acciones aprobar / rechazar / eliminar según
-// permisos del usuario.
-
-const TIPO_LABELS = {
-  vacaciones:        'Vacaciones',
-  enfermedad:        'Enfermedad',
-  permiso_con_goce:  'Permiso con goce',
-  permiso_sin_goce:  'Permiso sin goce',
-  licencia:          'Licencia',
-};
+// banda abre un popover con acciones aprobar / rechazar / revertir / eliminar
+// según permisos del usuario. Si un día tiene más bandas de las que entran,
+// se colapsan en un chip "+N" que abre un popover con la lista del día.
 
 // dateStr → 'YYYY-MM-DD' canonical (acepta ISO completo o ya recortado).
 const ymd = (s) => (typeof s === 'string' ? s.slice(0, 10) : '');
+
+// Máximo de bandas visibles por celda antes de colapsar en "+N".
+const MAX_BANDS = 3;
+// Ancho reservado del popover para el clamp horizontal (coincide con max-width
+// en leave-calendar.css).
+const POPOVER_W = 280;
 
 // Genera 6 semanas (42 celdas) que cubren el mes completo, empezando lunes.
 // Las celdas fuera del mes se marcan como `outside` para tenue rendering.
@@ -80,25 +80,47 @@ export default function LeaveCalendar({
   onAnioChange,
   canApprove,
   canDelete,
-  pendingId,
+  pendingIds,
   onApprove,
   onReject,
+  onRevert,
   onDelete,
 }) {
   const year = Number(anio);
   const month = Number(mes);
   const grid = useMemo(() => buildMonthGrid(year, month), [year, month]);
   const byDay = useMemo(() => indexPermisosByDay(permisos), [permisos]);
+  const isPending = (id) => (pendingIds instanceof Set ? pendingIds.has(id) : false);
 
-  // Popover state: { permiso, anchorRect } | null
+  // Popover state: { kind:'permiso', permiso, rect } | { kind:'day', items, label, rect } | null
   const [popover, setPopover] = useState(null);
   const popRef = useRef(null);
+
+  // Cierre por click/tap fuera.
   useEffect(() => {
     const onDoc = (e) => {
       if (popRef.current && !popRef.current.contains(e.target)) setPopover(null);
     };
-    if (popover) document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    if (popover) {
+      document.addEventListener('mousedown', onDoc);
+      document.addEventListener('touchstart', onDoc);
+    }
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('touchstart', onDoc);
+    };
+  }, [popover]);
+
+  // ESC cierra el popover.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setPopover(null); };
+    if (popover) document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [popover]);
+
+  // Mover foco al popover al abrir (a11y).
+  useEffect(() => {
+    if (popover && popRef.current) popRef.current.focus();
   }, [popover]);
 
   const goPrev = () => {
@@ -121,15 +143,25 @@ export default function LeaveCalendar({
   const monthLabel = new Date(year, month - 1, 1)
     .toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
 
-  const openPopover = (e, p) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setPopover({ permiso: p, anchorRect: rect });
+  // Posición fija a viewport (coordenadas de getBoundingClientRect, sin scroll).
+  const rectFrom = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { top: r.bottom, left: r.left };
   };
+  const openPermiso = (e, p) => setPopover({ kind: 'permiso', permiso: p, rect: rectFrom(e) });
+  const openDay = (e, items, label) => setPopover({ kind: 'day', items, label, rect: rectFrom(e) });
 
   const handleAction = async (fn, id) => {
     setPopover(null);
     await fn(id);
   };
+
+  const hasItems = byDay.size > 0;
+
+  const popStyle = popover ? {
+    top: popover.rect.top + 6,
+    left: Math.min(popover.rect.left, window.innerWidth - POPOVER_W - 8),
+  } : null;
 
   return (
     <div className="leave-cal">
@@ -150,6 +182,8 @@ export default function LeaveCalendar({
       <div className="leave-cal-grid">
         {grid.map(cell => {
           const items = byDay.get(cell.iso) || [];
+          const shown = items.slice(0, MAX_BANDS);
+          const extra = items.length - shown.length;
           return (
             <div
               key={cell.iso}
@@ -157,13 +191,13 @@ export default function LeaveCalendar({
             >
               <div className="leave-cal-day">{cell.day}</div>
               <div className="leave-cal-items">
-                {items.map(p => (
+                {shown.map(p => (
                   <button
                     key={`${p.id}-${cell.iso}`}
                     type="button"
-                    onClick={(e) => openPopover(e, p)}
+                    onClick={(e) => openPermiso(e, p)}
                     className={`leave-band leave-band--${p.tipo} leave-band--${p.estado}${p.esParcial ? ' leave-band--parcial' : ''}`}
-                    title={`${p.trabajadorNombre} · ${TIPO_LABELS[p.tipo] || p.tipo} · ${p.estado}`}
+                    title={`${p.trabajadorNombre} · ${tipoLabel(p.tipo)} · ${p.estado}`}
                   >
                     <span className="leave-band-name">{p.trabajadorNombre || '—'}</span>
                     {p.esParcial && p.horaInicio && (
@@ -171,94 +205,145 @@ export default function LeaveCalendar({
                     )}
                   </button>
                 ))}
+                {extra > 0 && (
+                  <button
+                    type="button"
+                    className="leave-band-more"
+                    onClick={(e) => openDay(e, items, `${cell.day}`)}
+                    title={`Ver ${items.length} permisos`}
+                  >
+                    +{extra} más
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* ── Popover acciones ── */}
+      {!hasItems && (
+        <p className="leave-cal-empty" aria-live="polite">Sin permisos este mes.</p>
+      )}
+
+      {/* ── Popover ── */}
       {popover && (
         <div
           ref={popRef}
           className="leave-cal-popover"
-          style={{
-            top: popover.anchorRect.bottom + window.scrollY + 6,
-            left: Math.min(
-              popover.anchorRect.left + window.scrollX,
-              window.innerWidth - 280
-            ),
-          }}
+          style={popStyle}
           role="dialog"
+          aria-modal="false"
+          aria-label={popover.kind === 'day'
+            ? `Permisos del día ${popover.label}`
+            : `Permiso de ${popover.permiso.trabajadorNombre || 'trabajador'}`}
+          tabIndex={-1}
         >
-          <div className="leave-cal-popover-head">
-            <strong>{popover.permiso.trabajadorNombre || '—'}</strong>
-            <span className={`status-badge status-badge--${popover.permiso.estado}`}>
-              {popover.permiso.estado}
-            </span>
-          </div>
-          <div className="leave-cal-popover-body">
-            <div>{TIPO_LABELS[popover.permiso.tipo] || popover.permiso.tipo}</div>
-            {popover.permiso.esParcial ? (
-              <div>
-                {ymd(popover.permiso.fechaInicio)} · {popover.permiso.horaInicio}–{popover.permiso.horaFin}
+          {popover.kind === 'day' ? (
+            <>
+              <div className="leave-cal-popover-head">
+                <strong>Permisos del día</strong>
               </div>
-            ) : (
-              <div>
-                {ymd(popover.permiso.fechaInicio)} → {ymd(popover.permiso.fechaFin)}
-                {popover.permiso.dias ? ` (${popover.permiso.dias} ${popover.permiso.dias === 1 ? 'día' : 'días'})` : ''}
+              <ul className="leave-cal-daylist">
+                {popover.items.map(p => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      className={`leave-cal-daylist-item leave-band--${p.tipo} leave-band--${p.estado}`}
+                      onClick={(e) => openPermiso(e, p)}
+                    >
+                      <span className="leave-band-name">{p.trabajadorNombre || '—'}</span>
+                      <span className="leave-cal-daylist-tipo">{tipoLabel(p.tipo)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="leave-cal-popover-actions">
+                <button type="button" className="aur-icon-btn" onClick={() => setPopover(null)} title="Cerrar">Cerrar</button>
               </div>
-            )}
-            <div className={popover.permiso.conGoce !== false ? 'leave-cal-pop-goce' : 'leave-cal-pop-singoce'}>
-              {popover.permiso.conGoce !== false ? 'Con goce de salario' : 'Sin goce de salario'}
-            </div>
-            {popover.permiso.motivo && (
-              <div className="leave-cal-pop-motivo">{popover.permiso.motivo}</div>
-            )}
-          </div>
-          <div className="leave-cal-popover-actions">
-            {canApprove && popover.permiso.estado === 'pendiente' && (
-              <>
+            </>
+          ) : (
+            <>
+              <div className="leave-cal-popover-head">
+                <strong>{popover.permiso.trabajadorNombre || '—'}</strong>
+                <span className={`status-badge status-badge--${popover.permiso.estado}`}>
+                  {popover.permiso.estado}
+                </span>
+              </div>
+              <div className="leave-cal-popover-body">
+                <div>{TIPO_LABELS[popover.permiso.tipo] || popover.permiso.tipo}</div>
+                {popover.permiso.esParcial ? (
+                  <div>
+                    {ymd(popover.permiso.fechaInicio)} · {popover.permiso.horaInicio}–{popover.permiso.horaFin}
+                  </div>
+                ) : (
+                  <div>
+                    {ymd(popover.permiso.fechaInicio)} → {ymd(popover.permiso.fechaFin)}
+                    {popover.permiso.dias ? ` (${popover.permiso.dias} ${popover.permiso.dias === 1 ? 'día' : 'días'})` : ''}
+                  </div>
+                )}
+                <div className={popover.permiso.conGoce !== false ? 'leave-cal-pop-goce' : 'leave-cal-pop-singoce'}>
+                  {popover.permiso.conGoce !== false ? 'Con goce de salario' : 'Sin goce de salario'}
+                </div>
+                {popover.permiso.motivo && (
+                  <div className="leave-cal-pop-motivo">{popover.permiso.motivo}</div>
+                )}
+              </div>
+              <div className="leave-cal-popover-actions">
+                {canApprove && popover.permiso.estado === 'pendiente' && (
+                  <>
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--success"
+                      disabled={isPending(popover.permiso.id)}
+                      onClick={() => handleAction(onApprove, popover.permiso.id)}
+                      title="Aprobar"
+                    >
+                      <FiCheck size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="aur-icon-btn aur-icon-btn--danger"
+                      disabled={isPending(popover.permiso.id)}
+                      onClick={() => handleAction(onReject, popover.permiso.id)}
+                      title="Rechazar"
+                    >
+                      <FiX size={16} />
+                    </button>
+                  </>
+                )}
+                {canApprove && popover.permiso.estado !== 'pendiente' && onRevert && (
+                  <button
+                    type="button"
+                    className="aur-icon-btn"
+                    disabled={isPending(popover.permiso.id)}
+                    onClick={() => handleAction(onRevert, popover.permiso.id)}
+                    title="Revertir a pendiente"
+                  >
+                    <FiRotateCcw size={15} />
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="aur-icon-btn aur-icon-btn--danger"
+                    disabled={isPending(popover.permiso.id)}
+                    onClick={() => handleAction(onDelete, popover.permiso.id)}
+                    title="Eliminar"
+                  >
+                    <FiTrash2 size={16} />
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="aur-icon-btn aur-icon-btn--success"
-                  disabled={pendingId === popover.permiso.id}
-                  onClick={() => handleAction(onApprove, popover.permiso.id)}
-                  title="Aprobar"
+                  className="aur-icon-btn"
+                  onClick={() => setPopover(null)}
+                  title="Cerrar"
                 >
-                  <FiCheck size={16} />
+                  Cerrar
                 </button>
-                <button
-                  type="button"
-                  className="aur-icon-btn aur-icon-btn--danger"
-                  disabled={pendingId === popover.permiso.id}
-                  onClick={() => handleAction(onReject, popover.permiso.id)}
-                  title="Rechazar"
-                >
-                  <FiX size={16} />
-                </button>
-              </>
-            )}
-            {canDelete && (
-              <button
-                type="button"
-                className="aur-icon-btn aur-icon-btn--danger"
-                disabled={pendingId === popover.permiso.id}
-                onClick={() => handleAction(onDelete, popover.permiso.id)}
-                title="Eliminar"
-              >
-                <FiTrash2 size={16} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="aur-icon-btn"
-              onClick={() => setPopover(null)}
-              title="Cerrar"
-            >
-              Cerrar
-            </button>
-          </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

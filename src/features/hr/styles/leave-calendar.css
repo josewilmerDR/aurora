@@ -186,7 +186,7 @@
 
 /* ── Popover de acciones ─────────────────────────────────────────── */
 .leave-cal-popover {
-  position: absolute;
+  position: fixed;
   background: var(--aurora-background);
   border: 1px solid var(--aurora-border);
   border-radius: 6px;
@@ -222,7 +222,7 @@
 }
 
 .leave-cal-pop-goce    { color: var(--aurora-green); font-size: 0.75rem; }
-.leave-cal-pop-singoce { color: #ff6b6b;             font-size: 0.75rem; }
+.leave-cal-pop-singoce { color: var(--hr-negative);  font-size: 0.75rem; }
 
 .leave-cal-pop-motivo {
   font-style: italic;
@@ -244,6 +244,59 @@
   font-size: 0.78rem;
   padding: 4px 10px;
 }
+
+/* ── Chip "+N más" cuando un día tiene más bandas de las que entran ─── */
+.leave-band-more {
+  background: transparent;
+  border: 1px dashed var(--aurora-border);
+  color: var(--aurora-light);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  opacity: 0.8;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.leave-band-more:hover { opacity: 1; border-color: var(--aurora-green); color: var(--aurora-green); }
+
+/* ── Empty-state del calendario ─────────────────────────────────────── */
+.leave-cal-empty {
+  text-align: center;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  font-size: 0.85rem;
+  margin: 16px 0 4px;
+}
+
+/* ── Lista de permisos de un día (popover kind='day') ───────────────── */
+.leave-cal-daylist {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.leave-cal-daylist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: var(--aurora-light);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.leave-cal-daylist-tipo { opacity: 0.7; font-size: 0.7rem; white-space: nowrap; }
 
 /* ── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
