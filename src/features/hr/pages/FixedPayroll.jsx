@@ -11,8 +11,13 @@ import PayrollStepIndicator from '../components/PayrollStepIndicator';
 import RegisterPermisoModal from '../components/RegisterPermisoModal';
 import { CCSS_RATE, fmt, fmtSigned, fmtDate, fmtShort, dateStr } from '../lib/payroll-format';
 import { getInitials } from '../lib/employeeProfileShared';
+import { estadoBadge, ESTADO_LABELS } from '../lib/payroll-estado';
 import {
   JORNADA_HORAS_DIARIA_DEFAULT,
+  SALARIO_MAX,
+  CONCEPTO_MAX,
+  PERIODO_MAX_DIAS,
+  clampNonNeg,
   calcHorasDiarias,
   generarDias,
   esMesCompleto,
@@ -21,20 +26,10 @@ import {
   recalcFila,
 } from '../lib/payroll-calc';
 
-const ESTADO_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Defensive limits (input validation):
-//   SALARIO_MAX amply covers the max expected monthly salary in CRC.
-//   PERIODO_MAX_DIAS caps the loadable range (annual + margin).
-const SALARIO_MAX     = 10_000_000;
-const CONCEPTO_MAX    = 100;
-const PERIODO_MAX_DIAS = 366;
-const EMAIL_RE        = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const clampNonNeg = (v, max = SALARIO_MAX) => {
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return n > max ? max : n;
-};
+// Storage key del último período visto, para resaltar la fila al volver del reporte.
+const LASTVIEW_KEY = 'aurora_planilla_fijo_last_viewed';
 
 function FixedPayroll() {
   const apiFetch = useApiFetch();
@@ -76,7 +71,9 @@ function FixedPayroll() {
   const [permisoModalFor, setPermisoModalFor]       = useState(null); // {id, nombre} | null
   const [revertConfirm, setRevertConfirm]           = useState(null); // {trabajadorId, ids, day, multiDayRanges} | null
   const [reverting, setReverting]                   = useState(false);
+  const [highlightId, setHighlightId]               = useState(null); // fila recién vista (resalta al volver del reporte)
   const autoDateDone = useRef(false);
+  const detalleHeadingRef = useRef(null);
 
   const fetchPlanillas = () => {
     setPlanillasError(false);
@@ -115,6 +112,27 @@ function FixedPayroll() {
       autoDateDone.current = true; // don't overwrite restored dates
     } catch { /* ignore */ }
   }, []);
+
+  // Al volver del reporte resaltamos brevemente la fila recién vista (paridad
+  // con el tab "Por empleado", que ya tenía este feedback).
+  useEffect(() => {
+    let timer;
+    try {
+      const last = sessionStorage.getItem(LASTVIEW_KEY);
+      if (last) {
+        setHighlightId(last);
+        sessionStorage.removeItem(LASTVIEW_KEY);
+        timer = setTimeout(() => setHighlightId(null), 2600);
+      }
+    } catch { /* sessionStorage no disponible */ }
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Mueve el foco al encabezado del empleado al abrir el detalle, para que el
+  // lector de pantalla / teclado sepa que la vista cambió.
+  useEffect(() => {
+    if (detalleId && filaDetalle) detalleHeadingRef.current?.focus();
+  }, [detalleId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-adjust default dates once planillas load:
   // If today is day 16+ AND a planilla for the 1–15 of this month already exists → switch to 16–last day.
@@ -515,9 +533,15 @@ function FixedPayroll() {
       filas:             p.filas,
       numeroConsecutivo: p.numeroConsecutivo || null,
     };
-    sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
-    sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
-    sessionStorage.removeItem('aurora_planilla_fijo_state'); // Don't restore draft on return
+    try {
+      sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+      sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
+      sessionStorage.removeItem('aurora_planilla_fijo_state'); // Don't restore draft on return
+      sessionStorage.setItem(LASTVIEW_KEY, p.id); // resaltar al volver
+    } catch (err) {
+      // Modo privado / quota: navegamos igual; el reporte maneja "sin datos".
+      console.warn('Failed to persist report to sessionStorage:', err);
+    }
     navigate('/hr/planilla/fijo/reporte');
   };
 
@@ -533,9 +557,14 @@ function FixedPayroll() {
       })),
       numeroConsecutivo: null, // Not yet saved — shown as BORRADOR in report
     };
-    sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
-    sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
-    sessionStorage.setItem('aurora_planilla_fijo_state', JSON.stringify({ fechaInicio, fechaFin, filas }));
+    try {
+      sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
+      sessionStorage.setItem('aurora_planilla_reporte_origin', '/hr/planilla/fijo');
+      sessionStorage.setItem('aurora_planilla_fijo_state', JSON.stringify({ fechaInicio, fechaFin, filas }));
+    } catch (err) {
+      // Modo privado / quota: navegamos igual; al volver no se restaura el borrador.
+      console.warn('Failed to persist report draft to sessionStorage:', err);
+    }
     navigate('/hr/planilla/fijo/reporte');
   };
 
@@ -543,6 +572,14 @@ function FixedPayroll() {
     () => filas.find(f => f.trabajadorId === detalleId),
     [filas, detalleId]
   );
+
+  // Cierra el detalle y devuelve el foco al botón "Modificar" de esa fila, para
+  // que el usuario de teclado no quede tirado en el <body>.
+  const closeDetalle = () => {
+    const prev = detalleId;
+    setDetalleId(null);
+    requestAnimationFrame(() => document.getElementById(`mod-btn-${prev}`)?.focus());
+  };
 
   // ¿La planilla cargada tiene ediciones manuales que se perderían al descartar?
   // (deducciones agregadas, salario extra, salario diario sobreescrito, o estar
@@ -616,7 +653,7 @@ function FixedPayroll() {
             {(esPeriodoMesCompleto || esPeriodoSegundaQuincena)
               ? <>{' · '}Días a pagar: <strong>{diasEfectivos}</strong>
                   {periodoDias !== diasEfectivos && (
-                    <span style={{ opacity: 0.55, fontSize: '0.8rem', marginLeft: 6 }}>
+                    <span className="planilla-periodo-nota">
                       (mes calendario = 30 días · Art. 140 CT)
                     </span>
                   )}
@@ -629,9 +666,9 @@ function FixedPayroll() {
         {loaded && !detalleId && (
           <>
             <div className="planilla-sum-section-divider" />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-              <span className="form-section-title" style={{ margin: 0 }}>Planilla — {periodoLabel}</span>
-              <div className="planilla-header-actions-bar" style={{ display: 'flex', gap: 10 }}>
+            <div className="planilla-sum-header-bar">
+              <span className="form-section-title planilla-sum-title">Planilla — {periodoLabel}</span>
+              <div className="planilla-header-actions-bar">
                 <button className="aur-btn-text" title="Descartar y cerrar" onClick={handleCancelar}>
                   <FiXCircle size={15} /> Cancelar
                 </button>
@@ -685,7 +722,7 @@ function FixedPayroll() {
                         {fmtSigned(f.totalNeto)}
                       </div>
                       <div className="planilla-sum-actions">
-                        <button className="aur-icon-btn" title="Modificar" aria-label={`Modificar ${f.trabajadorNombre}`} onClick={() => setDetalleId(f.trabajadorId)}>
+                        <button id={`mod-btn-${f.trabajadorId}`} className="aur-icon-btn" title="Modificar" aria-label={`Modificar ${f.trabajadorNombre}`} onClick={() => setDetalleId(f.trabajadorId)}>
                           <FiEdit2 size={16} />
                         </button>
                         <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar de planilla" aria-label={`Eliminar ${f.trabajadorNombre} de la planilla`} onClick={() => handleEliminar(f.trabajadorId)}>
@@ -708,7 +745,7 @@ function FixedPayroll() {
       {/* ── Vista detalle de un empleado ── */}
       {loaded && detalleId && filaDetalle && (
         <div className="form-card">
-          <button className="aur-btn-text planilla-detalle-back" onClick={() => setDetalleId(null)}>
+          <button className="aur-btn-text planilla-detalle-back" onClick={closeDetalle}>
             <FiArrowLeft /> Volver a la planilla
           </button>
 
@@ -718,7 +755,7 @@ function FixedPayroll() {
               {getInitials(filaDetalle.trabajadorNombre)}
             </div>
             <div>
-              <div className="planilla-det-emp-name">{filaDetalle.trabajadorNombre}</div>
+              <div className="planilla-det-emp-name" ref={detalleHeadingRef} tabIndex={-1}>{filaDetalle.trabajadorNombre}</div>
               <div className="planilla-det-emp-sub">
                 {filaDetalle.cedula && <span>{filaDetalle.cedula}</span>}
                 {filaDetalle.puesto && <span>{filaDetalle.puesto}</span>}
@@ -873,8 +910,8 @@ function FixedPayroll() {
                   onChange={e => updateDeduccion(detalleId, idx, 'concepto', e.target.value)}
                   className="planilla-ded-concepto"
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ opacity: 0.5 }}>(</span>
+                <div className="planilla-ded-monto-wrap">
+                  <span className="planilla-ded-paren">(</span>
                   <input
                     type="number" placeholder="0" min="0" max={SALARIO_MAX}
                     value={d.monto || ''}
@@ -882,7 +919,7 @@ function FixedPayroll() {
                     onChange={e => updateDeduccion(detalleId, idx, 'monto', e.target.value)}
                     className="planilla-ded-monto"
                   />
-                  <span style={{ opacity: 0.5 }}>)</span>
+                  <span className="planilla-ded-paren">)</span>
                   <button onClick={() => removeDeduccion(detalleId, idx)}
                     className="aur-icon-btn aur-icon-btn--danger" title="Quitar deducción" aria-label="Quitar deducción">
                     <FiTrash2 size={14} />
@@ -913,8 +950,8 @@ function FixedPayroll() {
             )}
           </div>
 
-          <div className="form-actions" style={{ marginTop: 24 }}>
-            <button className="aur-btn-text" onClick={() => setDetalleId(null)}>
+          <div className="form-actions planilla-det-back-actions">
+            <button className="aur-btn-text" onClick={closeDetalle}>
               <FiArrowLeft /> Volver
             </button>
           </div>
@@ -1120,23 +1157,16 @@ function FixedPayroll() {
             {planillas.map(p => {
               const isPendiente = p.estado === 'pendiente';
               const isAprobada  = p.estado === 'aprobada';
-              const isPagada    = p.estado === 'pagada';
               return (
-                <div key={p.id} className="planilla-hist-row planilla-hist-row--clickable"
-                  role="button" tabIndex={0}
-                  onClick={() => handleVerPlanilla(p)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleVerPlanilla(p); } }}>
-                  <div className="planilla-hist-periodo">{p.periodoLabel}</div>
+                <div key={p.id} className={`planilla-hist-row${highlightId === p.id ? ' planilla-hist-row--highlight' : ''}`}>
+                  <div className="planilla-hist-periodo">
+                    {p.periodoLabel}
+                    <span className="planilla-hist-emp-inline">{p.filas?.length ?? '—'} empl.</span>
+                  </div>
                   <div>{p.filas?.length ?? '—'}</div>
                   <div className="planilla-hist-total">{fmt(p.totalGeneral)}</div>
-                  <div>
-                    {isPendiente && <span className="planilla-badge planilla-badge--pendiente">Pendiente</span>}
-                    {isAprobada  && <span className="planilla-badge planilla-badge--aprobada">Aprobada</span>}
-                    {isPagada    && <span className="planilla-badge planilla-badge--pagada">Pagada</span>}
-                    {!isPendiente && !isAprobada && !isPagada && <span className="planilla-badge planilla-badge--otro">{p.estado}</span>}
-                  </div>
-                  {/* stopPropagation: los botones no deben disparar el click de la fila (ver) */}
-                  <div className="planilla-hist-actions" onClick={e => e.stopPropagation()}>
+                  <div>{estadoBadge(p.estado)}</div>
+                  <div className="planilla-hist-actions">
                     <button className="aur-icon-btn" title="Ver planilla" aria-label={`Ver planilla ${p.periodoLabel}`} onClick={() => handleVerPlanilla(p)}>
                       <FiEye size={16} />
                     </button>

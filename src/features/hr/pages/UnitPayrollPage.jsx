@@ -1,43 +1,17 @@
-import { useState } from 'react';
 import UnitPayroll from './UnitPayroll';
 import UnitPayrollHistory from './UnitPayrollHistory';
-import '../styles/payroll-hub.css';
+import PayrollHub from '../components/PayrollHub';
 
-// Hub de planilla por unidad con tabs Editor / Historial. Ambos paneles
-// permanecen montados (display:none) para preservar el estado del editor
-// cuando el usuario consulta el historial y regresa.
+// Hub de planilla por unidad. Comparte la mecánica de tabs (ARIA, lazy-mount,
+// sync de URL ?tab=) con la planilla fija vía PayrollHub.
 export default function UnitPayrollPage() {
-  const [tab, setTab] = useState('editor');
   return (
-    <div className="payroll-hub">
-      <nav className="payroll-hub-tabs" role="tablist" aria-label="Planilla por unidad">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'editor'}
-          className={`payroll-hub-tab${tab === 'editor' ? ' is-active' : ''}`}
-          onClick={() => setTab('editor')}
-        >
-          Editor
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'historial'}
-          className={`payroll-hub-tab${tab === 'historial' ? ' is-active' : ''}`}
-          onClick={() => setTab('historial')}
-        >
-          Historial
-        </button>
-      </nav>
-      <div className="payroll-hub-body">
-        <div className={`payroll-hub-pane${tab === 'editor' ? '' : ' is-hidden'}`}>
-          <UnitPayroll />
-        </div>
-        <div className={`payroll-hub-pane${tab === 'historial' ? '' : ' is-hidden'}`}>
-          <UnitPayrollHistory />
-        </div>
-      </div>
-    </div>
+    <PayrollHub
+      ariaLabel="Planilla por unidad"
+      heading="Planilla por unidad"
+      idBase="payroll-unidad"
+      editor={<UnitPayroll />}
+      history={<UnitPayrollHistory />}
+    />
   );
 }
