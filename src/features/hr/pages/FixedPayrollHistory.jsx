@@ -149,6 +149,9 @@ function FixedPayrollHistory() {
       totalGeneral:      filaEmpleado.reduce((s, f) => s + (Number(f.totalNeto) || 0), 0),
       filas:             filaEmpleado,
       numeroConsecutivo: p.numeroConsecutivo || null,
+      fechaEmision:      p.createdAt || null, // emisión = creación de la planilla, no "hoy"
+      // Intención explícita: comprobante individual (no depende de que `dias` exista).
+      modo:              'comprobante',
     };
     try {
       sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));

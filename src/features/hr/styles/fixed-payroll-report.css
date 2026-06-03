@@ -1,5 +1,11 @@
 /* ═══════════════════════════════════════════
    PLANILLA REPORTE — Screen styles
+
+   NOTA DE PALETA: el .pr-document usa una paleta de impresión FIJA
+   (#0d1a26 / #33ff99 / blancos) intencionalmente desacoplada del tema oscuro
+   de la app. Es un documento legal que debe verse igual en pantalla, papel y
+   PDF, por eso los hex están hardcodeados y NO usan las vars --aurora-*.
+   El chrome de la página (topbar, banner) sí usa los tokens del tema.
    ═══════════════════════════════════════════ */
 
 .pr-page {
@@ -28,11 +34,22 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--aurora-light);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .pr-btn-back {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   background: none;
   border: 1px solid var(--aurora-border);
@@ -103,6 +120,22 @@
 .pr-btn-csv:hover {
   border-color: var(--aurora-green);
   color: var(--aurora-green);
+}
+
+/* Estados compartidos de los botones de la topbar */
+.pr-btn-back:focus-visible,
+.pr-btn-csv:focus-visible,
+.pr-btn-share:focus-visible,
+.pr-btn-print:focus-visible {
+  outline: 2px solid var(--aurora-green);
+  outline-offset: 2px;
+}
+
+.pr-btn-share:disabled,
+.pr-btn-print:disabled,
+.pr-btn-csv:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ── Alert banner ── */
@@ -257,6 +290,13 @@
 }
 
 /* ── Employees table ── */
+/* Scroll horizontal en pantalla cuando la tabla excede el ancho del papel
+   (mobile). En print se neutraliza para no recortar columnas. */
+.pr-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .pr-doc-table {
   width: 100%;
   border-collapse: collapse;
@@ -264,6 +304,20 @@
   font-family: sans-serif;
   font-size: 11.5px;
 }
+
+/* La columna Nombre del cuerpo usa <th scope="row"> por accesibilidad; hay que
+   resetear el look de header (fondo oscuro / bold) para que parezca celda. */
+.pr-doc-table tbody th[scope="row"] {
+  font-weight: 400;
+  background-color: transparent;
+  color: #1a1a1a;
+  text-align: left;
+  padding: 7px 9px;
+  border-bottom: 1px solid #e8e8e8;
+  vertical-align: middle;
+}
+
+.pr-doc-table tbody tr:nth-child(even) th[scope="row"] { background-color: #f9f9f9; }
 
 .pr-doc-table th {
   background-color: #0d1a26;
@@ -400,6 +454,16 @@ th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important
 
 .pr-comp-row-ausente td { background-color: #fff5f5 !important; }
 
+/* Etiqueta de ausencia y placeholder de monto vacío: reusan el rojo y el gris
+   del documento en vez de hex inline dispersos. */
+.pr-comp-ausente-label {
+  font-style: italic;
+  color: #c0392b;
+  font-size: 0.9em;
+}
+
+.pr-money-empty { color: #999; }
+
 /* Summary / resumen table */
 .pr-comp-resumen-table {
   width: 100%;
@@ -441,19 +505,6 @@ th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important
   background-color: #f0faf4;
 }
 
-/* ── Notes ── */
-.pr-doc-notes {
-  font-family: sans-serif;
-  font-size: 0.82rem;
-  color: #333;
-  border: 1px solid #ccc;
-  border-left: 4px solid #0d1a26;
-  padding: 10px 14px;
-  border-radius: 0 4px 4px 0;
-  margin-bottom: 28px;
-  background-color: #fafafa;
-}
-
 /* ── Signatures ── */
 .pr-doc-signatures {
   display: grid;
@@ -485,14 +536,6 @@ th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important
   text-align: center;
 }
 
-.pr-sig-name {
-  font-family: sans-serif;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  text-align: center;
-}
-
 /* ── Footer ── */
 .pr-doc-footer {
   margin-top: 28px;
@@ -500,7 +543,7 @@ th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important
   border-top: 1px solid #e0e0e0;
   font-family: sans-serif;
   font-size: 0.7rem;
-  color: #aaa;
+  color: #666;
   text-align: center;
 }
 
@@ -522,12 +565,18 @@ th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important
   }
 
   .pr-page { background: white; min-height: auto; }
-  .pr-layout { display: block; }
 
   .pr-doc-wrap {
     background: white;
     padding: 0;
   }
+
+  /* El scroll horizontal de pantalla no debe recortar columnas en papel. */
+  .pr-table-scroll { overflow: visible; }
+
+  /* Repetir cabecera/total de tabla en cada página de planillas largas. */
+  .pr-doc-table thead { display: table-header-group; }
+  .pr-doc-table tfoot { display: table-footer-group; }
 
   .pr-document {
     box-shadow: none;
@@ -559,4 +608,36 @@ th.pr-col-neto { background-color: #0d1a26 !important; color: #ffffff !important
 @media (max-width: 600px) {
   .pr-doc-wrap { padding: 12px; }
   .pr-document { padding: 24px 16px; }
+
+  /* Topbar: permitir wrap para que los controles no se desborden a 360px. */
+  .pr-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pr-topbar-title {
+    order: 3;
+    flex-basis: 100%;
+    font-size: 0.9rem;
+  }
+
+  .pr-topbar-actions { flex: 1; justify-content: flex-end; }
+
+  /* En táctil los botones de acción quedan icon-only (la etiqueta accesible
+     vive en aria-label); el "Volver" conserva texto por claridad. */
+  .pr-btn-csv .pr-btn-label,
+  .pr-btn-share .pr-btn-label,
+  .pr-btn-print .pr-btn-label {
+    display: none;
+  }
+
+  /* Hit-area mínima táctil (paridad con .aur-btn-pill del design system). */
+  .pr-btn-back,
+  .pr-btn-csv,
+  .pr-btn-share,
+  .pr-btn-print {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 14px;
+  }
 }

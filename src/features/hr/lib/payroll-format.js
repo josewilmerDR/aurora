@@ -22,3 +22,14 @@ export const fmtShort = (d) => d.toLocaleDateString('es-ES', { day: '2-digit', m
 
 // Normaliza cualquier fecha (ISO o 'YYYY-MM-DD...') al prefijo 'YYYY-MM-DD'.
 export const dateStr = (s) => (s || '').substring(0, 10);
+
+// Parsea un string de fecha (ISO completo o 'YYYY-MM-DD') anclando a MEDIODÍA
+// local. Necesario porque `new Date('2026-05-01')` se interpreta como medianoche
+// UTC y en husos negativos (CR = UTC-6) se muestra como el día anterior. El ancla
+// de mediodía evita ese off-by-one sin depender del huso.
+const parseLocalNoon = (s) => (s ? new Date(dateStr(s) + 'T12:00:00') : null);
+
+// Formateadores que reciben un string (ISO o 'YYYY-MM-DD'), no un Date. Usan el
+// ancla de mediodía para no correrse de día. '—' si la fecha falta.
+export const fmtIsoLong  = (s) => { const d = parseLocalNoon(s); return d ? d.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'; };
+export const fmtIsoShort = (s) => { const d = parseLocalNoon(s); return d ? d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'; };
