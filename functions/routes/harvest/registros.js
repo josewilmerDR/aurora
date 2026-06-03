@@ -21,6 +21,32 @@ const ALLOWED_FIELDS = [
   'nota', 'cantidadRecibidaPlanta',
 ];
 
+// Referencias opcionales de un registro: además del lote, un registro puede
+// apuntar a un operario (users), un activo/implemento (maquinaria) y una unidad.
+// Cada id presente debe pertenecer a la finca y su nombre se deriva del lado
+// servidor (no se confía en el *Nombre del cliente), igual que en despachos —
+// evita referencias colgantes cross-finca y mantiene el nombre autoritativo.
+// [idField, nameField, collection, maxLen, nameFn]
+const REF_CHECKS = [
+  ['operarioId',   'operarioNombre',   'users',           128, d => d.nombre || ''],
+  ['activoId',     'activoNombre',     'maquinaria',      160, d => [d.codigo, d.descripcion].filter(Boolean).join(' — ')],
+  ['implementoId', 'implementoNombre', 'maquinaria',      160, d => [d.codigo, d.descripcion].filter(Boolean).join(' — ')],
+  ['unidadId',     'unidad',           'unidades_medida',  64, d => d.nombre || ''],
+];
+
+// Verifica ownership de las referencias presentes en `data` y reescribe sus
+// nombres con el valor del servidor. Devuelve el primer fallo de ownership como
+// { ok:false, code, message, status } o { ok:true }.
+async function resolveRegistroRefs(data, fincaId) {
+  for (const [idField, nameField, collection, maxLen, nameFn] of REF_CHECKS) {
+    if (data[idField] === undefined || data[idField] === null || data[idField] === '') continue;
+    const own = await verifyOwnership(collection, data[idField], fincaId);
+    if (!own.ok) return own;
+    data[nameField] = String(nameFn(own.doc.data()) || '').slice(0, maxLen);
+  }
+  return { ok: true };
+}
+
 router.get('/api/cosecha/registros', authenticate, requireEncargado, async (req, res) => {
   try {
     const snapshot = await db.collection('cosecha_registros')
@@ -47,6 +73,9 @@ router.post('/api/cosecha/registros', authenticate, requireEncargado, rateLimit(
     const loteOwnership = await verifyOwnership('lotes', data.loteId, req.fincaId);
     if (!loteOwnership.ok) return sendApiError(res, loteOwnership.code, loteOwnership.message, loteOwnership.status);
     data.loteNombre = loteOwnership.doc.data().nombreLote || '';
+    // operario/activo/implemento/unidad también scoped a la finca (nombres derivados).
+    const refResult = await resolveRegistroRefs(data, req.fincaId);
+    if (!refResult.ok) return sendApiError(res, refResult.code, refResult.message, refResult.status);
     data.cantidad = parseFloat(data.cantidad);
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;
@@ -86,6 +115,9 @@ router.put('/api/cosecha/registros/:id', authenticate, requireEncargado, rateLim
       if (!loteOwnership.ok) return sendApiError(res, loteOwnership.code, loteOwnership.message, loteOwnership.status);
       data.loteNombre = loteOwnership.doc.data().nombreLote || '';
     }
+    // Revalidá ownership de cualquier referencia que venga en el update parcial.
+    const refResult = await resolveRegistroRefs(data, req.fincaId);
+    if (!refResult.ok) return sendApiError(res, refResult.code, refResult.message, refResult.status);
     if (data.cantidad != null) data.cantidad = parseFloat(data.cantidad);
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;

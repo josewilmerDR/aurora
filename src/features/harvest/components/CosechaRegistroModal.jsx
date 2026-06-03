@@ -5,6 +5,7 @@ import Toast from '../../../components/Toast';
 import AuroraCombobox from '../../../components/AuroraCombobox';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { translateApiError } from '../../../lib/errorMessages';
 import { todayISO, isValidISODate } from '../lib/dates';
 
 const CANTIDAD_MAX = 16384;
@@ -219,7 +220,7 @@ export default function CosechaRegistroModal({ apiFetch, prereqs, onSuccess, onC
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Error al guardar.');
+        throw new Error(translateApiError(body, 'Error al guardar.'));
       }
       const created = await res.json().catch(() => ({}));
       onSuccess?.(created);
