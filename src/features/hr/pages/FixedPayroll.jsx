@@ -532,6 +532,8 @@ function FixedPayroll() {
       totalGeneral:      p.totalGeneral,
       filas:             p.filas,
       numeroConsecutivo: p.numeroConsecutivo || null,
+      fechaEmision:      p.createdAt || null, // emisión = creación de la planilla, no "hoy"
+      modo:              'planilla',
     };
     try {
       sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
@@ -556,6 +558,8 @@ function FixedPayroll() {
         dias: (dias || []).map(d => ({ ...d, fecha: d.fecha instanceof Date ? d.fecha.toISOString() : d.fecha })),
       })),
       numeroConsecutivo: null, // Not yet saved — shown as BORRADOR in report
+      // Borrador sin guardar: la emisión es hoy (lo decide el reporte por defecto).
+      modo:              'planilla',
     };
     try {
       sessionStorage.setItem('aurora_planilla_reporte', JSON.stringify(data));
