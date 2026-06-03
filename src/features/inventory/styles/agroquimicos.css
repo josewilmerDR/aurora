@@ -23,23 +23,6 @@
   animation: app-loading-spin 0.75s linear infinite;
 }
 
-.pg-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  min-height: 60vh;
-  padding: 48px 20px;
-  color: rgba(230, 242, 255, 0.3);
-  text-align: center;
-}
-.pg-empty-state p {
-  font-size: 0.9rem;
-  color: rgba(230, 242, 255, 0.4);
-  margin: 0;
-}
-
 .product-form-grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
@@ -120,27 +103,24 @@
   overflow: hidden;
 }
 
-.kebab-dropdown li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  cursor: pointer;
-  transition: background-color 0.1s;
-}
-.kebab-dropdown li:hover {
-  background-color: rgba(51, 255, 153, 0.07);
-}
-
-.kebab-link {
+.kebab-item {
   display: flex;
   align-items: center;
   gap: 9px;
   width: 100%;
-  color: inherit;
+  padding: 9px 14px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
   text-decoration: none;
+  background: none;
+  border: none;
+  color: var(--aurora-light);
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.kebab-item:hover {
+  background-color: rgba(51, 255, 153, 0.07);
 }
 
 .stock-badge {
@@ -160,48 +140,6 @@
 
 .stock-bajo {
   background-color: rgba(204, 51, 255, 0.15);
-  color: var(--aurora-magenta);
-  border: 1px solid var(--aurora-magenta);
-}
-
-/* Sección de importación Excel */
-.import-section {
-  margin-bottom: 4px;
-}
-
-.import-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--aurora-light);
-  opacity: 0.55;
-  margin-bottom: 10px;
-}
-
-.import-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.import-result {
-  margin-top: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 8px 12px;
-  border-radius: 6px;
-}
-
-.import-ok {
-  background-color: rgba(51, 255, 153, 0.1);
-  color: var(--aurora-green);
-  border: 1px solid var(--aurora-green);
-}
-
-.import-error {
-  background-color: rgba(204, 51, 255, 0.1);
   color: var(--aurora-magenta);
   border: 1px solid var(--aurora-magenta);
 }
@@ -268,7 +206,7 @@
 }
 
 .product-proveedor {
-  color: #64b5f6;
+  color: var(--aur-badge-blue-fg);
 }
 
 .product-total-value {
@@ -389,9 +327,9 @@
 }
 
 .mov-ajuste {
-  background-color: rgba(100, 181, 246, 0.12);
-  border: 1px solid rgba(100, 181, 246, 0.3);
-  color: #64b5f6;
+  background-color: var(--aur-badge-blue-bg);
+  border: 1px solid var(--aur-badge-blue-fg);
+  color: var(--aur-badge-blue-fg);
 }
 
 .mov-info {
@@ -1123,6 +1061,15 @@
   border-left: 3px solid var(--aurora-green);
 }
 
+/* Flash de la fila recién guardada / reactivada (feedback post-acción). */
+@keyframes pg-row-flash {
+  0%   { background-color: rgba(51, 255, 153, 0.22); }
+  100% { background-color: transparent; }
+}
+.product-grid-table tbody tr.pg-row-flash > td {
+  animation: pg-row-flash 1.7s ease-out;
+}
+
 .product-grid-table td {
   padding: 3px 4px;
   vertical-align: middle;
@@ -1132,13 +1079,15 @@
   width: 100%;
   box-sizing: border-box;
   background-color: transparent;
-  border: 1px solid transparent;
+  /* Borde tenue permanente: comunica que la celda es editable sin recargar la
+     grilla (antes era transparent y parecía texto plano). */
+  border: 1px solid rgba(230, 242, 255, 0.1);
   border-radius: 5px;
   color: var(--aurora-light);
   padding: 5px 7px;
   font-size: 0.84rem;
   font-family: inherit;
-  transition: border-color 0.12s, background-color 0.12s;
+  transition: border-color 0.12s, background-color 0.12s, box-shadow 0.12s;
 }
 
 .pg-input:hover {
@@ -1149,6 +1098,19 @@
   outline: none;
   border-color: var(--aurora-green);
   background-color: rgba(51, 255, 153, 0.04);
+}
+
+/* Celda con valor inválido (validación inline en vivo). Mismo lenguaje visual
+   que .aur-input--error (ring danger). */
+.pg-input--error,
+.pg-input--error:hover {
+  border-color: var(--aur-danger);
+  box-shadow: 0 0 0 1px var(--aur-danger);
+}
+.pg-input--error:focus {
+  border-color: var(--aur-danger);
+  box-shadow: var(--aur-ring-danger);
+  background-color: transparent;
 }
 
 .pg-input-num {
@@ -1199,61 +1161,49 @@ select.pg-input option {
   opacity: 0.65;
 }
 
-/* Badge "Inactivo" en celda nombre */
-.pg-name-cell {
-  display: flex;
+/* Botones de acción de fila (inactivar / eliminar / activar). Hit-area ≥40px
+   para táctil; el estado bloqueado usa :disabled real (antes era un click que
+   disparaba un toast de error). */
+.pg-row-action {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-}
-
-.pg-name-cell .pg-input {
-  flex: 1;
-}
-
-.pg-inactive-badge {
-  flex-shrink: 0;
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background-color: rgba(230, 242, 255, 0.08);
-  border: 1px solid rgba(230, 242, 255, 0.2);
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  background: none;
+  border: none;
+  border-radius: 6px;
   color: var(--aurora-light);
-  opacity: 0.6;
-  border-radius: 4px;
-  padding: 1px 6px;
-  white-space: nowrap;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
 }
 
-/* Botones de inactivar / activar */
-.pg-inactivar-btn {
-  color: var(--aurora-light);
-  opacity: 0.4;
-}
-
-.pg-inactivar-btn:hover {
+.pg-row-action:hover:not(:disabled) {
   opacity: 1;
-  color: #f0a500;
+  background-color: rgba(230, 242, 255, 0.06);
+}
+
+.pg-row-action:disabled {
+  opacity: 0.18;
+  cursor: not-allowed;
+}
+
+.pg-inactivar-btn:hover:not(:disabled) {
+  color: var(--aur-warn);
+}
+
+.pg-delete-btn:hover:not(:disabled) {
+  color: var(--aurora-magenta);
 }
 
 .pg-activar-btn {
-  color: var(--aurora-green) !important;
-  opacity: 0.7;
+  color: var(--aurora-green);
+  opacity: 0.8;
 }
 
-.pg-activar-btn:hover {
-  opacity: 1 !important;
-}
-
-/* Acción bloqueada por stock */
-.pg-action-locked {
-  cursor: not-allowed;
-  opacity: 0.2 !important;
-}
-
-.pg-action-locked:hover {
-  color: var(--aurora-light) !important;
-  opacity: 0.35 !important;
+.pg-activar-btn:hover:not(:disabled) {
+  color: var(--aurora-green);
 }
 
 /* Column widths */
@@ -1276,7 +1226,8 @@ select.pg-input option {
 /* Botón guardar cambios */
 .product-header-actions {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -1307,94 +1258,6 @@ select.pg-input option {
   color: var(--aurora-green);
 }
 
-/* ── Selector de columnas ───────────────────────────────────────────────── */
-.col-picker {
-  position: fixed;
-  z-index: 1000;
-  min-width: 220px;
-  background-color: var(--aurora-background);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
-  padding: 6px 0 8px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.col-picker-title {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--aurora-light);
-  opacity: 0.4;
-  padding: 4px 14px 8px 14px;
-  border-bottom: 1px solid var(--aurora-border);
-  margin-bottom: 4px;
-}
-
-.col-picker-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 5px 14px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  transition: background-color 0.1s;
-  user-select: none;
-}
-
-.col-picker-item:hover {
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-.col-picker-item.col-picker-required {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.col-picker-item input[type="checkbox"] {
-  accent-color: var(--aurora-green);
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.col-picker-item.col-picker-required input[type="checkbox"] {
-  cursor: default;
-}
-
-.col-picker-lock {
-  margin-left: auto;
-  font-size: 0.7rem;
-  opacity: 0.5;
-}
-
-.col-picker-footer {
-  border-top: 1px solid var(--aurora-border);
-  margin-top: 4px;
-  padding: 8px 14px 2px 14px;
-}
-
-.col-picker-reset {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  font-size: 0.78rem;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-  transition: opacity 0.15s;
-}
-
-.col-picker-reset:hover {
-  opacity: 1;
-  color: var(--aurora-green);
-}
-
 /* Modal de confirmación de cambios */
 .pg-confirm-desc {
   font-size: 0.88rem;
@@ -1405,6 +1268,37 @@ select.pg-input option {
 }
 .pg-confirm-desc strong {
   color: var(--aurora-green);
+}
+
+/* Aviso de valores inválidos en el modal de confirmación. */
+.pg-confirm-invalid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  color: var(--aur-danger);
+  background-color: var(--aur-danger-tint);
+  border: 1px solid var(--aur-danger);
+}
+
+.pg-confirm-row-invalid .pg-confirm-field,
+.pg-confirm-row-invalid .pg-confirm-new {
+  color: var(--aur-danger);
+}
+
+.pg-confirm-err {
+  font-size: 0.78rem;
+  color: var(--aur-danger);
+}
+
+/* Candado de columna obligatoria en el menú de columnas. */
+.aur-col-menu-lock {
+  opacity: 0.4;
+  margin-left: 4px;
+  font-size: 0.75em;
 }
 
 .pg-confirm-list {
@@ -1492,118 +1386,6 @@ select.pg-input option {
   font-size: 0.84rem;
 }
 
-/* ── Lista de tarjetas de productos ────────────────────────────────────── */
-.product-card-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.product-card {
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid var(--aurora-border);
-  border-radius: 10px;
-  padding: 12px 14px;
-  transition: border-color 0.15s;
-}
-
-.product-card:hover {
-  border-color: rgba(51, 255, 153, 0.25);
-}
-
-.product-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.product-card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
-  min-width: 0;
-}
-
-.product-card-name {
-  font-size: 0.97rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-}
-
-.product-tipo-tag {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background-color: rgba(230, 242, 255, 0.07);
-  border: 1px solid rgba(230, 242, 255, 0.15);
-  color: var(--aurora-light);
-  opacity: 0.65;
-  border-radius: 4px;
-  padding: 1px 7px;
-  white-space: nowrap;
-}
-
-.product-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.product-card-body {
-  margin-top: 10px;
-}
-
-.product-card-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 20px;
-}
-
-.pcf-item {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  min-width: 120px;
-}
-
-.pcf-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--aurora-light);
-  opacity: 0.4;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.pcf-value {
-  font-size: 0.85rem;
-  color: var(--aurora-light);
-  opacity: 0.85;
-}
-
-.pcf-alerta {
-  color: var(--aurora-magenta);
-  opacity: 1;
-  font-weight: 700;
-}
-
-.pcf-total {
-  color: var(--aurora-green);
-  opacity: 1;
-  font-weight: 700;
-}
-
 /* ── Cabecera de la lista de productos ──────────────────────────────────── */
 .product-list-header {
   display: flex;
@@ -1611,7 +1393,7 @@ select.pg-input option {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .product-list-header h2 {
@@ -1619,8 +1401,7 @@ select.pg-input option {
   line-height: 1;
 }
 
-.btn-toma-fisica,
-.btn-solicitar-compra {
+.btn-toma-fisica {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1641,22 +1422,6 @@ select.pg-input option {
   background-color: rgba(51, 255, 153, 0.08);
   border-color: var(--aurora-green);
   color: var(--aurora-green);
-}
-
-.btn-clear-draft {
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  color: rgba(230, 242, 255, 0.4);
-  cursor: pointer;
-  padding: 4px 8px;
-  margin-right: auto;
-  font-family: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.btn-clear-draft:hover {
-  color: rgba(230, 242, 255, 0.7);
 }
 
 @media (max-width: 600px) {
@@ -1682,16 +1447,10 @@ select.pg-input option {
   }
   .product-header-actions {
     width: 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: stretch;
   }
-  /* Historial / Nuevo Producto split: 1/3 / 2/3, equal heights. */
-  .product-header-actions .aur-chip {
-    flex: 0 1 33%;
-    justify-content: center;
-    min-width: 0;
-    font-size: 0.88rem;
-  }
+  /* Ver cambios + Nuevo Producto comparten ancho en mobile. */
   .product-header-actions .aur-btn-pill {
     flex: 1 1 auto;
     justify-content: center;
@@ -2086,247 +1845,6 @@ select.pg-input option {
   .ep-field-wide {
     grid-column: auto;
   }
-}
-
-/* ── Aurora AI Chat Bar ──────────────────────────────────────────────────── */
-.ai-chat-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background-color: rgba(51, 255, 153, 0.04);
-  border: 1px solid rgba(51, 255, 153, 0.18);
-  border-radius: 10px;
-  padding: 8px 14px 8px 12px;
-  margin-bottom: 12px;
-  transition: border-color 0.15s;
-}
-
-.ai-chat-bar:focus-within {
-  border-color: rgba(51, 255, 153, 0.4);
-}
-
-.ai-chat-icon {
-  color: var(--aurora-green);
-  font-size: 0.95rem;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.ai-chat-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--aurora-light);
-  font-size: 0.88rem;
-  font-family: inherit;
-  min-width: 0;
-}
-
-.ai-chat-input::placeholder {
-  color: var(--aurora-light);
-  opacity: 0.3;
-}
-
-.ai-chat-input:focus {
-  outline: none;
-}
-
-.ai-chat-send {
-  flex-shrink: 0;
-  padding: 5px 14px;
-  border-radius: 7px;
-  border: 1px solid var(--aurora-green);
-  background-color: rgba(51, 255, 153, 0.1);
-  color: var(--aurora-green);
-  font-size: 0.82rem;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background-color 0.15s;
-  white-space: nowrap;
-}
-
-.ai-chat-send:hover:not(:disabled) {
-  background-color: rgba(51, 255, 153, 0.2);
-}
-
-.ai-chat-send:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-/* ── Aurora AI Chat Result Panel ─────────────────────────────────────────── */
-.ai-chat-result {
-  background-color: var(--aurora-dark-blue);
-  border: 1px solid rgba(51, 255, 153, 0.22);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  animation: card-in 0.18s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ai-chat-result.ai-chat-result-error {
-  border-color: rgba(204, 51, 255, 0.3);
-}
-
-.ai-chat-result-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-}
-
-.ai-chat-result-icon {
-  color: var(--aurora-green);
-  font-size: 0.85rem;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.ai-chat-result-error .ai-chat-result-icon {
-  color: var(--aurora-magenta);
-}
-
-.ai-chat-result-msg {
-  flex: 1;
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  opacity: 0.85;
-  line-height: 1.55;
-}
-
-.ai-chat-result-error .ai-chat-result-msg {
-  color: var(--aurora-magenta);
-  opacity: 1;
-}
-
-.ai-chat-dismiss {
-  background: none;
-  border: none;
-  color: var(--aurora-light);
-  opacity: 0.3;
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 0 3px;
-  flex-shrink: 0;
-  transition: opacity 0.15s;
-  line-height: 1;
-}
-
-.ai-chat-dismiss:hover {
-  opacity: 1;
-}
-
-.ai-chat-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 2px;
-  border-top: 1px solid var(--aurora-border);
-}
-
-.ai-chat-section-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--aurora-light);
-  opacity: 0.4;
-}
-
-.ai-chat-ajuste-section .ai-chat-section-label {
-  color: #f0a500;
-  opacity: 1;
-}
-
-.ai-chat-changes {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.ai-chat-changes li {
-  font-size: 0.86rem;
-  color: var(--aurora-light);
-  line-height: 1.5;
-}
-
-.ai-chat-product-name {
-  font-weight: 600;
-}
-
-.ai-chat-field {
-  color: var(--aurora-light);
-  opacity: 0.55;
-}
-
-.ai-chat-old {
-  color: var(--aurora-light);
-  opacity: 0.4;
-  text-decoration: line-through;
-}
-
-.ai-chat-new {
-  color: var(--aurora-green);
-  font-weight: 600;
-}
-
-.ai-chat-ajuste-section .ai-chat-new {
-  color: #f0a500;
-}
-
-.ai-chat-apply-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 6px 14px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  font-family: inherit;
-  border-radius: 7px;
-  border: 1px solid var(--aurora-green);
-  background-color: rgba(51, 255, 153, 0.1);
-  color: var(--aurora-green);
-  cursor: pointer;
-  transition: background-color 0.15s;
-}
-
-.ai-chat-apply-btn:hover:not(:disabled) {
-  background-color: rgba(51, 255, 153, 0.2);
-}
-
-.ai-chat-apply-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.ai-chat-ajuste-section .ai-chat-apply-btn {
-  border-color: #f0a500;
-  background-color: rgba(240, 165, 0, 0.08);
-  color: #f0a500;
-}
-
-.ai-chat-ajuste-section .ai-chat-apply-btn:hover:not(:disabled) {
-  background-color: rgba(240, 165, 0, 0.18);
-}
-
-.ai-chat-note-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.ai-chat-no-changes {
-  font-size: 0.86rem;
-  color: var(--aurora-light);
-  opacity: 0.4;
-  margin: 0;
 }
 
 /* Sección colapsable de productos inactivos */

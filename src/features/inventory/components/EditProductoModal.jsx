@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FiX } from 'react-icons/fi';
+import AuroraModal from '../../../components/AuroraModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import { TIPOS, MONEDAS } from '../lib/agroquimicos';
 
-const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
-const MONEDAS = ['USD', 'CRC', 'EUR'];
-
-/* ── Limits ──────────────────────────────────────────────────────────────── */
+/* ── Limits ──────────────────────────────────────────────────────────────────
+ * Forma propia (min/max/exclusive/required): este modal valida campo-a-campo en
+ * blur, distinto de la grilla (lib/agroquimicos.js → NUM_LIMITS) que valida en
+ * lote. TIPOS/MONEDAS sí se comparten desde el lib para no divergir. */
 const LIMITS = {
   idProducto:            { maxLen: 32 },
   nombreComercial:       { maxLen: 64, required: true },
@@ -435,15 +436,13 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
   const errClass = (key) => fieldErrors[key] ? 'aur-input--error' : undefined;
 
   return (
-    <div className="aur-modal-backdrop" onPointerDown={onClose}>
-      <div className="aur-modal aur-modal--lg edit-producto-modal" onPointerDown={e => e.stopPropagation()}>
-        <header className="aur-modal-header">
-          <h2 className="aur-modal-title">{isNew ? 'Nuevo Producto' : 'Editar producto'}</h2>
-          <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={onClose}>
-            <FiX size={16} />
-          </button>
-        </header>
-
+    <AuroraModal
+      size="lg"
+      className="edit-producto-modal"
+      title={isNew ? 'Nuevo Producto' : 'Editar producto'}
+      onClose={onClose}
+      preventClose={saving}
+    >
         <form className="edit-producto-form" onSubmit={handleSubmit} noValidate>
           {/* Identificación */}
           <div className="ep-section-title">Identificación</div>
@@ -573,8 +572,7 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </AuroraModal>
   );
 }
 
