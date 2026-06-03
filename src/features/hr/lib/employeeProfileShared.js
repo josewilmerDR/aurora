@@ -65,6 +65,42 @@ export function calcHorasSemanales(horario = {}) {
 // lógica de iniciales; los consumidores HR siguen importándolo desde acá.
 export { getInitials } from '../../../lib/names';
 
+// Fecha de hoy en zona horaria LOCAL como YYYY-MM-DD. Evita el desfase de un
+// día que produce new Date().toISOString() cerca de medianoche en UTC-6 (CR):
+// el `max` de los <input type="date"> y el validador deben usar el mismo "hoy".
+export function todayLocalISO() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+// Proyecta un doc `users` al shape del form (userForm). Única fuente de verdad
+// para rehidratar el form tras seleccionar/guardar/cancelar: incluir SIEMPRE
+// tieneAcceso es crítico — omitirlo hace que un re-Editar muestre el toggle de
+// acceso apagado y el siguiente guardado revoque el acceso del usuario.
+export function userToForm(user) {
+  const tieneAcceso = user?.tieneAcceso === true;
+  return {
+    nombre: user?.nombre || '',
+    email: user?.email || '',
+    telefono: user?.telefono || '',
+    rol: tieneAcceso ? (user?.rol || 'trabajador') : 'ninguno',
+    tieneAcceso,
+  };
+}
+
+// Los Timestamp de Firestore llegan por el proxy REST como { _seconds, ... },
+// como objeto con .toDate(), o como string ISO según el serializador. Acepta
+// todas las formas probables y devuelve YYYY-MM-DD para mostrar.
+export function formatFechaSalida(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'string') return raw.slice(0, 10);
+  if (typeof raw._seconds === 'number') return new Date(raw._seconds * 1000).toISOString().slice(0, 10);
+  if (typeof raw.toDate === 'function') return raw.toDate().toISOString().slice(0, 10);
+  return null;
+}
+
 export function validateForms(userForm, fichaForm) {
   const errors = {};
 
@@ -115,9 +151,10 @@ export function validateForms(userForm, fichaForm) {
     const d = new Date(fichaForm.fechaIngreso);
     if (Number.isNaN(d.getTime())) {
       errors.fechaIngreso = 'Fecha inválida.';
-    } else {
-      const hoy = new Date(); hoy.setHours(23, 59, 59, 999);
-      if (d > hoy) errors.fechaIngreso = 'No puede ser futura.';
+    } else if (fichaForm.fechaIngreso > todayLocalISO()) {
+      // Comparación string YYYY-MM-DD contra "hoy local" — misma fuente que el
+      // max del <input type="date">, sin desfase UTC.
+      errors.fechaIngreso = 'No puede ser futura.';
     }
   }
 
