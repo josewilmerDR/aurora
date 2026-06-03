@@ -1,5 +1,18 @@
 @import './bodegas-admin.css';
 
+/* ── Tokens locales ──────────────────────────────────────────────────────────
+ * El design system reserva --aur-danger para MAGENTA (acción destructiva). El
+ * par entrada/salida usa el rojo contable clásico (salida = rojo, entrada =
+ * verde), que es una semántica distinta y NO debe mapearse a magenta. Se
+ * consolida acá para no repetir el hex por todo el archivo. El amber de avisos
+ * sí tiene token global (--aur-warn). */
+.bg-page {
+  --bg-salida:           #ff6b6b;
+  --bg-salida-tint:      rgba(255, 107, 107, 0.12);
+  --bg-salida-tint-soft: rgba(255, 107, 107, 0.08);
+  --bg-text-muted:       #7a9bbf;
+}
+
 /* ── Tabs ── */
 .bg-tabs {
   display: flex;
@@ -17,7 +30,7 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #7a9bbf;
+  color: var(--bg-text-muted);
   font-size: 0.9rem;
   cursor: pointer;
   margin-bottom: -1px;
@@ -42,14 +55,40 @@
   align-items: center;
   gap: 0.3rem;
   font-size: 0.78rem;
-  color: #f0c040;
+  color: var(--aur-warn);
   margin-top: 0.2rem;
 }
 
+/* ── Toolbar (búsqueda existencias) ── */
+.bg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.2rem 0 0.6rem;
+  flex-wrap: wrap;
+}
+.bg-search {
+  flex: 1;
+  min-width: 200px;
+}
+.bg-toolbar-count {
+  font-size: 0.78rem;
+  color: var(--bg-text-muted);
+  white-space: nowrap;
+}
+
 /* ── Table ── */
+/* Scroll-hint: sombras laterales que aparecen cuando hay overflow horizontal,
+ * para que en móvil se descubran las columnas de acción de la derecha. */
 .bg-table-wrap {
   overflow-x: auto;
   margin-top: 0.5rem;
+  background:
+    linear-gradient(to right, var(--aurora-background) 30%, rgba(26, 42, 58, 0)) left center / 24px 100% no-repeat,
+    linear-gradient(to left, var(--aurora-background) 30%, rgba(26, 42, 58, 0)) right center / 24px 100% no-repeat,
+    linear-gradient(to right, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0)) left center / 12px 100% no-repeat,
+    linear-gradient(to left, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0)) right center / 12px 100% no-repeat;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .bg-table {
@@ -60,7 +99,7 @@
 }
 .bg-table th {
   background: var(--aurora-dark-blue);
-  color: #7a9bbf;
+  color: var(--bg-text-muted);
   font-weight: 600;
   font-size: 0.78rem;
   text-transform: uppercase;
@@ -77,14 +116,21 @@
 .bg-table tbody tr:hover { background: rgba(255,255,255,0.03); }
 .bg-table .text-right { text-align: right; }
 
-.bg-row-low td { background: rgba(240, 192, 64, 0.04); }
+.bg-row-low td { background: var(--aur-warn-tint); }
+
+/* Flash transitorio de la fila recién afectada por un movimiento. */
+@keyframes bg-row-flash {
+  0%   { background: var(--aur-accent-tint-2); }
+  100% { background: transparent; }
+}
+.bg-row-flash td { animation: bg-row-flash 1.6s ease-out; }
 
 .bg-item-name { font-weight: 500; display: block; }
-.bg-item-desc { font-size: 0.78rem; color: #7a9bbf; display: block; }
+.bg-item-desc { font-size: 0.78rem; color: var(--bg-text-muted); display: block; }
 
 .bg-stock { font-weight: 600; }
-.bg-stock.low { color: #f0c040; }
-.bg-warn-icon { color: #f0c040; margin-left: 0.3rem; vertical-align: middle; }
+.bg-stock.low { color: var(--aur-warn); }
+.bg-warn-icon { color: var(--aur-warn); margin-left: 0.3rem; vertical-align: middle; }
 
 /* ── Type badge ── */
 .bg-badge {
@@ -96,8 +142,8 @@
   padding: 0.2rem 0.55rem;
   border-radius: 20px;
 }
-.bg-badge.entrada { background: rgba(51,255,153,0.12); color: var(--aurora-green); }
-.bg-badge.salida  { background: rgba(255,107,107,0.12); color: #ff6b6b; }
+.bg-badge.entrada { background: var(--aur-accent-tint); color: var(--aurora-green); }
+.bg-badge.salida  { background: var(--bg-salida-tint); color: var(--bg-salida); }
 
 /* ── Row actions ── */
 .bg-row-actions {
@@ -120,48 +166,48 @@
   transition: background 0.15s;
 }
 .bg-btn-mov.entrada {
-  background: rgba(51,255,153,0.08);
+  background: var(--aur-accent-tint-soft, rgba(51,255,153,0.08));
   border-color: var(--aurora-green);
   color: var(--aurora-green);
 }
-.bg-btn-mov.entrada:hover { background: rgba(51,255,153,0.18); }
+.bg-btn-mov.entrada:hover { background: var(--aur-accent-tint-2); }
 .bg-btn-mov.salida {
-  background: rgba(255,107,107,0.08);
-  border-color: #ff6b6b;
-  color: #ff6b6b;
+  background: var(--bg-salida-tint-soft);
+  border-color: var(--bg-salida);
+  color: var(--bg-salida);
 }
-.bg-btn-mov.salida:hover { background: rgba(255,107,107,0.18); }
+.bg-btn-mov.salida:hover { background: var(--bg-salida-tint); }
 
 /* Botón eliminar fila: color de peligro en REPOSO (se distingue del editar). */
-.ba-btn-icon.bg-btn-del { color: #ff6b6b; }
+.ba-btn-icon.bg-btn-del { color: var(--bg-salida); }
 .ba-btn-icon.bg-btn-del:hover {
-  color: #ff6b6b;
+  color: var(--bg-salida);
   border-color: rgba(255, 107, 107, 0.35);
-  background: rgba(255, 107, 107, 0.07);
+  background: var(--bg-salida-tint-soft);
 }
+/* Eliminar bloqueado: el producto tiene stock → primero hay que dar salida. */
+.ba-btn-icon.bg-btn-del:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: var(--bg-text-muted);
+}
+.ba-btn-icon.bg-btn-del:disabled:hover { background: none; border-color: transparent; }
 
 /* ── Validación inline ── */
-.aur-input.aur-input--error {
-  border-color: #ff6b6b;
-}
+/* El borde de error de inputs lo da el token del design system (.aur-input--error
+ * en aurora.css). No se redefine acá para no divergir del resto de la app. */
 .bg-field-error {
   display: block;
   margin-top: 0.3rem;
   font-size: 0.78rem;
-  color: #ff6b6b;
+  color: var(--bg-salida);
 }
 
 /* ── Movimiento modal ── */
 .bg-stock-hint {
   font-size: 0.82rem;
-  color: #7a9bbf;
+  color: var(--bg-text-muted);
   margin: 0.4rem 0 1rem;
-}
-
-.bg-modal-item {
-  font-size: 0.85rem;
-  color: #7a9bbf;
-  font-weight: 400;
 }
 
 /* ── Form row (2 cols) ── */
@@ -199,7 +245,7 @@
   gap: 0.3rem;
   background: none;
   border: none;
-  color: #e05a5a;
+  color: var(--bg-salida);
   font-size: 0.78rem;
   cursor: pointer;
   padding: 0.2rem 0;
@@ -330,9 +376,14 @@
   .bg-form-row { grid-template-columns: 1fr; }
   .bg-tabs { flex-wrap: wrap; }
   .bg-tabs button { font-size: 0.75rem; padding: 0.4rem 0.6rem; }
+  /* Las 4 acciones de fila no entran en una línea a 360px: que envuelvan. */
+  .bg-row-actions { flex-wrap: wrap; gap: 0.3rem; }
 }
 
-/* Hit-area táctil ≥40px para icon-buttons de fila (editar/eliminar). */
+/* Hit-area táctil ≥40px para TODAS las acciones de fila (icon-buttons y los
+ * botones Entrada/Salida, que con su padding base quedaban por debajo). */
 @media (hover: none) {
-  .bg-row-actions .ba-btn-icon { min-width: 40px; min-height: 40px; justify-content: center; }
+  .bg-row-actions .ba-btn-icon,
+  .bg-row-actions .bg-btn-mov { min-height: 40px; justify-content: center; }
+  .bg-row-actions .ba-btn-icon { min-width: 40px; }
 }

@@ -6,11 +6,21 @@ import { FiBox, FiTool, FiTruck, FiDroplet, FiPackage } from 'react-icons/fi';
 export const ICON_MAP = { FiBox, FiTool, FiTruck, FiDroplet, FiPackage };
 
 // ── Formateo ───────────────────────────────────────────────────────────────
-export const fmt = (n) => (n ?? 0).toLocaleString('es', { maximumFractionDigits: 2 });
+// Locale unificado es-CR (la finca real) para números y fechas.
+const LOCALE = 'es-CR';
+
+export const fmt = (n) => (n ?? 0).toLocaleString(LOCALE, { maximumFractionDigits: 2 });
+
+// Número + moneda inline (ej. "1.500 CRC"); evita lecturas ambiguas en tablas
+// que mezclan USD/CRC. Si no hay moneda, cae a solo número.
+export const fmtMoney = (n, moneda) => {
+  if (n == null || n === '') return '—';
+  return moneda ? `${fmt(n)} ${moneda}` : fmt(n);
+};
 
 export const fmtDate = (iso) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('es-ES', {
+  return new Date(iso).toLocaleString(LOCALE, {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -30,8 +40,60 @@ export const EMPTY_ENTRADA = { itemId: '', tipo: 'entrada', cantidad: '', factur
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
+export const MONEDAS = ['USD', 'CRC', 'EUR'];
+
 // Normaliza coma decimal antes de parseFloat (teclados es-CR usan coma).
-export const parseDecimal = (value) => parseFloat(String(value ?? '').replace(',', '.'));
+// Reemplaza TODAS las comas: "1,5,0" no debe colarse como 1.5 silenciosamente.
+export const parseDecimal = (value) => parseFloat(String(value ?? '').replace(/,/g, '.'));
+
+// Número válido y finito ≥ 0 (acepta '' como "sin valor" → válido).
+const isOptionalNonNeg = (value) => {
+  if (value === '' || value === undefined || value === null) return true;
+  const n = parseDecimal(value);
+  return !isNaN(n) && isFinite(n) && n >= 0;
+};
+
+// ── Validadores puros (mismo contrato que el backend en warehouses.js) ──────
+// Devuelven { field, message } con el PRIMER error, o null si todo OK. Vivir
+// acá los hace testeables y evita que la validación derive entre los 3 forms.
+
+export function validateItem(data) {
+  if (!data.nombre?.trim()) return { field: 'nombre', message: 'El nombre es requerido.' };
+  if (data.nombre.trim().length > 200) return { field: 'nombre', message: 'Nombre demasiado largo (máx 200).' };
+  if (data.descripcion && data.descripcion.length > 500) return { field: 'descripcion', message: 'Descripción demasiado larga (máx 500).' };
+  if (data.unidad && data.unidad.length > 50) return { field: 'unidad', message: 'Unidad demasiado larga (máx 50).' };
+  if (!isOptionalNonNeg(data.stockActual)) return { field: 'stockActual', message: 'Stock actual debe ser un número ≥ 0.' };
+  if (!isOptionalNonNeg(data.stockMinimo)) return { field: 'stockMinimo', message: 'Stock mínimo debe ser un número ≥ 0.' };
+  if (!isOptionalNonNeg(data.total)) return { field: 'total', message: 'Total debe ser un número ≥ 0.' };
+  return null;
+}
+
+export function validateEntrada(form) {
+  const cant = parseDecimal(form.cantidad);
+  if (!form.cantidad || isNaN(cant) || cant <= 0 || !isFinite(cant)) return { field: 'cantidad', message: 'La cantidad debe ser un número positivo.' };
+  if (form.factura && form.factura.length > 100) return { field: 'factura', message: 'Factura demasiado larga (máx 100).' };
+  if (form.oc && form.oc.length > 100) return { field: 'oc', message: 'OC demasiado larga (máx 100).' };
+  if (!isOptionalNonNeg(form.total)) return { field: 'total', message: 'Total debe ser un número ≥ 0.' };
+  return null;
+}
+
+export function validateSalida(form, { stockActual = 0, requireActivo = false } = {}) {
+  const cant = parseDecimal(form.cantidad);
+  if (!form.cantidad || isNaN(cant) || cant <= 0 || !isFinite(cant)) return { field: 'cantidad', message: 'La cantidad debe ser un número positivo.' };
+  if (cant > (stockActual ?? 0)) return { field: 'cantidad', message: `Excede el stock disponible de ${fmt(stockActual)}.` };
+  if (requireActivo && !form.activoId) return { field: 'activoId', message: 'El campo Activo es obligatorio.' };
+  if (!form.operarioId) return { field: 'operarioId', message: 'El campo Operario es obligatorio.' };
+  if (form.nota && form.nota.length > 500) return { field: 'nota', message: 'Nota demasiado larga (máx 500).' };
+  return null;
+}
+
+// Un form de movimiento "tiene contenido" → al cerrar conviene confirmar descarte.
+export const movFormDirty = (form) =>
+  !!(form.cantidad || form.nota || form.loteId || form.laborId || form.activoId || form.operarioId);
+export const entradaFormDirty = (form, file) =>
+  !!(form.cantidad || form.factura || form.oc || form.total || file);
+export const itemFormDirty = (data) =>
+  !!(data.nombre || data.unidad || data.stockActual || data.stockMinimo || data.descripcion || data.total);
 
 export const readFileAsBase64 = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -74,12 +136,17 @@ const DEFAULT_HIDDEN_COLS = new Set(['totalSalida']);
 
 export const LS_MOV_COLS = 'aurora_bodega_mov_cols';
 
-export function loadVisibleCols() {
+// La preferencia de columnas se persiste POR BODEGA: combustibles y una bodega
+// genérica de repuestos no comparten qué columnas importan (ej. "Labor").
+const colsKey = (bodegaKey) => (bodegaKey ? `${LS_MOV_COLS}:${bodegaKey}` : LS_MOV_COLS);
+
+export function loadVisibleCols(bodegaKey = '') {
   const base = Object.fromEntries(
     MOV_COLUMNS.map(c => [c.key, !DEFAULT_HIDDEN_COLS.has(c.key)])
   );
   try {
-    const saved = localStorage.getItem(LS_MOV_COLS);
+    // Fallback a la clave global legacy si todavía no hay preferencia por-bodega.
+    const saved = localStorage.getItem(colsKey(bodegaKey)) || localStorage.getItem(LS_MOV_COLS);
     if (saved) {
       const parsed = JSON.parse(saved);
       // Mezcla con base para tolerar columnas nuevas agregadas tras guardar.
@@ -87,6 +154,10 @@ export function loadVisibleCols() {
     }
   } catch { /* ignore */ }
   return base;
+}
+
+export function saveVisibleCols(cols, bodegaKey = '') {
+  try { localStorage.setItem(colsKey(bodegaKey), JSON.stringify(cols)); } catch { /* ignore */ }
 }
 
 export function getMovVal(m, key) {

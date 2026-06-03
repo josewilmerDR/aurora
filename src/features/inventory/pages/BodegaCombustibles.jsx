@@ -14,6 +14,7 @@ export default function BodegaCombustibles() {
       resolveBodega={resolveBodega}
       emptyStockTitle="Sin combustibles registrados"
       itemNombrePlaceholder="Ej: Diesel"
+      requireActivo
     />
   );
 }
