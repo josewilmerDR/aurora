@@ -5,6 +5,7 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import EmptyState from '../../../components/ui/EmptyState';
 import { fmtSigned } from '../lib/payroll-format';
+import { estadoBadge } from '../lib/payroll-estado';
 import { getInitials } from '../lib/employeeProfileShared';
 import '../styles/hr.css';
 
@@ -13,15 +14,6 @@ const SEARCH_MAX  = 100;
 // del reporte (la ruta /reporte desmonta el hub, así que el state se pierde).
 const SELECTED_KEY = 'aurora_fph_selected';
 const LASTVIEW_KEY = 'aurora_fph_last_viewed';
-
-// Badge de estado — mismas reglas que el editor, encapsuladas para no repetir
-// la cadena de ternarios en cada fila.
-function estadoBadge(estado) {
-  if (estado === 'pendiente') return <span className="planilla-badge planilla-badge--pendiente">Pendiente</span>;
-  if (estado === 'aprobada')  return <span className="planilla-badge planilla-badge--aprobada">Aprobada</span>;
-  if (estado === 'pagada' || estado === 'pagado') return <span className="planilla-badge planilla-badge--pagada">Pagada</span>;
-  return <span className="planilla-badge planilla-badge--otro">{estado || '—'}</span>;
-}
 
 function FixedPayrollHistory() {
   const apiFetch = useApiFetch();
@@ -46,6 +38,9 @@ function FixedPayrollHistory() {
     setUsersError(false);
     setPlanillasError(false);
     Promise.allSettled([
+      // /api/users (no lite): esta vista muestra el rol del empleado, que lite
+      // omite a propósito por minimización de PII. Se carga solo al abrir el tab
+      // (lazy-mount en PayrollHub), así que ya no es un fetch eager por visita.
       apiFetch('/api/users').then(r => r.json()),
       apiFetch('/api/hr/planilla-fijo').then(r => r.json()),
     ]).then(([uRes, pRes]) => {

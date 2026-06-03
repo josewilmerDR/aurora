@@ -8,6 +8,20 @@ import { CCSS_RATE, fmtShort, dateStr } from './payroll-format';
 // configurado (8h/día, Art. 136 CT).
 export const JORNADA_HORAS_DIARIA_DEFAULT = 8;
 
+// ── Límites defensivos de input (compartidos editor planilla fija/unidad) ──
+//   SALARIO_MAX cubre ampliamente el salario mensual máximo esperado en CRC.
+//   PERIODO_MAX_DIAS topa el rango cargable (anual + margen).
+export const SALARIO_MAX      = 10_000_000;
+export const CONCEPTO_MAX     = 100;
+export const PERIODO_MAX_DIAS = 366;
+
+// Clampa un valor numérico a [0, max]. Devuelve 0 ante NaN/negativo.
+export const clampNonNeg = (v, max = SALARIO_MAX) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n > max ? max : n;
+};
+
 const DIAS_HORARIO = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
 
 // Promedio de horas laborables por día sobre los días activos del horario.

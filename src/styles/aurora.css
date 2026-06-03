@@ -56,6 +56,12 @@
   --aur-accent-tint:   rgba(51, 255, 153, 0.12);
   --aur-accent-tint-2: rgba(51, 255, 153, 0.20);
   --aur-accent-tint-3: rgba(51, 255, 153, 0.30);
+
+  /* ── Info: azul (badge "Aprobada", acción Aprobar) ─────────────────────── */
+  --aur-info:          #5599ff;
+  --aur-info-tint:     rgba(51, 153, 255, 0.14);
+  --aur-info-tint-2:   rgba(51, 153, 255, 0.24);
+  --aur-info-border:   rgba(51, 153, 255, 0.35);
   /* Botón primario "tonal": superficie integrada a la paleta (color del
      --aurora-border, que ya vive en la página), borde casi imperceptible
      y texto blanco. El "primary" lo señala el ícono coloreado en verde
@@ -201,6 +207,12 @@ html[data-theme="light"] {
   --aur-accent-tint:   rgba(10, 160, 92, 0.10);
   --aur-accent-tint-2: rgba(10, 160, 92, 0.18);
   --aur-accent-tint-3: rgba(10, 160, 92, 0.30);
+
+  /* Info — darker blue for AA contrast on light surfaces */
+  --aur-info:          #2563eb;
+  --aur-info-tint:     rgba(37, 99, 235, 0.10);
+  --aur-info-tint-2:   rgba(37, 99, 235, 0.18);
+  --aur-info-border:   rgba(37, 99, 235, 0.32);
   /* En modo claro el accent ya es un emerald oscuro (no neón); no necesita
      desaturarse más para botones. Alias por consistencia con el token. */
   --aur-accent-button:       var(--aur-accent);
