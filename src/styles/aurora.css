@@ -559,6 +559,13 @@ html[data-theme="light"] {
   .aur-btn-text {
     min-height: 44px;
   }
+  /* Botones de ícono: en táctil garantizamos ≥40px de target para que el dedo
+     no falle (en desktop conservan su densidad de 30px). */
+  .aur-icon-btn,
+  .aur-icon-btn--sm {
+    min-width: 40px;
+    min-height: 40px;
+  }
 }
 
 .aur-select {

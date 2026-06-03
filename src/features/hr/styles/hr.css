@@ -689,7 +689,9 @@ button.collapsible-section-header:hover { opacity: 1; }
 .planilla-sum-nombre  { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .planilla-parcial-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.68rem;
   font-weight: 600;
   padding: 2px 8px;
@@ -702,6 +704,34 @@ button.collapsible-section-header:hover { opacity: 1; }
 }
 .planilla-sum-ded     { color: #ff8080; }
 .planilla-sum-neto    { color: var(--aurora-green); font-weight: 700; }
+/* Neto negativo (deducciones > bruto): se muestra el valor real en rojo, no ₡0. */
+.planilla-sum-neto--neg { color: #ff5050; }
+
+/* Hint del lock de fechas + aviso de neto negativo en el detalle. */
+.planilla-config-hint {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.5;
+}
+.planilla-det-neto-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px 12px;
+  font-size: 0.78rem;
+  color: #ff8080;
+}
+.planilla-det-neto-warning > svg { flex-shrink: 0; }
+.planilla-det-sum-row--neto-neg { color: #ff5050; }
+.planilla-det-sum-row--neto-neg span { color: #ff5050; }
+
+/* Spinner de carga del historial. */
+.planilla-hist-loading {
+  display: flex;
+  justify-content: center;
+  padding: 28px 0;
+}
 .planilla-sum-dash    { color: var(--aurora-light); opacity: 0.22; }
 
 .planilla-sum-actions {
@@ -1019,6 +1049,29 @@ button.collapsible-section-header:hover { opacity: 1; }
 }
 
 .planilla-det-extra-input::placeholder { color: var(--aurora-light); opacity: 0.25; }
+
+/* Focus ring consistente con la primitiva aur-input para los inputs propios
+   de la planilla (no usan .aur-input porque tienen anchos fijos inline). */
+.planilla-det-diario-input:focus,
+.planilla-det-extra-input:focus,
+.planilla-ded-concepto:focus,
+.planilla-ded-monto:focus {
+  outline: none;
+  border-color: var(--aurora-green);
+  box-shadow: 0 0 0 1px var(--aurora-green);
+}
+
+/* Hit-area táctil para los inputs de la planilla en dispositivos touch. */
+@media (pointer: coarse) {
+  .planilla-det-diario-input,
+  .planilla-det-extra-input,
+  .planilla-ded-monto,
+  .planilla-config-bar input[type="date"],
+  .planilla-permiso-form .form-control input,
+  .planilla-permiso-form .form-control select {
+    min-height: 40px;
+  }
+}
 
 /* ── Planilla detail summary box ─────────────────────────────────────────── */
 .planilla-det-summary {
@@ -1762,6 +1815,25 @@ button.collapsible-section-header:hover { opacity: 1; }
 .planilla-hist-pay-btn:hover {
   background: rgba(51, 255, 153, 0.22);
   border-color: var(--aurora-green) !important;
+}
+
+/* Variante "Aprobar": azul (mismo set que el badge --aprobada), antes inline. */
+.planilla-hist-pay-btn--aprobar {
+  background: rgba(51, 153, 255, 0.15);
+  color: #5599ff !important;
+  border: 1px solid rgba(51, 153, 255, 0.35) !important;
+}
+.planilla-hist-pay-btn--aprobar:hover {
+  background: rgba(51, 153, 255, 0.25);
+  border-color: #5599ff !important;
+}
+
+/* Fila del historial clickeable (abre la vista de la planilla). */
+.planilla-hist-row--clickable { cursor: pointer; }
+.planilla-hist-row--clickable:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(51, 255, 153, 0.5);
+  border-radius: 6px;
 }
 
 /* ── Status badges ── */

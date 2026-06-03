@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/hr.css';
 import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiEdit2, FiArrowLeft, FiFileText, FiEye, FiCheckCircle, FiXCircle, FiThumbsUp, FiAlertTriangle, FiCalendar } from 'react-icons/fi';
@@ -9,11 +9,17 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
 import PayrollStepIndicator from '../components/PayrollStepIndicator';
 import RegisterPermisoModal from '../components/RegisterPermisoModal';
+import { CCSS_RATE, fmt, fmtSigned, fmtDate, fmtShort, dateStr } from '../lib/payroll-format';
+import {
+  JORNADA_HORAS_DIARIA_DEFAULT,
+  calcHorasDiarias,
+  generarDias,
+  esMesCompleto,
+  esSegundaQuincena,
+  detectarSolapamientos,
+  recalcFila,
+} from '../lib/payroll-calc';
 
-const CCSS_RATE = 0.1083;
-// Default daily hours if the ficha has no schedule configured (jornada
-// diurna ordinaria: 8h/día, Art. 136 CT).
-const JORNADA_HORAS_DIARIA_DEFAULT = 8;
 const ESTADO_LABELS = { pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
 
 // Defensive limits (input validation):
@@ -28,210 +34,6 @@ const clampNonNeg = (v, max = SALARIO_MAX) => {
   if (!Number.isFinite(n) || n < 0) return 0;
   return n > max ? max : n;
 };
-
-const DIAS_HORARIO = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
-
-// Promedio de horas laborables por día sobre los días activos del horario.
-// Para 40h/semana en 5 días → 8h/día. Para jornadas mixtas (ej: 4 días de 8h
-// + 2 días de 4h) devuelve el promedio. Si no hay horario, devuelve 0 y el
-// caller debe usar JORNADA_HORAS_DIARIA_DEFAULT.
-function calcHorasDiarias(horario = {}) {
-  let totalHoras = 0;
-  let diasActivos = 0;
-  for (const key of DIAS_HORARIO) {
-    const dia = horario[key];
-    if (!dia?.activo || !dia.inicio || !dia.fin) continue;
-    const [h1, m1] = dia.inicio.split(':').map(Number);
-    const [h2, m2] = dia.fin.split(':').map(Number);
-    totalHoras += Math.max(0, ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60);
-    diasActivos++;
-  }
-  return diasActivos > 0 ? totalHoras / diasActivos : 0;
-}
-
-const fmt      = (n) => `₡${Math.max(0, Math.round(Number(n))).toLocaleString('es-CR')}`;
-const fmtDate  = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-const fmtShort = (d) => d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const dateStr  = (s) => s.substring(0, 10); // normalize to YYYY-MM-DD
-
-// Build per-day array for the period, marking absent days (approved sin-goce leave).
-// Partial permisos (esParcial) accumulate horasParciales per day instead of marking ausente.
-// efectivoDesde: the actual first day to include (max of period start and fechaIngreso).
-// Each day also tracks permisoIdsAusente/permisoIdsParcial so the UI can revert
-// a specific entry by deleting the underlying permiso(s).
-function generarDias(fechaInicio, fechaFin, permisos, trabajadorId, efectivoDesde) {
-  const dias  = [];
-  const fin   = new Date(fechaFin      + 'T12:00:00');
-  const desde = new Date((efectivoDesde || fechaInicio) + 'T12:00:00');
-  const cur   = new Date(desde);
-  while (cur <= fin) {
-    const curStr = cur.toISOString().substring(0, 10);
-
-    // Full-day sin-goce: mark the entire day as ausente
-    const ausenteList = permisos.filter(p =>
-      p.trabajadorId === trabajadorId &&
-      p.estado === 'aprobado' &&
-      p.conGoce === false &&
-      !p.esParcial &&
-      curStr >= dateStr(p.fechaInicio) &&
-      curStr <= dateStr(p.fechaFin));
-    const ausente = ausenteList.length > 0;
-    const permisoIdsAusente = ausenteList.map(p => p.id).filter(Boolean);
-
-    // Partial sin-goce: accumulate hours absent on this specific day
-    const parcialList = ausente ? [] : permisos.filter(p =>
-      p.trabajadorId === trabajadorId &&
-      p.estado === 'aprobado' &&
-      p.conGoce === false &&
-      p.esParcial &&
-      dateStr(p.fechaInicio) === curStr);
-    const horasParciales    = parcialList.reduce((sum, p) => sum + (Number(p.horas) || 0), 0);
-    const permisoIdsParcial = parcialList.map(p => p.id).filter(Boolean);
-
-    dias.push({
-      fecha: new Date(cur),
-      ausente,
-      horasParciales,
-      salarioExtra: 0,
-      permisoIdsAusente,
-      permisoIdsParcial,
-    });
-    cur.setDate(cur.getDate() + 1);
-  }
-  return dias;
-}
-
-// Art. 140 CR Labor Code: the month is computed as 30 days.
-// Detects whether the periodo covers a full calendar month (1st to last day).
-function esMesCompleto(dias) {
-  if (!dias || dias.length === 0) return false;
-  const toD = (f) => f instanceof Date ? f : new Date(f);
-  const d1 = toD(dias[0].fecha);
-  const d2 = toD(dias[dias.length - 1].fecha);
-  const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
-  return (
-    d1.getDate() === 1 &&
-    d2.getMonth() === d1.getMonth() &&
-    d2.getFullYear() === d1.getFullYear() &&
-    d2.getDate() === ultimoDelMes
-  );
-}
-
-// Detects whether the periodo is a second fortnight (16th to last day of month).
-// The 2nd fortnight is always 15 days (= 30 − 15) under Art. 140 of the Labor Code.
-function esSegundaQuincena(dias) {
-  if (!dias || dias.length === 0) return false;
-  const toD = (f) => f instanceof Date ? f : new Date(f);
-  const d1 = toD(dias[0].fecha);
-  const d2 = toD(dias[dias.length - 1].fecha);
-  const ultimoDelMes = new Date(d1.getFullYear(), d1.getMonth() + 1, 0).getDate();
-  return (
-    d1.getDate() === 16 &&
-    d2.getDate() === ultimoDelMes &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getFullYear() === d2.getFullYear()
-  );
-}
-
-// Detects employees in nuevasFilas who already appear in other planillas (pendiente/aprobada/pagada)
-// with days overlapping the current periodo. Returns a list of conflicts to show to the user.
-function detectarSolapamientos(nuevasFilas, planillas, editingId, fechaInicio, fechaFin) {
-  const ESTADOS = new Set(['pendiente', 'aprobada', 'pagada']);
-  const conflicts = [];
-  for (const planilla of planillas) {
-    if (planilla.id === editingId) continue;
-    if (!ESTADOS.has(planilla.estado)) continue;
-    const pI = planilla.periodoInicio?.substring(0, 10);
-    const pF = planilla.periodoFin?.substring(0, 10);
-    if (!pI || !pF || pI > fechaFin || pF < fechaInicio) continue;
-
-    for (const filaExistente of (planilla.filas || [])) {
-      if (!nuevasFilas.find(f => f.trabajadorId === filaExistente.trabajadorId)) continue;
-      const diasSolapados = (filaExistente.dias || []).filter(d => {
-        const s = typeof d.fecha === 'string' ? d.fecha.substring(0, 10) : null;
-        return s && s >= fechaInicio && s <= fechaFin;
-      }).map(d => d.fecha.substring(0, 10)).sort();
-      if (!diasSolapados.length) continue;
-
-      const d0 = new Date(diasSolapados[0] + 'T12:00:00');
-      const dN = new Date(diasSolapados[diasSolapados.length - 1] + 'T12:00:00');
-      const diasLabel = diasSolapados.length === 1
-        ? fmtShort(d0)
-        : `${fmtShort(d0)} – ${fmtShort(dN)}`;
-
-      const existing = conflicts.find(c => c.trabajadorId === filaExistente.trabajadorId);
-      const entry = { estado: planilla.estado, consecutivo: planilla.numeroConsecutivo || null, diasLabel };
-      if (existing) {
-        existing.detalle.push(entry);
-      } else {
-        conflicts.push({ trabajadorId: filaExistente.trabajadorId, trabajadorNombre: filaExistente.trabajadorNombre, detalle: [entry] });
-      }
-    }
-  }
-  return conflicts;
-}
-
-function recalcFila(fila) {
-  const diario = fila.salarioDiario ?? (fila.salarioMensual / 30);
-  // Valor-hora = (salario mensual / 30) / horas laborables por día.
-  // Para 500 000 con jornada de 8h/día → 16 666.66 / 8 = 2 083.33 por hora.
-  // Compat con planillas legacy guardadas con horasSemanales (÷ 6 días).
-  const horasDiarias = Number(fila.horasDiarias)
-    || (Number(fila.horasSemanales) ? Number(fila.horasSemanales) / 6 : 0)
-    || JORNADA_HORAS_DIARIA_DEFAULT;
-  const valorHora = (fila.salarioMensual / 30) / horasDiarias;
-
-  // Apply 30-day convention (Art. 140 of the CR Labor Code):
-  // - Full month (1→last): target = 30 days (31st ignored, February is topped up)
-  // - 2nd fortnight (16→last): target = 15 days (16th in 31-day months ignored, February topped up)
-  const mesCompleto       = esMesCompleto(fila.dias);
-  const segQuincena       = !mesCompleto && esSegundaQuincena(fila.dias);
-  const aplicarConvencion = mesCompleto || segQuincena;
-  const diasObjetivo      = mesCompleto ? 30 : 15;
-  const calDias           = fila.dias.length;
-
-  // Pre-compute per-day partial deduction with daily cap: horas × valorHora
-  // never exceeds the day's salary (avoids negative day pay or overcharging
-  // when hours are accidentally entered > workday).
-  const diasCalc = fila.dias.map(d => {
-    if (d.ausente) {
-      return { ...d, deduccionParcialBruta: 0, deduccionParcialEfectiva: 0, topeAplicado: false };
-    }
-    const horas = Number(d.horasParciales) || 0;
-    const bruta = horas * valorHora;
-    const efectiva = Math.min(bruta, diario);
-    return {
-      ...d,
-      deduccionParcialBruta:    bruta,
-      deduccionParcialEfectiva: efectiva,
-      topeAplicado:             bruta > diario && horas > 0,
-    };
-  });
-
-  const salarioDiasReales = diasCalc.reduce((s, d, idx) => {
-    if (d.ausente) return s;
-    if (aplicarConvencion && calDias > diasObjetivo && idx >= diasObjetivo) return s;
-    return s + diario - (d.deduccionParcialEfectiva || 0);
-  }, 0);
-  const diasVirtuales = aplicarConvencion && calDias < diasObjetivo ? diasObjetivo - calDias : 0;
-  const salarioOrdinario = salarioDiasReales + diasVirtuales * diario;
-  const salarioExtraordinario = diasCalc.reduce((s, d) => s + (Number(d.salarioExtra) || 0), 0);
-  const salarioBruto        = salarioOrdinario + salarioExtraordinario;
-  const deduccionCCSS       = salarioBruto * CCSS_RATE;
-  const otrasDeduccionesTotal = fila.deduccionesExtra.reduce((s, d) => s + (Number(d.monto) || 0), 0);
-  const totalDeducciones    = deduccionCCSS + otrasDeduccionesTotal;
-  return {
-    ...fila,
-    dias:                   diasCalc,
-    salarioOrdinario:       Math.round(salarioOrdinario),
-    salarioExtraordinario:  Math.round(salarioExtraordinario),
-    salarioBruto:           Math.round(salarioBruto),
-    deduccionCCSS:          Math.round(deduccionCCSS),
-    otrasDeduccionesTotal:  Math.round(otrasDeduccionesTotal),
-    totalDeducciones:       Math.round(totalDeducciones),
-    totalNeto:              Math.round(salarioBruto - totalDeducciones),
-  };
-}
 
 function FixedPayroll() {
   const apiFetch = useApiFetch();
@@ -259,9 +61,12 @@ function FixedPayroll() {
   const [planillas, setPlanillas]   = useState([]);
   const [confirmModal, setConfirmModal]             = useState(false);
   const [saveConfirmModal, setSaveConfirmModal]     = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId]       = useState(null);
-  const [aprobarConfirmId, setAprobarConfirmId]     = useState(null);
-  const [pagarConfirmId, setPagarConfirmId]         = useState(null);
+  const [deleteConfirm, setDeleteConfirm]           = useState(null); // planilla obj | null
+  const [aprobarConfirm, setAprobarConfirm]         = useState(null); // planilla obj | null
+  const [pagarConfirm, setPagarConfirm]             = useState(null); // planilla obj | null
+  const [discardConfirm, setDiscardConfirm]         = useState(false); // descartar borrador con cambios
+  const [actionLoading, setActionLoading]           = useState(false); // aprobar/pagar/eliminar en vuelo
+  const [planillasError, setPlanillasError]         = useState(false);
   const [solapamientos, setSolapamientos]           = useState(null); // null=ok, array=show warning modal
   const [pendingFilas, setPendingFilas]             = useState(null);
   const [confirmEmailSolap, setConfirmEmailSolap]   = useState('');
@@ -272,11 +77,17 @@ function FixedPayroll() {
   const [reverting, setReverting]                   = useState(false);
   const autoDateDone = useRef(false);
 
-  const fetchPlanillas = () =>
-    apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(data => {
-      setPlanillas(data);
+  const fetchPlanillas = () => {
+    setPlanillasError(false);
+    return apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(data => {
+      setPlanillas(Array.isArray(data) ? data : []);
       setPlanillasLoaded(true);
-    }).catch(console.error);
+    }).catch(err => {
+      console.error(err);
+      setPlanillasError(true);
+      setPlanillasLoaded(true);
+    });
+  };
 
   useEffect(() => {
     Promise.all([
@@ -343,15 +154,11 @@ function FixedPayroll() {
     sessionStorage.removeItem('aurora_planilla_fijo_state');
     setLoading(true);
     try {
-      const fichasArr = await Promise.all(
-        users.map(u =>
-          apiFetch(`/api/hr/fichas/${u.id}`)
-            .then(r => r.json()).then(d => ({ userId: u.id, ...d }))
-            .catch(() => ({ userId: u.id }))
-        )
-      );
+      // Una sola llamada bulk en vez de N requests (una por empleado): el
+      // endpoint devuelve todas las fichas de la finca keyed por userId.
+      const fichasArr = await apiFetch('/api/hr/fichas').then(r => r.json());
       const fichasMap = {};
-      fichasArr.forEach(f => { fichasMap[f.userId] = f; });
+      (Array.isArray(fichasArr) ? fichasArr : []).forEach(f => { fichasMap[f.userId] = f; });
 
       const nuevasFilas = users
         .filter(u => {
@@ -613,48 +420,59 @@ function FixedPayroll() {
     }
   };
 
+  // Mantiene el modal abierto con estado loading durante el await y cierra
+  // recién al terminar; actionLoading evita doble submit por doble click.
   const handleEliminarPlanilla = async () => {
-    const id = deleteConfirmId;
-    setDeleteConfirmId(null);
+    if (actionLoading || !deleteConfirm) return;
+    setActionLoading(true);
     try {
-      const res = await apiFetch(`/api/hr/planilla-fijo/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/hr/planilla-fijo/${deleteConfirm.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       showToast('Planilla eliminada.');
+      setDeleteConfirm(null);
       fetchPlanillas();
     } catch {
       showToast('Error al eliminar la planilla.', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleAprobarPlanilla = async () => {
-    const id = aprobarConfirmId;
-    setAprobarConfirmId(null);
+    if (actionLoading || !aprobarConfirm) return;
+    setActionLoading(true);
     try {
-      const res = await apiFetch(`/api/hr/planilla-fijo/${id}`, {
+      const res = await apiFetch(`/api/hr/planilla-fijo/${aprobarConfirm.id}`, {
         method: 'PUT',
         body: JSON.stringify({ estado: 'aprobada' }),
       });
       if (!res.ok) throw new Error();
       showToast('Planilla aprobada.');
+      setAprobarConfirm(null);
       fetchPlanillas();
     } catch {
       showToast('Error al aprobar la planilla.', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleMarcarPagado = async () => {
-    const id = pagarConfirmId;
-    setPagarConfirmId(null);
+    if (actionLoading || !pagarConfirm) return;
+    setActionLoading(true);
     try {
-      const res = await apiFetch(`/api/hr/planilla-fijo/${id}`, {
+      const res = await apiFetch(`/api/hr/planilla-fijo/${pagarConfirm.id}`, {
         method: 'PUT',
         body: JSON.stringify({ estado: 'pagada' }),
       });
       if (!res.ok) throw new Error();
       showToast('Planilla marcada como pagada.');
+      setPagarConfirm(null);
       fetchPlanillas();
     } catch {
       showToast('Error al actualizar el estado.', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -720,14 +538,41 @@ function FixedPayroll() {
     navigate('/hr/planilla/fijo/reporte');
   };
 
-  const filaDetalle = filas.find(f => f.trabajadorId === detalleId);
+  const filaDetalle = useMemo(
+    () => filas.find(f => f.trabajadorId === detalleId),
+    [filas, detalleId]
+  );
+
+  // ¿La planilla cargada tiene ediciones manuales que se perderían al descartar?
+  // (deducciones agregadas, salario extra, salario diario sobreescrito, o estar
+  // editando una planilla guardada). Si no hay nada, descartamos sin preguntar.
+  const hasManualEdits = !!editingId || filas.some(f =>
+    (f.deduccionesExtra?.length > 0) ||
+    (f.dias || []).some(d => Number(d.salarioExtra) > 0) ||
+    Math.round(f.salarioDiario ?? 0) !== Math.round((f.salarioMensual || 0) / 30)
+  );
+
+  const doDiscard = () => {
+    setLoaded(false);
+    setFilas([]);
+    setDetalleId(null);
+    setEditingId(null);
+    sessionStorage.removeItem('aurora_planilla_fijo_state');
+    setDiscardConfirm(false);
+  };
+
+  const handleCancelar = () => {
+    if (hasManualEdits) setDiscardConfirm(true);
+    else doDiscard();
+  };
 
   // Paso visual del flujo. Se calcula desde el estado existente — no
   // controla navegación, sólo orienta al usuario.
   //   1 = configurando período (no hay empleados cargados aún)
   //   2 = revisando empleados (la planilla está cargada)
-  //   3 = guardando (modal de save abierto, save in flight, o success)
-  const currentStep = (saving || saveConfirmModal || confirmModal)
+  //   3 = guardando (save in flight o éxito). Abrir el modal de confirmación
+  //       NO avanza el paso para evitar el parpadeo 2→3→2 al cancelar.
+  const currentStep = (saving || confirmModal)
     ? 3
     : (loaded ? 2 : 1);
 
@@ -751,7 +596,7 @@ function FixedPayroll() {
             <input type="date" value={fechaFin} disabled={!editarFechas}
               onChange={e => handleFechaChange('fin', e.target.value)} />
           </div>
-          <label className="planilla-config-check">
+          <label className="planilla-config-check" title="Por defecto el período se sugiere automáticamente. Tildá para ajustarlo a mano.">
             <input type="checkbox" checked={editarFechas}
               onChange={e => setEditarFechas(e.target.checked)} />
             Editar fechas
@@ -761,15 +606,21 @@ function FixedPayroll() {
             <FiRefreshCw /> {loading ? 'Cargando...' : 'Previsualizar'}
           </button>
         </div>
+        {!editarFechas && (
+          <div className="planilla-config-hint">Tildá «Editar fechas» para cambiar el período.</div>
+        )}
         {fechasValidas && (
           <div className="hr-periodo-preview">
             Período: <strong>{periodoLabel}</strong>
-            {' · '}Factor: <strong>{diasEfectivos}/30 días</strong>
-            {(esPeriodoMesCompleto || esPeriodoSegundaQuincena) && periodoDias !== diasEfectivos && (
-              <span style={{ opacity: 0.55, fontSize: '0.8rem', marginLeft: 6 }}>
-                (mes calendario = 30 días · Art. 140 CT)
-              </span>
-            )}
+            {(esPeriodoMesCompleto || esPeriodoSegundaQuincena)
+              ? <>{' · '}Días a pagar: <strong>{diasEfectivos}</strong>
+                  {periodoDias !== diasEfectivos && (
+                    <span style={{ opacity: 0.55, fontSize: '0.8rem', marginLeft: 6 }}>
+                      (mes calendario = 30 días · Art. 140 CT)
+                    </span>
+                  )}
+                </>
+              : <>{' · '}Días del período: <strong>{periodoDias}</strong></>}
           </div>
         )}
 
@@ -780,10 +631,7 @@ function FixedPayroll() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
               <span className="form-section-title" style={{ margin: 0 }}>Planilla — {periodoLabel}</span>
               <div className="planilla-header-actions-bar" style={{ display: 'flex', gap: 10 }}>
-                <button className="aur-btn-text" title="Descartar y cerrar" onClick={() => {
-                  setLoaded(false); setFilas([]); setDetalleId(null); setEditingId(null);
-                  sessionStorage.removeItem('aurora_planilla_fijo_state');
-                }}>
+                <button className="aur-btn-text" title="Descartar y cerrar" onClick={handleCancelar}>
                   <FiXCircle size={15} /> Cancelar
                 </button>
                 <button className="aur-btn-text" onClick={handleGenerarReporte}>
@@ -818,9 +666,9 @@ function FixedPayroll() {
                       <div className="planilla-sum-nombre">
                         {f.trabajadorNombre}
                         {f.periodoParcial && (
-                          <span className="planilla-parcial-badge"
-                            title={`Ingresó el ${fmtShort(new Date(f.fechaIngreso + 'T12:00:00'))} — período parcial`}>
-                            ⚠ Ingreso {fmtShort(new Date(f.fechaIngreso + 'T12:00:00'))}
+                          <span className="planilla-parcial-badge">
+                            <FiAlertTriangle size={11} aria-hidden="true" />
+                            Ingreso {fmtShort(new Date(f.fechaIngreso + 'T12:00:00'))} · período parcial
                           </span>
                         )}
                       </div>
@@ -831,12 +679,15 @@ function FixedPayroll() {
                       </div>
                       <div>{fmt(f.salarioBruto)}</div>
                       <div className="planilla-sum-ded">({fmt(f.totalDeducciones)})</div>
-                      <div className="planilla-sum-neto">{fmt(f.totalNeto)}</div>
+                      <div className={`planilla-sum-neto${f.totalNeto < 0 ? ' planilla-sum-neto--neg' : ''}`}
+                        title={f.totalNeto < 0 ? 'Las deducciones superan el salario bruto' : undefined}>
+                        {fmtSigned(f.totalNeto)}
+                      </div>
                       <div className="planilla-sum-actions">
-                        <button className="aur-icon-btn" title="Modificar" onClick={() => setDetalleId(f.trabajadorId)}>
+                        <button className="aur-icon-btn" title="Modificar" aria-label={`Modificar ${f.trabajadorNombre}`} onClick={() => setDetalleId(f.trabajadorId)}>
                           <FiEdit2 size={16} />
                         </button>
-                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar de planilla" onClick={() => handleEliminar(f.trabajadorId)}>
+                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar de planilla" aria-label={`Eliminar ${f.trabajadorNombre} de la planilla`} onClick={() => handleEliminar(f.trabajadorId)}>
                           <FiTrash2 size={16} />
                         </button>
                       </div>
@@ -884,21 +735,34 @@ function FixedPayroll() {
           </div>
 
           {/* Salario diario editable */}
-          <div className="planilla-det-diario-row">
-            <span className="planilla-det-diario-label">Salario diario</span>
-            <input
-              type="number" min="0" step="100" max={SALARIO_MAX}
-              className="planilla-det-diario-input"
-              value={filaDetalle.salarioDiario ?? Math.round(filaDetalle.salarioMensual / 30)}
-              onChange={e => handleSalarioDiarioChange(detalleId, e.target.value)}
-            />
-            <span className="planilla-det-diario-hint">
-              Base mensual: {fmt(filaDetalle.salarioMensual)} ÷ 30 = {fmt(filaDetalle.salarioMensual / 30)}
-              {filaDetalle.horasDiarias
-                ? ` · Valor/hora: ${fmt((filaDetalle.salarioMensual / 30) / filaDetalle.horasDiarias)} (${filaDetalle.horasDiarias}h/día)`
-                : ` · Valor/hora calculado con ${JORNADA_HORAS_DIARIA_DEFAULT}h/día (horario no configurado)`}
-            </span>
-          </div>
+          {(() => {
+            // Diario efectivo (puede estar sobreescrito por el usuario). El hint
+            // y el valor/hora se derivan de ÉL, no del mensual/30, para que no
+            // contradiga el cálculo real cuando se edita el diario.
+            const diarioEfectivo = filaDetalle.salarioDiario ?? (filaDetalle.salarioMensual / 30);
+            const horasDia = filaDetalle.horasDiarias || JORNADA_HORAS_DIARIA_DEFAULT;
+            const sobreescrito = Math.round(diarioEfectivo) !== Math.round(filaDetalle.salarioMensual / 30);
+            return (
+              <div className="planilla-det-diario-row">
+                <span className="planilla-det-diario-label">Salario diario</span>
+                <input
+                  type="number" min="0" step="100" max={SALARIO_MAX}
+                  className="planilla-det-diario-input"
+                  aria-label="Salario diario"
+                  value={filaDetalle.salarioDiario ?? Math.round(filaDetalle.salarioMensual / 30)}
+                  onChange={e => handleSalarioDiarioChange(detalleId, e.target.value)}
+                />
+                <span className="planilla-det-diario-hint">
+                  {sobreescrito
+                    ? `Diario ajustado manualmente (base: ${fmt(filaDetalle.salarioMensual)} ÷ 30 = ${fmt(filaDetalle.salarioMensual / 30)})`
+                    : `Base mensual: ${fmt(filaDetalle.salarioMensual)} ÷ 30 = ${fmt(filaDetalle.salarioMensual / 30)}`}
+                  {filaDetalle.horasDiarias
+                    ? ` · Valor/hora: ${fmt(diarioEfectivo / horasDia)} (${filaDetalle.horasDiarias}h/día)`
+                    : ` · Valor/hora: ${fmt(diarioEfectivo / horasDia)} con ${JORNADA_HORAS_DIARIA_DEFAULT}h/día (horario no configurado)`}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* Desglose diario */}
           <div className="planilla-det-table-wrap">
@@ -930,6 +794,7 @@ function FixedPayroll() {
                               type="button"
                               className="planilla-det-revert-btn"
                               title="Revertir esta ausencia"
+                              aria-label={`Revertir ausencia del ${fmtShort(d.fecha)}`}
                               onClick={() => askRevertirDia(detalleId, idx)}
                             >
                               <FiXCircle size={14} />
@@ -942,7 +807,8 @@ function FixedPayroll() {
                               −{d.horasParciales}h sin goce ({fmt(deduccionParcial)})
                               {topeAplicado && (
                                 <span className="planilla-det-tope-tag"
-                                  title={`Las ${d.horasParciales}h equivalen a ${fmt(deduccionParcialBruta)}, pero la deducción se topó al salario diario (${fmt(diario)}).`}>
+                                  title={`Las ${d.horasParciales}h equivalen a ${fmt(deduccionParcialBruta)}, pero la deducción se topó al salario diario (${fmt(diario)}).`}
+                                  aria-label={`Deducción topada al salario diario: ${d.horasParciales}h equivalen a ${fmt(deduccionParcialBruta)} pero se cobró ${fmt(diario)}`}>
                                   tope diario
                                 </span>
                               )}
@@ -950,6 +816,7 @@ function FixedPayroll() {
                                 type="button"
                                 className="planilla-det-revert-btn"
                                 title="Revertir las horas registradas para este día"
+                                aria-label={`Revertir horas sin goce del ${fmtShort(d.fecha)}`}
                                 onClick={() => askRevertirDia(detalleId, idx)}
                               >
                                 <FiXCircle size={14} />
@@ -966,6 +833,7 @@ function FixedPayroll() {
                           value={d.salarioExtra || ''}
                           placeholder="—"
                           className="planilla-det-extra-input"
+                          aria-label={`Salario extraordinario del ${fmtShort(d.fecha)}`}
                           onChange={e => handleExtraChange(detalleId, idx, e.target.value)}
                         />
                       </td>
@@ -1000,6 +868,7 @@ function FixedPayroll() {
                   type="text" placeholder="Concepto de deducción"
                   maxLength={CONCEPTO_MAX}
                   value={d.concepto}
+                  aria-label="Concepto de deducción"
                   onChange={e => updateDeduccion(detalleId, idx, 'concepto', e.target.value)}
                   className="planilla-ded-concepto"
                 />
@@ -1008,12 +877,13 @@ function FixedPayroll() {
                   <input
                     type="number" placeholder="0" min="0" max={SALARIO_MAX}
                     value={d.monto || ''}
+                    aria-label="Monto de deducción"
                     onChange={e => updateDeduccion(detalleId, idx, 'monto', e.target.value)}
                     className="planilla-ded-monto"
                   />
                   <span style={{ opacity: 0.5 }}>)</span>
                   <button onClick={() => removeDeduccion(detalleId, idx)}
-                    className="aur-icon-btn aur-icon-btn--danger" title="Quitar">
+                    className="aur-icon-btn aur-icon-btn--danger" title="Quitar deducción" aria-label="Quitar deducción">
                     <FiTrash2 size={14} />
                   </button>
                 </div>
@@ -1031,10 +901,15 @@ function FixedPayroll() {
               <span>({fmt(filaDetalle.otrasDeduccionesTotal)})</span>
             </div>
 
-            <div className="planilla-det-sum-row planilla-det-sum-row--neto">
+            <div className={`planilla-det-sum-row planilla-det-sum-row--neto${filaDetalle.totalNeto < 0 ? ' planilla-det-sum-row--neto-neg' : ''}`}>
               <span>Total Salario Neto</span>
-              <span>{fmt(filaDetalle.totalNeto)}</span>
+              <span>{fmtSigned(filaDetalle.totalNeto)}</span>
             </div>
+            {filaDetalle.totalNeto < 0 && (
+              <div className="planilla-det-neto-warning">
+                <FiAlertTriangle size={13} aria-hidden="true" /> Las deducciones superan el salario bruto. Revisá las deducciones agregadas.
+              </div>
+            )}
           </div>
 
           <div className="form-actions" style={{ marginTop: 24 }}>
@@ -1046,38 +921,59 @@ function FixedPayroll() {
       )}
 
       {/* ── Aprobar confirmation modal ── */}
-      {aprobarConfirmId && (
+      {aprobarConfirm && (
         <AuroraConfirmModal
           title="Aprobar planilla"
-          body="¿Confirma que desea aprobar esta planilla? Una vez aprobada, quedará lista para que se procese el pago."
+          body={<>Vas a aprobar la planilla del período <strong>{aprobarConfirm.periodoLabel}</strong> ({aprobarConfirm.filas?.length ?? '—'} empleados · total {fmt(aprobarConfirm.totalGeneral)}). Una vez aprobada, quedará lista para procesar el pago.</>}
           confirmLabel="Aprobar"
           icon={<FiThumbsUp size={16} />}
+          loading={actionLoading}
+          loadingLabel="Aprobando…"
           onConfirm={handleAprobarPlanilla}
-          onCancel={() => setAprobarConfirmId(null)}
+          onCancel={() => setAprobarConfirm(null)}
         />
       )}
 
       {/* ── Delete confirmation modal ── */}
-      {deleteConfirmId && (
+      {deleteConfirm && (
         <AuroraConfirmModal
           danger
           title="Eliminar planilla"
-          body="¿Está seguro de que desea eliminar esta planilla? Esta acción no se puede deshacer."
+          body={<>Se eliminará la planilla del período <strong>{deleteConfirm.periodoLabel}</strong> ({deleteConfirm.filas?.length ?? '—'} empleados · total {fmt(deleteConfirm.totalGeneral)}). Esta acción no se puede deshacer.</>}
           confirmLabel="Eliminar"
+          loading={actionLoading}
+          loadingLabel="Eliminando…"
           onConfirm={handleEliminarPlanilla}
-          onCancel={() => setDeleteConfirmId(null)}
+          onCancel={() => setDeleteConfirm(null)}
         />
       )}
 
       {/* ── Pagar confirmation modal ── */}
-      {pagarConfirmId && (
+      {pagarConfirm && (
         <AuroraConfirmModal
           title="Confirmar pago de planilla"
-          body={<>Al confirmar, esta planilla pasará a estado <strong>Pagada</strong>. Se registrará la fecha de pago y se marcará la tarea de aprobación como completada.</>}
+          body={<>Vas a marcar como <strong>Pagada</strong> la planilla del período <strong>{pagarConfirm.periodoLabel}</strong> ({pagarConfirm.filas?.length ?? '—'} empleados · total {fmt(pagarConfirm.totalGeneral)}). Se registrará la fecha de pago y se marcará la tarea de aprobación como completada.</>}
           confirmLabel="Confirmar pago"
           icon={<FiCheckCircle size={16} />}
+          loading={actionLoading}
+          loadingLabel="Procesando…"
           onConfirm={handleMarcarPagado}
-          onCancel={() => setPagarConfirmId(null)}
+          onCancel={() => setPagarConfirm(null)}
+        />
+      )}
+
+      {/* ── Descartar borrador con cambios (#4) ── */}
+      {discardConfirm && (
+        <AuroraConfirmModal
+          danger
+          title="Descartar cambios"
+          body={editingId
+            ? 'Saldrás de la edición de esta planilla sin guardar. Los cambios que hiciste se perderán.'
+            : 'Se descartará esta planilla sin guardar, incluidas las deducciones, ajustes de salario y montos extra que hayas cargado.'}
+          confirmLabel="Descartar"
+          icon={<FiXCircle size={16} />}
+          onConfirm={doDiscard}
+          onCancel={() => setDiscardConfirm(false)}
         />
       )}
 
@@ -1182,6 +1078,7 @@ function FixedPayroll() {
               type="email"
               className="aur-input planilla-solap-input"
               placeholder="Su correo de usuario"
+              aria-label="Su correo de usuario para confirmar"
               maxLength={120}
               autoComplete="off"
               value={confirmEmailSolap}
@@ -1193,9 +1090,24 @@ function FixedPayroll() {
       )}
 
       {/* ── Historial de planillas ── */}
-      {planillas.length > 0 && (
-        <div className="form-card">
-          <h2>Historial de Planillas</h2>
+      <div className="form-card">
+        <h2>Historial de Planillas</h2>
+        {!planillasLoaded ? (
+          <div className="planilla-hist-loading"><div className="ficha-spinner" /></div>
+        ) : planillasError ? (
+          <EmptyState
+            icon={FiAlertTriangle}
+            title="No se pudo cargar el historial"
+            subtitle="Revisá tu conexión e intentá de nuevo."
+            action={<button className="aur-btn-pill aur-btn-pill--sm" onClick={fetchPlanillas}><FiRefreshCw size={14} /> Reintentar</button>}
+          />
+        ) : planillas.length === 0 ? (
+          <EmptyState
+            icon={FiFileText}
+            title="Aún no hay planillas guardadas"
+            subtitle="Las planillas que guardes aparecerán acá con su estado y total."
+          />
+        ) : (
           <div className="planilla-hist-list">
             <div className="planilla-hist-header">
               <div>Período</div>
@@ -1209,7 +1121,10 @@ function FixedPayroll() {
               const isAprobada  = p.estado === 'aprobada';
               const isPagada    = p.estado === 'pagada';
               return (
-                <div key={p.id} className="planilla-hist-row">
+                <div key={p.id} className="planilla-hist-row planilla-hist-row--clickable"
+                  role="button" tabIndex={0}
+                  onClick={() => handleVerPlanilla(p)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleVerPlanilla(p); } }}>
                   <div className="planilla-hist-periodo">{p.periodoLabel}</div>
                   <div>{p.filas?.length ?? '—'}</div>
                   <div className="planilla-hist-total">{fmt(p.totalGeneral)}</div>
@@ -1219,31 +1134,31 @@ function FixedPayroll() {
                     {isPagada    && <span className="planilla-badge planilla-badge--pagada">Pagada</span>}
                     {!isPendiente && !isAprobada && !isPagada && <span className="planilla-badge planilla-badge--otro">{p.estado}</span>}
                   </div>
-                  <div className="planilla-hist-actions">
-                    <button className="aur-icon-btn" title="Ver planilla" onClick={() => handleVerPlanilla(p)}>
+                  {/* stopPropagation: los botones no deben disparar el click de la fila (ver) */}
+                  <div className="planilla-hist-actions" onClick={e => e.stopPropagation()}>
+                    <button className="aur-icon-btn" title="Ver planilla" aria-label={`Ver planilla ${p.periodoLabel}`} onClick={() => handleVerPlanilla(p)}>
                       <FiEye size={16} />
                     </button>
                     {isPendiente && (
                       <>
-                        <button className="aur-icon-btn" title="Editar planilla" onClick={() => handleEditarPlanilla(p)}>
+                        <button className="aur-icon-btn" title="Editar planilla" aria-label={`Editar planilla ${p.periodoLabel}`} onClick={() => handleEditarPlanilla(p)}>
                           <FiEdit2 size={16} />
                         </button>
                         {canAprobar && (
-                          <button className="planilla-hist-pay-btn" title="Aprobar planilla"
-                            style={{ background: 'rgba(51,153,255,0.15)', color: '#5599ff', border: '1px solid rgba(51,153,255,0.35)' }}
-                            onClick={() => setAprobarConfirmId(p.id)}>
+                          <button className="planilla-hist-pay-btn planilla-hist-pay-btn--aprobar" title="Aprobar planilla"
+                            onClick={() => setAprobarConfirm(p)}>
                             <FiThumbsUp size={14} /> Aprobar
                           </button>
                         )}
-                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar planilla"
-                          onClick={() => setDeleteConfirmId(p.id)}>
-                          <FiXCircle size={16} />
+                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar planilla" aria-label={`Eliminar planilla ${p.periodoLabel}`}
+                          onClick={() => setDeleteConfirm(p)}>
+                          <FiTrash2 size={16} />
                         </button>
                       </>
                     )}
                     {isAprobada && canPagar && (
                       <button className="planilla-hist-pay-btn" title="Pagar planilla"
-                        onClick={() => setPagarConfirmId(p.id)}>
+                        onClick={() => setPagarConfirm(p)}>
                         <FiCheckCircle size={14} /> Pagar
                       </button>
                     )}
@@ -1252,8 +1167,8 @@ function FixedPayroll() {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
