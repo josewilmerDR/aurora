@@ -63,6 +63,15 @@ export default function AuroraDataTable({
   const [colMenu, setColMenu]             = useState(null);
   const [page, setPage]                   = useState(1);
 
+  // Guardamos el funnel que abrió el popover para devolverle el foco al
+  // cerrar (ESC/backdrop/Enter). Sin esto el foco cae al body. Punto #30.
+  const filterTriggerRef = useRef(null);
+  const closeFilterPopover = () => {
+    setFilterPopover(null);
+    filterTriggerRef.current?.focus();
+    filterTriggerRef.current = null;
+  };
+
   const handleColBtnClick = (e) => {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
@@ -87,6 +96,7 @@ export default function AuroraDataTable({
   const openColFilter = (e, field, type) => {
     e.stopPropagation();
     if (filterPopover?.field === field) { setFilterPopover(null); return; }
+    filterTriggerRef.current = e.currentTarget;
     const th = e.currentTarget.closest('th') ?? e.currentTarget;
     const rect = th.getBoundingClientRect();
     setFilterPopover({ field, type, x: rect.left, y: rect.bottom + 4 });
@@ -191,7 +201,7 @@ export default function AuroraDataTable({
       <div className="aur-table-toolbar">
         <div className="aur-table-toolbar-left">
           {(resultLabel || total > 0) && (
-            <span className="aur-table-result-count">
+            <span className="aur-table-result-count" aria-live="polite">
               {resultLabel
                 ? resultLabel(filteredCount, total)
                 : (filteredCount === total ? `${total} registros` : `${filteredCount} de ${total} registros`)}
@@ -237,6 +247,7 @@ export default function AuroraDataTable({
                         <th
                           key={col.key}
                           style={col.align === 'right' ? { textAlign: 'right' } : undefined}
+                          title={col.title || undefined}
                         >
                           {col.label}
                         </th>
@@ -354,12 +365,15 @@ export default function AuroraDataTable({
 
       {filterPopover && createPortal(
         <>
-          <div className="aur-filter-backdrop" onClick={() => setFilterPopover(null)} />
+          <div className="aur-filter-backdrop" onClick={closeFilterPopover} />
           <div
             className="aur-filter-popover"
             style={{
               left: Math.min(filterPopover.x, window.innerWidth - 260),
               top: filterPopover.y,
+              // Cap del ancho al viewport para que no desborde por la derecha
+              // en pantallas angostas (el clamp de `left` solo no basta). #28.
+              maxWidth: 'calc(100vw - 16px)',
             }}
           >
             {filterPopover.type === 'text' ? (
@@ -371,13 +385,13 @@ export default function AuroraDataTable({
                   placeholder="Filtrar…"
                   value={colFilters[filterPopover.field]?.text || ''}
                   onChange={(e) => setColFilter(filterPopover.field, 'text', 'text', e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setFilterPopover(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') closeFilterPopover(); }}
                 />
                 {colFilters[filterPopover.field]?.text && (
                   <button
                     type="button"
                     className="aur-filter-clear"
-                    onClick={() => { clearColFilter(filterPopover.field); setFilterPopover(null); }}
+                    onClick={() => { clearColFilter(filterPopover.field); closeFilterPopover(); }}
                     aria-label="Limpiar filtro"
                   >
                     <FiX size={13} />
@@ -392,7 +406,7 @@ export default function AuroraDataTable({
                   type={filterPopover.type === 'date' ? 'date' : 'number'}
                   value={colFilters[filterPopover.field]?.from || ''}
                   onChange={(e) => setColFilter(filterPopover.field, filterPopover.type, 'from', e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape') setFilterPopover(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') closeFilterPopover(); }}
                 />
                 <span className="aur-filter-range-label">A</span>
                 <input
@@ -400,13 +414,13 @@ export default function AuroraDataTable({
                   type={filterPopover.type === 'date' ? 'date' : 'number'}
                   value={colFilters[filterPopover.field]?.to || ''}
                   onChange={(e) => setColFilter(filterPopover.field, filterPopover.type, 'to', e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape') setFilterPopover(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') closeFilterPopover(); }}
                 />
                 {(colFilters[filterPopover.field]?.from || colFilters[filterPopover.field]?.to) && (
                   <button
                     type="button"
                     className="aur-filter-clear"
-                    onClick={() => { clearColFilter(filterPopover.field); setFilterPopover(null); }}
+                    onClick={() => { clearColFilter(filterPopover.field); closeFilterPopover(); }}
                     aria-label="Limpiar filtro"
                   >
                     <FiX size={13} />

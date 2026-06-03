@@ -73,6 +73,13 @@
   --aur-warn:          #ffb84d;
   --aur-warn-tint:     rgba(255, 184, 77, 0.14);
 
+  /* ── Egreso/negativo: rosa-rojo para salidas de stock y saldos negativos.
+        Semántica distinta a --aur-danger (destructivo=magenta). Contraste
+        ≥4.5:1 sobre --aurora-dark-blue (#0d1a26). ── */
+  --aur-egreso:        #ff6680;
+  --aur-egreso-tint:   rgba(255, 102, 128, 0.12);
+  --aur-egreso-border: rgba(255, 102, 128, 0.25);
+
   /* ── Badges (paleta de estados) ────────────────────────────────────────── */
   --aur-badge-green-bg:    rgba(51, 255, 153, 0.14);
   --aur-badge-green-fg:    var(--aurora-green);
