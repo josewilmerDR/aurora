@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, forwardRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiEye, FiEdit2, FiThumbsUp, FiCheckCircle, FiFileText } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiSave, FiRefreshCw, FiCheck, FiX, FiShare2, FiDownload, FiPrinter, FiEye, FiEdit2, FiThumbsUp, FiCheckCircle, FiFileText } from 'react-icons/fi';
 import { useUser } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import AuroraModal from '../../../components/AuroraModal';
 import EmptyState from '../../../components/ui/EmptyState';
+import SegmentCombobox from '../components/SegmentCombobox';
+import { todayStr, fmtMoney, newSegId, newSegmento, isHoraUnit, safeImageUrl, ESTADO_LABEL, ESTADO_CLASS } from '../lib/unit-payroll-shared';
 import '../styles/hr.css';
 import '../styles/unit-payroll.css';
 
@@ -21,305 +24,73 @@ const MAX_AVANCE_HA = 99999;
 const FECHA_MIN = '2000-01-01';
 const FECHA_MAX = '2100-12-31';
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
+// nombre del grupo + números de bloque (derivados de las siembras vinculadas)
+function grupoLabel(g, siembras) {
+  const nums = [...new Set(
+    (g.bloques || [])
+      .map(id => (siembras || []).find(s => s.id === id)?.bloque)
+      .filter(Boolean)
+  )].sort((a, b) => parseInt(a) - parseInt(b));
+  return nums.length ? `${g.nombreGrupo} (${nums.join(', ')})` : g.nombreGrupo;
 }
 
-function fmtMoney(n) {
-  if (!n && n !== 0) return '—';
-  return '₡' + Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function newSegId() {
-  return `s${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
-}
-
-function newSegmento() {
-  return { id: newSegId(), loteId: '', loteNombre: '', labor: '', grupo: '', avanceHa: '', unidad: '-', costoUnitario: '', factorConversion: null, unidadBase: '' };
-}
-
-function isHoraUnit(u) {
-  return /^horas?$/i.test((u || '').trim());
-}
-
-// Accepts only http(s) or data:image URLs — blocks javascript:, data:text/html, etc.
-function safeImageUrl(url) {
-  if (typeof url !== 'string') return '';
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^data:image\//i.test(trimmed)) return trimmed;
-  return '';
-}
-
+// Los tres comboboxes son wrappers finos sobre SegmentCombobox (misma máquina de
+// teclado/dropdown/ARIA). Conservan el contrato string de los segmentos.
 const LaborCombobox = forwardRef(function LaborCombobox({ value, onChange, labores, onAfterSelect, onTabDown }, ref) {
-  const [open, setOpen] = useState(false);
-  const [highlighted, setHighlighted] = useState(0);
-  const containerRef = useRef(null);
-  const listRef = useRef(null);
-  const inputRef = useRef(null);
-  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
-
-  const filtered = labores.filter(l => {
-    const q = (value || '').toLowerCase();
-    return !q || String(l.codigo).includes(q) || (l.descripcion || '').toLowerCase().includes(q);
-  });
-
-  const selectOption = (labor) => {
-    onChange(`${labor.codigo} - ${labor.descripcion}`);
-    setOpen(false);
-    setHighlighted(0);
-    onAfterSelect?.();
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); return; }
-      if (e.key === 'Tab' && onTabDown) { onTabDown(e); return; }
-      return;
-    }
-    if (e.key === 'Tab') { setOpen(false); if (onTabDown) onTabDown(e); return; }
-    if (e.key === 'ArrowDown') {
-      setHighlighted(h => {
-        const next = Math.min(h + 1, filtered.length - 1);
-        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
-        return next;
-      });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHighlighted(h => {
-        const next = Math.max(h - 1, 0);
-        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
-        return next;
-      });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[highlighted]) { selectOption(filtered[highlighted]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <input
-        ref={inputRef}
-        className="ut-ctrl"
-        value={value}
-        autoComplete="off"
-        placeholder="Ej: Deshierva"
-        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={handleKeyDown}
-      />
-      {open && filtered.length > 0 && (
-        <ul ref={listRef} className="labor-dropdown">
-          {filtered.map((l, i) => (
-            <li
-              key={l.id}
-              className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
-              onMouseDown={() => selectOption(l)}
-              onMouseEnter={() => setHighlighted(i)}
-            >
-              <span className="labor-dropdown-code">{l.codigo}</span>
-              <span className="labor-dropdown-desc">{l.descripcion}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <SegmentCombobox
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      items={labores}
+      filter={(l, q) => { const s = (q || '').toLowerCase(); return !s || String(l.codigo).includes(s) || (l.descripcion || '').toLowerCase().includes(s); }}
+      getKey={l => l.id}
+      getSelectArgs={l => [`${l.codigo} - ${l.descripcion}`]}
+      renderOption={l => (<><span className="labor-dropdown-code">{l.codigo}</span><span className="labor-dropdown-desc">{l.descripcion}</span></>)}
+      placeholder="Ej: Deshierva"
+      ariaLabel="Labor del segmento"
+      onAfterSelect={onAfterSelect}
+      onTabDown={onTabDown}
+    />
   );
 });
 
 const GrupoCombobox = forwardRef(function GrupoCombobox({ value, onChange, grupos, siembras, onAfterSelect, onTabDown }, ref) {
-  const [open, setOpen] = useState(false);
-  const [highlighted, setHighlighted] = useState(0);
-  const containerRef = useRef(null);
-  const listRef = useRef(null);
-  const inputRef = useRef(null);
-  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
-
-  const grupoLabel = (g) => {
-    const nums = [...new Set(
-      (g.bloques || [])
-        .map(id => (siembras || []).find(s => s.id === id)?.bloque)
-        .filter(Boolean)
-    )].sort((a, b) => parseInt(a) - parseInt(b));
-    return nums.length ? `${g.nombreGrupo} (${nums.join(', ')})` : g.nombreGrupo;
-  };
-
-  const filtered = grupos.filter(g => {
-    const q = (value || '').toLowerCase();
-    return !q || (g.nombreGrupo || '').toLowerCase().includes(q);
-  });
-
-  const selectOption = (grupo) => {
-    onChange(grupo.nombreGrupo);
-    setOpen(false);
-    setHighlighted(0);
-    onAfterSelect?.();
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); return; }
-      if (e.key === 'Tab' && onTabDown) { onTabDown(e); return; }
-      return;
-    }
-    if (e.key === 'Tab') { setOpen(false); if (onTabDown) onTabDown(e); return; }
-    if (e.key === 'ArrowDown') {
-      setHighlighted(h => {
-        const next = Math.min(h + 1, filtered.length - 1);
-        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
-        return next;
-      });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHighlighted(h => {
-        const next = Math.max(h - 1, 0);
-        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
-        return next;
-      });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[highlighted]) { selectOption(filtered[highlighted]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <input
-        ref={inputRef}
-        className="ut-ctrl"
-        value={value}
-        autoComplete="off"
-        placeholder="Buscar grupo…"
-        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={handleKeyDown}
-      />
-      {open && filtered.length > 0 && (
-        <ul ref={listRef} className="labor-dropdown">
-          {filtered.map((g, i) => (
-            <li
-              key={g.id}
-              className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
-              onMouseDown={() => selectOption(g)}
-              onMouseEnter={() => setHighlighted(i)}
-            >
-              <span className="labor-dropdown-desc">{grupoLabel(g)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <SegmentCombobox
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      items={grupos}
+      filter={(g, q) => { const s = (q || '').toLowerCase(); return !s || (g.nombreGrupo || '').toLowerCase().includes(s); }}
+      getKey={g => g.id}
+      getSelectArgs={g => [g.nombreGrupo]}
+      renderOption={g => <span className="labor-dropdown-desc">{grupoLabel(g, siembras)}</span>}
+      placeholder="Buscar grupo…"
+      ariaLabel="Grupo del segmento"
+      onAfterSelect={onAfterSelect}
+      onTabDown={onTabDown}
+    />
   );
 });
 
-// unidades: array of { id, nombre, precio?, ... }
 const UnidadCombobox = forwardRef(function UnidadCombobox({ value, onChange, unidades, onAfterSelect, onTabDown }, ref) {
-  const [open, setOpen] = useState(false);
-  const [highlighted, setHighlighted] = useState(0);
-  const containerRef = useRef(null);
-  const listRef = useRef(null);
-  const inputRef = useRef(null);
-  useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }));
-
-  const filtered = unidades.filter(u => {
-    const q = (value || '').toLowerCase();
-    return !q || (u.nombre || '').toLowerCase().includes(q);
-  });
-
-  const selectOption = (u) => {
-    onChange(u.nombre, u.precio ?? null, u.factorConversion ?? null, u.unidadBase || '');
-    setOpen(false);
-    setHighlighted(0);
-    onAfterSelect?.();
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { setOpen(true); setHighlighted(0); e.preventDefault(); return; }
-      if (e.key === 'Tab' && onTabDown) { onTabDown(e); return; }
-      return;
-    }
-    if (e.key === 'Tab') { setOpen(false); if (onTabDown) onTabDown(e); return; }
-    if (e.key === 'ArrowDown') {
-      setHighlighted(h => {
-        const next = Math.min(h + 1, filtered.length - 1);
-        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
-        return next;
-      });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHighlighted(h => {
-        const next = Math.max(h - 1, 0);
-        listRef.current?.children[next]?.scrollIntoView({ block: 'nearest' });
-        return next;
-      });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[highlighted] !== undefined) { selectOption(filtered[highlighted]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <input
-        ref={inputRef}
-        className="ut-ctrl"
-        value={value === '-' ? '' : value}
-        autoComplete="off"
-        placeholder="Buscar unidad…"
-        onChange={e => { onChange(e.target.value, null); setOpen(true); setHighlighted(0); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={handleKeyDown}
-      />
-      {open && filtered.length > 0 && (
-        <ul ref={listRef} className="labor-dropdown">
-          {filtered.map((u, i) => (
-            <li
-              key={u.id || u.nombre}
-              className={`labor-dropdown-item${i === highlighted ? ' labor-dropdown-item--active' : ''}`}
-              onMouseDown={() => selectOption(u)}
-              onMouseEnter={() => setHighlighted(i)}
-            >
-              <span className="labor-dropdown-desc">{u.nombre}</span>
-              {u.precio != null && (
-                <span className="labor-dropdown-code">₡{Number(u.precio).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <SegmentCombobox
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      items={unidades}
+      filter={(u, q) => { const s = (q || '').toLowerCase(); return !s || (u.nombre || '').toLowerCase().includes(s); }}
+      getKey={u => u.id || u.nombre}
+      getSelectArgs={u => [u.nombre, u.precio ?? null, u.factorConversion ?? null, u.unidadBase || '']}
+      renderOption={u => (<><span className="labor-dropdown-desc">{u.nombre}</span>{u.precio != null && (<span className="labor-dropdown-code">₡{Number(u.precio).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>)}</>)}
+      placeholder="Buscar unidad…"
+      ariaLabel="Unidad del segmento"
+      displayValue={v => (v === '-' ? '' : v)}
+      onAfterSelect={onAfterSelect}
+      onTabDown={onTabDown}
+    />
   );
 });
 
@@ -358,6 +129,7 @@ function UnitPayroll() {
   const [showAprobarConfirm, setShowAprobarConfirm] = useState(false);
   const [confirmDelPlanilla, setConfirmDelPlanilla] = useState(null);
   const [confirmDelPlantilla, setConfirmDelPlantilla] = useState(null);
+  const [confirmDelSegmento, setConfirmDelSegmento] = useState(null); // { id, idx, count }
   const [planillaId, setPlanillaId] = useDraft('hr-planilla-id', null);
   const [planillaEstado, setPlanillaEstado] = useDraft('hr-planilla-estado', null);
   const [consecutivo, setConsecutivo] = useDraft('hr-planilla-consecutivo', null);
@@ -393,6 +165,11 @@ function UnitPayroll() {
   const [showSavePlantilla, setShowSavePlantilla] = useState(false);
   const [nombrePlantilla, setNombrePlantilla] = useState('');
   const [savingPlantilla, setSavingPlantilla] = useState(false);
+  // id de la planilla cuya transición (aprobar/pagar) está en curso desde el
+  // panel lateral → deshabilita sus botones y evita el doble PUT.
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  // id de la row recién mutada → highlight transitorio para no perderla tras el reload.
+  const [recentlyTouchedId, setRecentlyTouchedId] = useState(null);
 
   // Mark / clear the draft badge whenever form content changes
   useEffect(() => {
@@ -433,6 +210,9 @@ function UnitPayroll() {
     if (planillaEstado === 'pendiente') return; // pendiente is not auto-saved
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) return;
+    // Hay una edición nueva sin persistir: el "Borrador guardado" previo ya no
+    // es cierto durante el debounce. Limpiarlo para no dar falsa seguridad.
+    setAutoSaveStatus(prev => (prev === 'saved' ? null : prev));
     const estadoGuardado = planillaEstado || 'borrador';
     const timer = setTimeout(async () => {
       // If a POST/PUT is in flight, do not fire another: the in-flight POST
@@ -444,6 +224,7 @@ function UnitPayroll() {
       const body = buildPlanillaBody(estadoGuardado, encId);
       try {
         let res;
+        let created = false;
         const currentId = planillaIdRef.current;
         if (currentId) {
           res = await apiFetch(`/api/hr/planilla-unidad/${currentId}`, {
@@ -455,6 +236,7 @@ function UnitPayroll() {
           });
           if (res.ok) {
             const data = await res.json();
+            created = true;
             // Sync the ref BEFORE setPlanillaId so any timer that fires
             // between this point and the next render reads the correct id.
             planillaIdRef.current = data.id;
@@ -468,7 +250,10 @@ function UnitPayroll() {
         if (res.ok) {
           dirtyRef.current = false;
           setAutoSaveStatus('saved');
-          fetchHistorial();
+          // Solo refrescar el panel cuando el autosave CREA un borrador nuevo
+          // (debe aparecer en la lista). Un PUT de actualización no cambia la
+          // card → evita el parpadeo del panel en cada pausa de tipeo.
+          if (created) fetchHistorial();
         } else {
           setAutoSaveStatus('error');
         }
@@ -492,13 +277,17 @@ function UnitPayroll() {
   }, [currentUser?.userId, currentUser?.uid]);
 
   useEffect(() => {
-    apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(console.error);
-    apiFetch('/api/siembras').then(r => r.json()).then(data => setSiembras(Array.isArray(data) ? data : [])).catch(console.error);
-    apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(console.error);
-    apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(console.error);
-    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data : [])).catch(console.error);
+    // Si un catálogo falla, además de loguear avisamos: un dropdown vacío sin
+    // explicación deja al encargado trabado sin saber si es red o falta de datos.
+    const catalogError = (nombre) => () => showToast(`No se pudieron cargar ${nombre}.`, 'error');
+    apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(catalogError('los lotes'));
+    apiFetch('/api/siembras').then(r => r.json()).then(data => setSiembras(Array.isArray(data) ? data : [])).catch(catalogError('las siembras'));
+    apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(catalogError('los grupos'));
+    apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(catalogError('las labores'));
+    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data : [])).catch(catalogError('las unidades'));
     apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
     fetchHistorial();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { fetchPlantillas(); }, [fetchPlantillas]);
@@ -571,14 +360,6 @@ function UnitPayroll() {
       .catch(console.error);
   }, [currentUser?.userId, currentUser?.rol]);
 
-  // Moves focus to the same field in the next/prev segment (horizontal — kept for worker rows)
-  const makeTabHandler = (segId, refsObj) => (e) => {
-    if (e.key !== 'Tab') return;
-    const idx = segmentos.findIndex(s => s.id === segId);
-    const next = segmentos[e.shiftKey ? idx - 1 : idx + 1];
-    if (next) { e.preventDefault(); refsObj.current[next.id]?.focus(); }
-  };
-
   // Moves focus vertically within the same segment column (Tab = down, Shift+Tab = up)
   const makeColTabHandler = (segId, prevRefsObj, nextRefsObj) => (e) => {
     if (e.key !== 'Tab') return;
@@ -605,6 +386,14 @@ function UnitPayroll() {
       pendingFocusSegId.current = null;
     }
   }, [segmentos]);
+
+  // Pide confirmación solo si el segmento tiene cantidades cargadas (borrarlas es
+  // irreversible). Si está vacío, lo quita directo sin fricción.
+  const requestRemoveSegmento = (segId, idx) => {
+    const count = visibleWorkers.filter(t => getCant(t.id, segId) > 0).length;
+    if (count > 0) setConfirmDelSegmento({ id: segId, idx, count });
+    else removeSegmento(segId);
+  };
 
   const removeSegmento = (segId) => {
     dirtyRef.current = true;
@@ -634,32 +423,47 @@ function UnitPayroll() {
     setCantidades(prev => ({ ...prev, [tId]: { ...(prev[tId] || {}), [segId]: raw } }));
   };
 
-  const visibleWorkers = trabajadores.filter(t => !removedWorkerIds.includes(t.id));
+  const visibleWorkers = useMemo(
+    () => trabajadores.filter(t => !removedWorkerIds.includes(t.id)),
+    [trabajadores, removedWorkerIds],
+  );
+
+  // id→trabajador para evitar el .find() O(N) por celda en cada render.
+  const trabajadorMap = useMemo(() => {
+    const m = new Map();
+    trabajadores.forEach(t => m.set(t.id, t));
+    return m;
+  }, [trabajadores]);
 
   const applyFillAll = (segId) => {
     const val = fillAll[segId];
     if (val === '' || val == null) return;
     const n = Number(val);
     if (!Number.isFinite(n) || n < 0) return;
+    // Clampa al mismo tope que las celdas individuales.
+    const clamped = String(Math.min(n, MAX_NUMERIC_INPUT));
     dirtyRef.current = true;
     setCantidades(prev => {
       const next = { ...prev };
       visibleWorkers.forEach(t => {
-        next[t.id] = { ...(next[t.id] || {}), [segId]: val };
+        next[t.id] = { ...(next[t.id] || {}), [segId]: clamped };
       });
       return next;
     });
+    // Limpia el input "= todos" para que no parezca pendiente de aplicar.
+    setFillAll(prev => ({ ...prev, [segId]: '' }));
   };
 
   const getCant = (tId, segId) => {
     const v = cantidades[tId]?.[segId];
     if (v === '' || v == null) return 0;
     const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
+    // Clamp a >= 0: un negativo tipeado descontaría del pago del trabajador.
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
   };
 
   const workerTotal = (tId) => {
-    const t = trabajadores.find(w => w.id === tId);
+    const t = trabajadorMap.get(tId);
     return segmentos.reduce((sum, seg) => {
       const horaDirecta = isHoraUnit(seg.unidad);
       const horaConFactor = !horaDirecta && isHoraUnit(seg.unidadBase) && seg.factorConversion != null;
@@ -693,30 +497,53 @@ function UnitPayroll() {
     observaciones,
   });
 
+  // Valida la planilla antes de enviarla a aprobación. Devuelve un mensaje de
+  // error (con el # de segmento concreto) o null si está OK.
+  const validarParaEnviar = () => {
+    if (!fecha || fecha < FECHA_MIN || fecha > FECHA_MAX) return 'La fecha está fuera del rango permitido.';
+    if (!Array.isArray(segmentos) || segmentos.length === 0 || segmentos.length > MAX_SEGMENTOS) {
+      return `La planilla debe tener entre 1 y ${MAX_SEGMENTOS} segmentos.`;
+    }
+    if ((observaciones || '').length > MAX_OBSERVACIONES_LEN) {
+      return `Las observaciones no pueden exceder ${MAX_OBSERVACIONES_LEN} caracteres.`;
+    }
+    for (let i = 0; i < segmentos.length; i++) {
+      const seg = segmentos[i];
+      const n = i + 1;
+      if (!seg.labor?.trim()) return `El segmento #${n} no tiene labor.`;
+      if (!seg.unidad || seg.unidad === '-') return `El segmento #${n} no tiene unidad.`;
+      const usaHora = isHoraUnit(seg.unidad) || (isHoraUnit(seg.unidadBase) && seg.factorConversion != null);
+      if (!usaHora && !(Number(seg.costoUnitario) > 0)) return `El segmento #${n} no tiene costo unitario.`;
+      const algunaCant = visibleWorkers.some(t => getCant(t.id, seg.id) > 0);
+      if (!algunaCant) return `El segmento #${n} no tiene cantidades cargadas.`;
+    }
+    return null;
+  };
+
   const handleGuardar = async (estado) => {
     const encId = currentUser?.userId || currentUser?.uid;
     if (!encId) {
       showToast('Tu cuenta no está vinculada a un perfil de empleado en el sistema.', 'error');
       return;
     }
-    if (!fecha || fecha < FECHA_MIN || fecha > FECHA_MAX) {
-      showToast('La fecha está fuera del rango permitido.', 'error');
+    const errorValidacion = validarParaEnviar();
+    if (errorValidacion) {
+      showToast(errorValidacion, 'error');
       return;
     }
-    if (!Array.isArray(segmentos) || segmentos.length === 0 || segmentos.length > MAX_SEGMENTOS) {
-      showToast(`La planilla debe tener entre 1 y ${MAX_SEGMENTOS} segmentos.`, 'error');
-      return;
+    // Espera a que termine un autosave en vuelo: si dispara un POST sin id en
+    // paralelo con este, se crean dos borradores (ver comentario en planillaIdRef).
+    while (saveInProgressRef.current) {
+      await new Promise(r => setTimeout(r, 100));
     }
-    if ((observaciones || '').length > MAX_OBSERVACIONES_LEN) {
-      showToast(`Las observaciones no pueden exceder ${MAX_OBSERVACIONES_LEN} caracteres.`, 'error');
-      return;
-    }
+    saveInProgressRef.current = true;
     setGuardando(true);
     const body = buildPlanillaBody(estado, encId);
     try {
       let res;
-      if (planillaId) {
-        res = await apiFetch(`/api/hr/planilla-unidad/${planillaId}`, {
+      const currentId = planillaIdRef.current;
+      if (currentId) {
+        res = await apiFetch(`/api/hr/planilla-unidad/${currentId}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
         if (res.ok) {
@@ -729,6 +556,7 @@ function UnitPayroll() {
         });
         if (res.ok) {
           const data = await res.json();
+          planillaIdRef.current = data.id;
           setPlanillaId(data.id);
           if (data.consecutivo) setConsecutivo(data.consecutivo);
         }
@@ -752,6 +580,7 @@ function UnitPayroll() {
     } catch {
       showToast('Error al guardar la planilla.', 'error');
     } finally {
+      saveInProgressRef.current = false;
       setGuardando(false);
     }
   };
@@ -808,13 +637,24 @@ function UnitPayroll() {
         pageNum++;
       }
       const filename = `Planilla-${previewPlanilla.consecutivo || 'sin-numero'}.pdf`;
-      if (action === 'save') {
+      if (action === 'print') {
+        // Abre el diálogo de impresión del navegador sobre el PDF generado.
+        pdf.autoPrint();
+        const url = pdf.output('bloburl');
+        const w = window.open(url, '_blank');
+        if (!w) showToast('Habilitá las ventanas emergentes para imprimir.', 'error');
+      } else if (action === 'save') {
         pdf.save(filename);
       } else {
         const blob = pdf.output('blob');
         const file = new File([blob], filename, { type: 'application/pdf' });
         if (navigator.canShare?.({ files: [file] })) {
-          try { await navigator.share({ files: [file], title: filename }); } catch {}
+          try {
+            await navigator.share({ files: [file], title: filename });
+          } catch (err) {
+            // Cancelar el diálogo de compartir es silencioso; un fallo real sí se avisa.
+            if (err?.name !== 'AbortError') showToast('No se pudo compartir el PDF.', 'error');
+          }
         } else {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -832,35 +672,40 @@ function UnitPayroll() {
 
   const EDITABLE_STATES = ['borrador', 'pendiente'];
 
-  const handleAprobar = async (p, e) => {
+  // Transición de estado desde el panel lateral (aprobar/pagar). Bloquea la row
+  // mientras corre (evita doble PUT) y la deja resaltada tras el reload.
+  const cambiarEstadoDesdeHistorial = async (p, e, nuevoEstado, okMsg, errMsg) => {
     e.stopPropagation();
+    if (actionLoadingId) return;
+    setActionLoadingId(p.id);
     try {
       const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'aprobada' }),
+        body: JSON.stringify({ estado: nuevoEstado }),
       });
       if (!res.ok) throw new Error();
-      showToast('Planilla aprobada.');
+      showToast(okMsg);
+      setRecentlyTouchedId(p.id);
       fetchHistorial();
     } catch {
-      showToast('Error al aprobar la planilla.', 'error');
+      showToast(errMsg, 'error');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
-  const handlePagar = async (p, e) => {
-    e.stopPropagation();
-    try {
-      const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: 'pagada' }),
-      });
-      if (!res.ok) throw new Error();
-      showToast('Planilla marcada como pagada.');
-      fetchHistorial();
-    } catch {
-      showToast('Error al pagar la planilla.', 'error');
-    }
-  };
+  const handleAprobar = (p, e) =>
+    cambiarEstadoDesdeHistorial(p, e, 'aprobada', 'Planilla aprobada.', 'Error al aprobar la planilla.');
+
+  const handlePagar = (p, e) =>
+    cambiarEstadoDesdeHistorial(p, e, 'pagada', 'Planilla marcada como pagada.', 'Error al pagar la planilla.');
+
+  // Limpia el highlight transitorio de la row recién mutada.
+  useEffect(() => {
+    if (!recentlyTouchedId) return;
+    const t = setTimeout(() => setRecentlyTouchedId(null), 2500);
+    return () => clearTimeout(t);
+  }, [recentlyTouchedId]);
 
   const handleEliminar = async (p) => {
     try {
@@ -1010,9 +855,6 @@ function UnitPayroll() {
     setShowForm(true);
   };
 
-  const ESTADO_LABEL = { borrador: 'Borrador', pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
-  const ESTADO_CLASS = { borrador: 'otro', pendiente: 'pendiente', aprobada: 'aprobado', pagada: 'active' };
-
   return (
     <div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -1038,45 +880,74 @@ function UnitPayroll() {
           confirmLabel="Eliminar"
           onConfirm={() => { handleEliminar(confirmDelPlanilla); setConfirmDelPlanilla(null); }}
           onCancel={() => setConfirmDelPlanilla(null)}
-        />
+        >
+          <ul className="pu-confirm-impact">
+            <li><strong>Total:</strong> {fmtMoney(confirmDelPlanilla.totalGeneral)}</li>
+            <li><strong>Trabajadores:</strong> {confirmDelPlanilla.trabajadores?.length || 0}</li>
+            <li><strong>Segmentos:</strong> {confirmDelPlanilla.segmentos?.length || 0}</li>
+            <li><strong>Fecha:</strong> {confirmDelPlanilla.fecha ? new Date(confirmDelPlanilla.fecha).toLocaleDateString('es-CR') : '—'}</li>
+          </ul>
+        </AuroraConfirmModal>
       )}
 
       {confirmDelPlantilla && (
         <AuroraConfirmModal
           danger
           title="Eliminar plantilla"
-          body={`¿Eliminar la plantilla "${confirmDelPlantilla.nombre}"?`}
+          body={`¿Eliminar la plantilla "${confirmDelPlantilla.nombre}"? Esta acción no se puede deshacer.`}
           confirmLabel="Eliminar"
           onConfirm={() => { handleEliminarPlantilla(confirmDelPlantilla); setConfirmDelPlantilla(null); }}
           onCancel={() => setConfirmDelPlantilla(null)}
+        >
+          <ul className="pu-confirm-impact">
+            <li><strong>Segmentos:</strong> {confirmDelPlantilla.segmentos?.length || 0}</li>
+          </ul>
+        </AuroraConfirmModal>
+      )}
+
+      {confirmDelSegmento && (
+        <AuroraConfirmModal
+          danger
+          title={`Eliminar segmento #${confirmDelSegmento.idx + 1}`}
+          body={`Este segmento tiene cantidades cargadas para ${confirmDelSegmento.count} trabajador${confirmDelSegmento.count !== 1 ? 'es' : ''}. Al eliminarlo se pierden todas. Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => { removeSegmento(confirmDelSegmento.id); setConfirmDelSegmento(null); }}
+          onCancel={() => setConfirmDelSegmento(null)}
         />
       )}
 
       {/* ── Vista previa de planilla ── */}
       {previewPlanilla && (
-        <div className="aur-modal-backdrop" onPointerDown={e => { if (e.target === e.currentTarget) setPreviewPlanilla(null); }}>
-          <div className="aur-modal aur-modal--xl pu-preview-modal" onPointerDown={e => e.stopPropagation()}>
-            <header className="aur-modal-header pu-preview-modal-header">
-              <span className="aur-modal-title pu-preview-modal-title">
-                Vista previa
-                {previewPlanilla.consecutivo && (
-                  <span className="pu-preview-consec">{previewPlanilla.consecutivo}</span>
-                )}
-              </span>
-              <div className="pu-preview-modal-actions">
-                <button className="aur-btn-text" onClick={() => generatePlanillaPdf('share')} disabled={pdfLoading}>
-                  <FiShare2 size={14} /> Compartir
-                </button>
-                <button className="aur-btn-pill" onClick={() => generatePlanillaPdf('save')} disabled={pdfLoading}>
-                  <FiDownload size={14} /> {pdfLoading ? 'Generando…' : 'Guardar PDF / Imprimir'}
-                </button>
-                <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setPreviewPlanilla(null)} title="Cerrar">
-                  <FiX size={16} />
-                </button>
-              </div>
-            </header>
-
-            <div className="aur-modal-content pu-preview-scroll">
+        <AuroraModal
+          size="xl"
+          scrollable
+          contentClassName="pu-preview-scroll"
+          className="pu-preview-modal"
+          preventClose={pdfLoading}
+          onClose={() => setPreviewPlanilla(null)}
+          title={
+            <span className="pu-preview-modal-title">
+              Vista previa
+              {previewPlanilla.consecutivo && (
+                <span className="pu-preview-consec">{previewPlanilla.consecutivo}</span>
+              )}
+            </span>
+          }
+          footer={
+            <div className="pu-preview-modal-actions">
+              <button className="aur-btn-text" onClick={() => generatePlanillaPdf('share')} disabled={pdfLoading}>
+                <FiShare2 size={14} /> Compartir
+              </button>
+              <button className="aur-btn-text" onClick={() => generatePlanillaPdf('print')} disabled={pdfLoading}>
+                <FiPrinter size={14} /> Imprimir
+              </button>
+              <button className="aur-btn-pill" onClick={() => generatePlanillaPdf('save')} disabled={pdfLoading}>
+                <FiDownload size={14} /> {pdfLoading ? 'Generando…' : 'Descargar PDF'}
+              </button>
+            </div>
+          }
+        >
+          <div className="pu-preview-wrap">
               <div className="pu-preview-document" ref={previewRef}>
                 {/* Encabezado */}
                 <div className="pu-pdoc-header">
@@ -1277,9 +1148,8 @@ function UnitPayroll() {
                   Generado por Aurora · {new Date().toLocaleDateString('es-CR')}
                 </div>
               </div>
-            </div>
           </div>
-        </div>
+        </AuroraModal>
       )}
 
       {/* ── Estado de carga / vacío / lista ── */}
@@ -1301,7 +1171,7 @@ function UnitPayroll() {
             Planilla por Unidad / Hora
             {consecutivo && <span className="status-badge status-badge--pendiente" style={{ marginLeft: 10 }}>{consecutivo}</span>}
           </h2>
-          <span className="pu-autosave-status">
+          <span className="pu-autosave-status" role="status" aria-live="polite">
             {autoSaveStatus === 'saving' && 'Guardando…'}
             {autoSaveStatus === 'saved'  && 'Borrador guardado'}
             {autoSaveStatus === 'error'  && 'Error al guardar'}
@@ -1355,7 +1225,7 @@ function UnitPayroll() {
                   <td key={seg.id} className="ut-seg-title-cell">
                     <span className="ut-seg-num">#{idx + 1}</span>
                     {segmentos.length > 1 && (
-                      <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger ut-del-btn" onClick={() => removeSegmento(seg.id)} title="Eliminar segmento">
+                      <button className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger ut-del-btn" onClick={() => requestRemoveSegmento(seg.id, idx)} title={`Eliminar segmento #${idx + 1}`} aria-label={`Eliminar segmento #${idx + 1}`}>
                         <FiTrash2 size={13} />
                       </button>
                     )}
@@ -1543,6 +1413,7 @@ function UnitPayroll() {
                       <button
                         className="ut-fill-btn"
                         title="Aplicar a todos"
+                        aria-label="Aplicar esta cantidad a todos los trabajadores"
                         onClick={() => applyFillAll(seg.id)}
                       >
                         <FiCheck size={11} />
@@ -1573,12 +1444,13 @@ function UnitPayroll() {
                       <div className="ut-worker-name-inner">
                         <button
                           className="ut-remove-worker-btn"
-                          title="Quitar de esta planilla"
+                          title={`Quitar a ${t.nombre} de esta planilla`}
+                          aria-label={`Quitar a ${t.nombre} de esta planilla`}
                           onClick={() => { dirtyRef.current = true; setRemovedWorkerIds(prev => [...prev, t.id]); }}
                         >
                           <FiX size={10} />
                         </button>
-                        {t.esEncargadoActual ? <em><strong>{t.nombre}</strong></em> : t.nombre}
+                        {t.esEncargadoActual ? <><em><strong>{t.nombre}</strong></em><span className="sr-only"> (vos, encargado)</span></> : t.nombre}
                       </div>
                     </td>
                     {segmentos.map((seg) => (
@@ -1735,7 +1607,7 @@ function UnitPayroll() {
               Plantillas
             </button>
             {historialTab === 'pendientes' && (
-              <button className="aur-icon-btn aur-icon-btn--sm" onClick={fetchHistorial} title="Actualizar" style={{ marginLeft: 'auto' }}>
+              <button className="aur-icon-btn aur-icon-btn--sm" onClick={fetchHistorial} title="Actualizar" aria-label="Actualizar lista de planillas" style={{ marginLeft: 'auto' }}>
                 <FiRefreshCw size={14} />
               </button>
             )}
@@ -1748,7 +1620,7 @@ function UnitPayroll() {
                 variant="compact"
                 icon={FiFileText}
                 title="No hay planillas"
-                subtitle='Crea la primera con el botón "Nueva planilla".'
+                subtitle="Completá el formulario de la izquierda y guardá para crear la primera."
               />
             ) : (
               <ul className="pu-history-list">
@@ -1761,7 +1633,7 @@ function UnitPayroll() {
                   return (
                   <li
                     key={p.id}
-                    className={`pu-history-item pu-history-item--editable${planillaId === p.id ? ' pu-history-item--active' : ''}`}
+                    className={`pu-history-item pu-history-item--editable${planillaId === p.id ? ' pu-history-item--active' : ''}${recentlyTouchedId === p.id ? ' pu-history-item--touched' : ''}`}
                     onClick={handleRowClick}
                     title={editable ? 'Clic para cargar y editar' : 'Clic para ver'}
                   >
@@ -1782,7 +1654,7 @@ function UnitPayroll() {
                     </div>
                     <div className="pu-history-bottom">
                       <span className="pu-history-total">
-                        ₡{Number(p.totalGeneral || 0).toLocaleString('es-CR')}
+                        {fmtMoney(p.totalGeneral)}
                       </span>
                       <div className="pu-history-actions">
                         {editable && (
@@ -1790,34 +1662,37 @@ function UnitPayroll() {
                             className="pu-history-delete-btn"
                             onClick={e => { e.stopPropagation(); setConfirmDelPlanilla(p); }}
                             title="Eliminar planilla"
+                            aria-label={`Eliminar planilla ${p.consecutivo || ''}`}
+                            disabled={actionLoadingId === p.id}
                           >
                             <FiTrash2 size={13} />
                           </button>
                         )}
                         {p.estado === 'pendiente' && canAprobar && (
                           <button
-                            className="pu-history-preview-btn"
-                            style={{ color: '#5599ff', borderColor: 'rgba(51,153,255,0.3)' }}
+                            className="pu-history-preview-btn pu-history-preview-btn--approve"
                             onClick={e => handleAprobar(p, e)}
                             title="Aprobar planilla"
+                            disabled={actionLoadingId === p.id}
                           >
-                            <FiThumbsUp size={13} /> Aprobar
+                            <FiThumbsUp size={13} /> {actionLoadingId === p.id ? 'Aprobando…' : 'Aprobar'}
                           </button>
                         )}
                         {p.estado === 'aprobada' && canPagar && (
                           <button
-                            className="pu-history-preview-btn"
-                            style={{ color: 'var(--aurora-green)', borderColor: 'rgba(51,255,153,0.3)' }}
+                            className="pu-history-preview-btn pu-history-preview-btn--pay"
                             onClick={e => handlePagar(p, e)}
                             title="Pagar planilla"
+                            disabled={actionLoadingId === p.id}
                           >
-                            <FiCheckCircle size={13} /> Pagar
+                            <FiCheckCircle size={13} /> {actionLoadingId === p.id ? 'Pagando…' : 'Pagar'}
                           </button>
                         )}
                         <button
                           className="pu-history-preview-btn"
                           onClick={e => { e.stopPropagation(); setPreviewPlanilla(p); }}
                           title="Ver vista previa"
+                          aria-label="Ver vista previa"
                         >
                           <FiEye size={13} /> Ver
                         </button>
@@ -1898,6 +1773,7 @@ function UnitPayroll() {
                           className="pu-history-delete-btn"
                           onClick={() => setConfirmDelPlantilla(p)}
                           title="Eliminar plantilla"
+                          aria-label={`Eliminar plantilla ${p.nombre}`}
                         >
                           <FiTrash2 size={13} />
                         </button>

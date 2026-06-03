@@ -35,7 +35,7 @@
   gap: 14px;
   min-height: 60vh;
   padding: 48px 20px;
-  color: rgba(230, 242, 255, 0.3);
+  color: rgba(230, 242, 255, 0.5);
   text-align: center;
 }
 
@@ -58,103 +58,9 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Lista intermedia de planillas ───────────────────────────────────────────── */
-.pu-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid var(--aurora-border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.pu-list-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--aurora-background);
-  border-bottom: 1px solid var(--aurora-border);
-  cursor: pointer;
-  transition: background 0.12s;
-}
-
-.pu-list-item:last-child { border-bottom: none; }
-
-.pu-list-item:hover { background: rgba(255,255,255,0.04); }
-
-.pu-list-item-main {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.pu-list-item-consec {
-  font-family: monospace;
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: var(--aurora-light);
-  white-space: nowrap;
-  min-width: 80px;
-}
-
-.pu-list-item-encargado {
-  font-size: 0.88rem;
-  color: var(--aurora-light);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pu-list-item-meta {
-  font-size: 0.8rem;
-  color: rgba(230, 242, 255, 0.45);
-  white-space: nowrap;
-}
-
-.pu-list-item-total {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--aurora-light);
-  white-space: nowrap;
-}
-
-/* ── Empty state (sin formulario activo) ─────────────────────────────────────── */
-.pu-empty-state-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  min-height: 220px;
-  gap: 4px;
-}
-
-@media (max-width: 768px) {
-  .pu-empty-state-card {
-    display: none;
-  }
-}
-
 /* ── Panel de historial ──────────────────────────────────────────────────────── */
 .pu-history-card {
   padding: 14px !important;
-}
-
-.pu-history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
 }
 
 .pu-history-list {
@@ -348,7 +254,7 @@
 .pu-history-meta {
   font-size: 0.72rem;
   color: var(--aurora-light);
-  opacity: 0.5;
+  opacity: 0.7;
   margin-top: 3px;
 }
 
@@ -461,6 +367,22 @@
     min-height: 34px;
   }
 
+  /* Hit-area táctil ≥40px en los botones de acción dentro de la tabla
+     (quitar trabajador, aplicar a todos, eliminar segmento). */
+  .ut-remove-worker-btn,
+  .ut-fill-btn,
+  .ut-del-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* Botones del panel lateral (aprobar/pagar/ver/eliminar) cómodos al tacto. */
+  .pu-history-preview-btn,
+  .pu-history-delete-btn {
+    min-height: 40px;
+    padding: 6px 12px;
+  }
+
   /* Botones de acción del formulario: apilar en móvil */
   .form-actions {
     flex-direction: column;
@@ -473,19 +395,9 @@
   }
 
   /* Modal de vista previa: pantalla casi completa */
-  .pu-preview-overlay {
-    padding: 8px 6px;
-    align-items: flex-start;
-  }
-
   .pu-preview-modal {
     border-radius: 8px;
     max-width: 100%;
-  }
-
-  .pu-preview-modal-header {
-    padding: 12px 14px;
-    gap: 8px;
   }
 
   .pu-preview-modal-actions {
@@ -525,12 +437,6 @@
   margin-bottom: 12px;
 }
 
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 0.82rem;
-  gap: 5px;
-}
-
 /* ── Aviso ───────────────────────────────────────────────────────────────────── */
 .pu-warning {
   background: rgba(255, 180, 0, 0.1);
@@ -560,10 +466,14 @@
 
 .pu-autosave-status {
   font-size: 0.75rem;
-  color: rgba(230, 242, 255, 0.4);
+  color: rgba(230, 242, 255, 0.65);
   font-style: italic;
-  min-width: 120px;
   text-align: right;
+}
+
+/* Solo reserva ancho cuando hay un mensaje (antes empujaba el layout vacío). */
+.pu-autosave-status:not(:empty) {
+  min-width: 120px;
 }
 
 /* Campos FECHA / ENCARGADO fuera de la tabla */
@@ -635,19 +545,10 @@
   text-align: right;
   padding: 7px 12px;
   white-space: nowrap;
-  background: #0d1a26;
+  background: var(--aurora-dark-blue);
   position: sticky;
   left: 0;
   z-index: 2;
-}
-
-/* ── Filas de encabezado global (Fecha, Encargado) ───────────────────────── */
-.ut-row-header-field td {
-  background: #0d1a26 !important;
-}
-
-.ut-row-header-field--last td {
-  border-bottom: 2px solid var(--aurora-border);
 }
 
 .ut-ctrl--date {
@@ -656,7 +557,7 @@
 
 /* ── Encabezados de segmento (#1, #2 …) ──────────────────────────────────── */
 .ut-row-seg-title td {
-  background: #0d1a26;
+  background: var(--aurora-dark-blue);
 }
 
 .ut-seg-title-cell {
@@ -678,24 +579,9 @@
   vertical-align: middle;
 }
 
-.ut-col-total-header {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--aurora-green);
-  text-align: center !important;
-  padding: 6px 10px !important;
-  background: #0d1a26;
-  white-space: nowrap;
-  position: sticky;
-  right: 0;
-  z-index: 2;
-}
-
 /* ── Filas de configuración de segmento ──────────────────────────────────── */
 .ut-row-config td {
-  background: #1a2a3a;
+  background: var(--aurora-background);
 }
 
 .ut-row-config--last td {
@@ -707,7 +593,7 @@
 }
 
 .ut-filler-cell {
-  background: #1a2a3a !important;
+  background: var(--aurora-background) !important;
   border-color: transparent !important;
   padding: 0 !important;
   width: 0;
@@ -746,7 +632,7 @@ select.ut-ctrl {
 
 /* ── Encabezado de sección trabajadores ──────────────────────────────────── */
 .ut-row-workers-header td {
-  background: #0d1a26;
+  background: var(--aurora-dark-blue);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -764,7 +650,7 @@ select.ut-ctrl {
   text-align: center !important;
   color: var(--aurora-green) !important;
   opacity: 1 !important;
-  background: #0d1a26 !important;
+  background: var(--aurora-dark-blue) !important;
   position: sticky;
   right: 0;
   z-index: 2;
@@ -785,7 +671,7 @@ select.ut-ctrl {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 3px;
-  color: rgba(230, 242, 255, 0.3);
+  color: rgba(230, 242, 255, 0.5);
   cursor: pointer;
   padding: 2px 3px;
   line-height: 1;
@@ -837,7 +723,7 @@ select.ut-ctrl {
 
 /* ── Filas de trabajadores ───────────────────────────────────────────────── */
 .ut-row-worker td {
-  background: #1a2a3a;
+  background: var(--aurora-background);
 }
 
 .ut-row-worker:hover td {
@@ -849,7 +735,7 @@ select.ut-ctrl {
   text-align: right !important;
   font-weight: 500;
   white-space: nowrap;
-  background: #0d1a26 !important;
+  background: var(--aurora-dark-blue) !important;
   position: sticky;
   left: 0;
   z-index: 1;
@@ -896,7 +782,7 @@ select.ut-ctrl {
 
 /* ── Fila de totales ─────────────────────────────────────────────────────── */
 .ut-row-totals td {
-  background: #0d1a26 !important;
+  background: var(--aurora-dark-blue) !important;
   border-top: 2px solid var(--aurora-border);
   font-weight: 700;
 }
@@ -950,7 +836,7 @@ select.ut-ctrl {
 }
 
 .ut-fill-input::placeholder {
-  color: rgba(230, 242, 255, 0.3);
+  color: rgba(230, 242, 255, 0.5);
   font-size: 0.72rem;
 }
 
@@ -1038,6 +924,61 @@ select.ut-ctrl {
   color: var(--aurora-green);
 }
 
+/* Variantes de color para aprobar (azul) y pagar (verde) — antes eran estilos
+   inline con hex hardcodeado. */
+.pu-history-preview-btn--approve {
+  color: #5599ff;
+  border-color: rgba(51, 153, 255, 0.3);
+}
+.pu-history-preview-btn--approve:hover {
+  border-color: #5599ff;
+  color: #5599ff;
+}
+.pu-history-preview-btn--pay {
+  color: var(--aurora-green);
+  border-color: rgba(51, 255, 153, 0.3);
+}
+
+.pu-history-preview-btn:disabled,
+.pu-history-delete-btn:disabled {
+  opacity: 0.4;
+  cursor: progress;
+}
+
+/* Highlight transitorio de la row recién aprobada/pagada (no perderla tras el reload). */
+.pu-history-item--touched {
+  animation: pu-touch-flash 2.5s ease-out;
+}
+@keyframes pu-touch-flash {
+  0%, 30% { box-shadow: 0 0 0 2px rgba(51, 255, 153, 0.55); }
+  100%    { box-shadow: 0 0 0 2px rgba(51, 255, 153, 0); }
+}
+
+/* Lista de impacto dentro de los modales de borrado destructivo. */
+.pu-confirm-impact {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+}
+.pu-confirm-impact strong {
+  color: rgba(230, 242, 255, 0.6);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+/* Wrapper del documento de preview dentro de AuroraModal (scroll horizontal del doc). */
+.pu-preview-wrap {
+  overflow-x: auto;
+}
+
 /* ── Modal de vista previa (extiende aur-modal--xl) ──────────────────────── */
 .pu-preview-modal-header {
   flex-wrap: wrap;
@@ -1100,7 +1041,7 @@ select.ut-ctrl {
 .pu-pdoc-logo {
   width: 44px;
   height: 44px;
-  background: #0d1a26;
+  background: var(--aurora-dark-blue);
   color: #33ff99;
   font-size: 1rem;
   font-weight: 900;
@@ -1153,14 +1094,6 @@ select.ut-ctrl {
   color: #666;
 }
 
-.pu-pdoc-info {
-  font-size: 11px;
-  color: #333;
-  margin-bottom: 14px;
-  display: flex;
-  gap: 24px;
-}
-
 /* ── Tabla unificada (misma disposición que el formulario) ───────────────── */
 .pu-pdoc-table {
   width: 100%;
@@ -1187,19 +1120,6 @@ select.ut-ctrl {
   letter-spacing: 0.5px;
   text-align: right !important;
   white-space: nowrap;
-}
-
-/* Fila de números de segmento (#1, #2…) */
-.pu-pdoc-row-seg-nums td {
-  background: #ddd !important;
-}
-
-.pu-pdoc-seg-num-cell {
-  text-align: center !important;
-  font-size: 9px;
-  font-weight: 900;
-  color: #1a6e40 !important;
-  letter-spacing: 0.5px;
 }
 
 /* Filas de configuración — fondo blanco */
@@ -1305,9 +1225,12 @@ select.ut-ctrl {
   text-transform: uppercase;
 }
 
-.pu-pdoc-estado--borrador        { background: #e9e9e9; color: #555; }
-.pu-pdoc-estado--pendiente_pago  { background: #fff3cd; color: #856404; }
-.pu-pdoc-estado--pagado          { background: #d4edda; color: #155724; }
+/* Claves alineadas con los estados reales emitidos por el JS: borrador |
+   pendiente | aprobada | pagada (antes eran pendiente_pago/pagado y no pintaban). */
+.pu-pdoc-estado--borrador  { background: #e9e9e9; color: #555; }
+.pu-pdoc-estado--pendiente { background: #fff3cd; color: #856404; }
+.pu-pdoc-estado--aprobada  { background: #cce5ff; color: #004085; }
+.pu-pdoc-estado--pagada    { background: #d4edda; color: #155724; }
 
 /* ── Ocultar spinners en inputs numéricos de la tabla ────────────────────── */
 .unidad-table input[type=number]::-webkit-inner-spin-button,
@@ -1328,7 +1251,7 @@ select.ut-ctrl {
   max-width: 320px;
   max-height: 220px;
   overflow-y: auto;
-  background: #0d1a26;
+  background: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-green);
   border-radius: 6px;
   padding: 4px 0;
