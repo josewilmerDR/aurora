@@ -30,7 +30,10 @@ function normalizeBoletas(raw) {
     if (!b || typeof b !== 'object' || Array.isArray(b)) {
       return { error: 'Each boleta must be an object.' };
     }
-    if (typeof b.id !== 'string' || b.id.length === 0 || b.id.length > 1500) {
+    // `id` es un doc-id de cosecha_registros: string acotado y sin separador de
+    // path. Rechazar el '/' acá evita que `db...doc(id)` lance de forma síncrona
+    // (lo que se vería como un 500) cuando el despacho verifica las boletas.
+    if (typeof b.id !== 'string' || b.id.length === 0 || b.id.length > 1500 || b.id.includes('/')) {
       return { error: 'Each boleta requires a valid id.' };
     }
     const boleta = { id: b.id };
@@ -204,4 +207,9 @@ module.exports = {
   requireEncargado,
   normalizeBoletas,
   validateCosechaPayload,
+  // Primitivos de fecha compartidos: registros y despachos validan `fecha` con
+  // la MISMA regla estricta (rechaza 2026-02-30 y fechas futuras), sin duplicar
+  // el regex débil ni la lógica de "mañana UTC" en cada handler.
+  isValidISODate,
+  maxAllowedFechaISO,
 };
