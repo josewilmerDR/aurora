@@ -19,7 +19,7 @@ async function resolveBuyer(buyerId, fincaId) {
 // pertenecer a la misma finca. Sin esto, un miembro podría asociar un ingreso a
 // un lote/despacho de otra finca (ensucia reportes y trazabilidad de cosecha).
 // Recibe el doc ya validado (`data`) para reusar el saneamiento del validator.
-async function verifyIncomeRefs(data, fincaId) {
+async function verifyIncomeRefs(data, fincaId, { prevDespachoId = null } = {}) {
   if (data.loteId) {
     const loteSnap = await db.collection('lotes').doc(data.loteId).get();
     if (!loteSnap.exists || loteSnap.data().fincaId !== fincaId) {
@@ -33,6 +33,31 @@ async function verifyIncomeRefs(data, fincaId) {
       if (!snap.exists || snap.data().fincaId !== fincaId) {
         return 'A dispatch was not found or belongs to another finca.';
       }
+      // No se puede ligar un ingreso a un despacho ANULADO: contaría una cosecha
+      // que ya salió del conteo y rompería la conciliación cosecha↔ingreso (la
+      // mitad simétrica del guard de anulación en harvest/despachos.js).
+      if (snap.data().estado === 'anulado') {
+        return 'A dispatch is voided and cannot be linked to an income.';
+      }
+    }
+  }
+  // Campo legacy `despachoId` (single string). El frontend no tiene UI para
+  // fijarlo: sólo aparece por round-trip de un income histórico. Por eso se
+  // valida SÓLO cuando es un vínculo nuevo o cambiado (`!== prevDespachoId`):
+  // así se cierra la inyección directa de un vínculo a un despacho ajeno/anulado
+  // por API, sin bloquear (ni dejar inéditable) un histórico cuyo despacho legacy
+  // ya no exista. Un id con '/' lanzaría síncrono en .doc(); se trata como no
+  // encontrado. Mismas reglas de finca/anulado que el array.
+  if (data.despachoId && data.despachoId !== prevDespachoId) {
+    if (data.despachoId.includes('/')) {
+      return 'A dispatch was not found or belongs to another finca.';
+    }
+    const snap = await db.collection('cosecha_despachos').doc(data.despachoId).get();
+    if (!snap.exists || snap.data().fincaId !== fincaId) {
+      return 'A dispatch was not found or belongs to another finca.';
+    }
+    if (snap.data().estado === 'anulado') {
+      return 'A dispatch is voided and cannot be linked to an income.';
     }
   }
   return null;
@@ -117,7 +142,9 @@ async function updateIncome(req, res) {
     const { error, data } = buildIncomeDoc(req.body, { buyerName: buyer.name });
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
 
-    const refError = await verifyIncomeRefs(data, req.fincaId);
+    // prevDespachoId: el legacy sólo se re-valida si cambió respecto al guardado,
+    // para no dejar inéditable un histórico cuyo despacho legacy ya no exista.
+    const refError = await verifyIncomeRefs(data, req.fincaId, { prevDespachoId: ownership.doc.data().despachoId || null });
     if (refError) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, refError, 400);
 
     await db.collection('income_records').doc(req.params.id).update({

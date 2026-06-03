@@ -9,6 +9,7 @@ const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { requireEncargado, validateCosechaPayload } = require('./validation');
+const { findActiveDispatchUsingBoletas } = require('./guards');
 
 const router = Router();
 
@@ -47,7 +48,7 @@ async function resolveRegistroRefs(data, fincaId) {
   return { ok: true };
 }
 
-router.get('/api/cosecha/registros', authenticate, requireEncargado, async (req, res) => {
+router.get('/api/cosecha/registros', authenticate, requireEncargado, rateLimit('cosecha_read', 'costly_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('cosecha_registros')
       .where('fincaId', '==', req.fincaId)
@@ -92,6 +93,11 @@ router.post('/api/cosecha/registros', authenticate, requireEncargado, rateLimit(
       ...data,
       consecutivo,
       fincaId: req.fincaId,
+      // Autoría en el documento: quién registró la boleta. El doc no tiene TTL,
+      // así que este rastro forense sobrevive más que un audit event (H5). Los
+      // creates de cosecha quedan fuera del audit stream por política del archivo.
+      creadoPor: req.uid,
+      creadoPorEmail: req.userEmail || '',
       creadoEn: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id, consecutivo, ...data });
@@ -106,6 +112,20 @@ router.put('/api/cosecha/registros/:id', authenticate, requireEncargado, rateLim
     const { id } = req.params;
     const ownership = await verifyOwnership('cosecha_registros', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    // Guardrail (mismo invariante que el borrado): un registro que ya es boleta
+    // de un despacho ACTIVO está congelado. Editar su cantidad/lote/fecha
+    // cambiaría silenciosamente la cosecha que respalda ese despacho —y el
+    // ingreso ligado— sin rastro. Hay que anular el despacho primero. El front
+    // traduce RESOURCE_REFERENCED → 409.
+    const despachoEnUso = await findActiveDispatchUsingBoletas(req.fincaId, [id]);
+    if (despachoEnUso) {
+      return sendApiError(
+        res,
+        ERROR_CODES.RESOURCE_REFERENCED,
+        `Cosecha record is used as a boleta in active dispatch ${despachoEnUso.data().consecutivo || despachoEnUso.id}; void that dispatch first.`,
+        409,
+      );
+    }
     const data = pick(req.body, ALLOWED_FIELDS);
     const validationError = validateCosechaPayload(data, { partial: true });
     if (validationError) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, validationError, 400);
@@ -122,7 +142,7 @@ router.put('/api/cosecha/registros/:id', authenticate, requireEncargado, rateLim
     if (data.cantidadRecibidaPlanta != null) {
       data.cantidadRecibidaPlanta = parseFloat(data.cantidadRecibidaPlanta) || 0;
     }
-    await db.collection('cosecha_registros').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
+    await db.collection('cosecha_registros').doc(id).update({ ...data, actualizadoPor: req.uid, actualizadoEn: Timestamp.now() });
     res.status(200).json({ id, ...data });
   } catch (error) {
     console.error('Error updating cosecha record:', error);
@@ -138,14 +158,7 @@ router.delete('/api/cosecha/registros/:id', authenticate, requireEncargado, rate
     // Guardrail: un registro usado como boleta en un despacho ACTIVO no se puede
     // borrar — dejaría el despacho apuntando a una boleta inexistente y rompería
     // la trazabilidad ingreso↔cosecha. El front traduce RESOURCE_REFERENCED → 409.
-    const despachosSnap = await db.collection('cosecha_despachos')
-      .where('fincaId', '==', req.fincaId)
-      .get();
-    const despachoEnUso = despachosSnap.docs.find(d => {
-      const data = d.data();
-      if (data.estado === 'anulado') return false;
-      return Array.isArray(data.boletas) && data.boletas.some(b => b && b.id === id);
-    });
+    const despachoEnUso = await findActiveDispatchUsingBoletas(req.fincaId, [id]);
     if (despachoEnUso) {
       return sendApiError(
         res,

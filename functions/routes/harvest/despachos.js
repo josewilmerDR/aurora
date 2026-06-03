@@ -8,11 +8,12 @@ const { pick, verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
-const { requireEncargado, normalizeBoletas } = require('./validation');
+const { requireEncargado, normalizeBoletas, isValidISODate, maxAllowedFechaISO } = require('./validation');
+const { findActiveDispatchUsingBoletas, findIncomeReferencingDispatch } = require('./guards');
 
 const router = Router();
 
-router.get('/api/cosecha/despachos', authenticate, requireEncargado, async (req, res) => {
+router.get('/api/cosecha/despachos', authenticate, requireEncargado, rateLimit('cosecha_read', 'costly_read'), async (req, res) => {
   try {
     const snapshot = await db.collection('cosecha_despachos')
       .where('fincaId', '==', req.fincaId)
@@ -46,15 +47,13 @@ router.post('/api/cosecha/despachos', authenticate, requireEncargado, rateLimit(
     if (!data.buyerId) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'buyerId is required.', 400);
     }
-    // Validate date format (+1 day tolerance for frontend/backend TZ differences)
-    if (typeof data.fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
+    // Misma validación estricta de fecha que los registros (rechaza 2026-02-30 y
+    // fechas futuras; el techo "mañana UTC" tolera el desfase de TZ front/back).
+    if (!isValidISODate(data.fecha)) {
       return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid date format.', 400);
     }
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const limitStr = tomorrow.toISOString().slice(0, 10);
-    if (data.fecha > limitStr) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid or future date.', 400);
+    if (data.fecha > maxAllowedFechaISO()) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Date cannot be after the current day.', 400);
     }
     // Validate quantity (must be strictly positive — a zero-quantity dispatch
     // has no business meaning and can still be linked to an income).
@@ -101,7 +100,42 @@ router.post('/api/cosecha/despachos', authenticate, requireEncargado, rateLimit(
     // objetos arbitrarios/anidados o un array sin tope al documento).
     const { error: boletasError, boletas } = normalizeBoletas(data.boletas);
     if (boletasError) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, boletasError, 400);
+    // Cada boleta debe referenciar un cosecha_registro EXISTENTE de esta finca.
+    // normalizeBoletas sólo valida forma; sin este chequeo un despacho podría
+    // apuntar a registros de otra finca o a ids inexistentes y, como el despacho
+    // sostiene un ingreso, romper la trazabilidad cosecha↔ingreso (y abrir una
+    // vía de referencia cruzada entre fincas). getAll en un solo round-trip.
+    if (boletas.length > 0) {
+      const refs = boletas.map(b => db.collection('cosecha_registros').doc(b.id));
+      const snaps = await db.getAll(...refs);
+      const invalid = snaps.some(s => !s.exists || s.data().fincaId !== req.fincaId);
+      if (invalid) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'A boleta references a harvest record that does not exist in this finca.', 400);
+      }
+      // Una boleta pertenece a lo sumo a un despacho ACTIVO. Sin este chequeo dos
+      // despachos activos podrían reclamar la misma boleta desde su creación →
+      // doble conteo de cosecha→ingreso. Mismo guard que la reactivación (PUT),
+      // aplicado también al crear.
+      const clash = await findActiveDispatchUsingBoletas(req.fincaId, boletas.map(b => b.id));
+      if (clash) {
+        return sendApiError(
+          res,
+          ERROR_CODES.CONFLICT,
+          `A boleta is already used by active dispatch ${clash.data().consecutivo || clash.id}.`,
+          409,
+        );
+      }
+    }
     data.boletas = boletas;
+    // Conciliación suave (no bloqueante, H8): si TODAS las boletas traen cantidad,
+    // persistimos su suma para que reportes/auditoría puedan detectar divergencias
+    // contra `cantidad` (el peso de báscula declarado, que puede diferir
+    // legítimamente del campo por merma/humedad/pesaje). Si alguna boleta no trae
+    // cantidad la suma sería parcial/engañosa → null (no reconciliable).
+    const boletasConCantidad = boletas.length > 0 && boletas.every(b => typeof b.cantidad === 'number');
+    data.boletasCantidadSum = boletasConCantidad
+      ? Math.round(boletas.reduce((sum, b) => sum + b.cantidad, 0) * 100) / 100
+      : null;
     data.estado = 'activo';
     const counterRef = db.collection('counters').doc(`cosecha_despachos_${req.fincaId}`);
     let seq;
@@ -115,6 +149,12 @@ router.post('/api/cosecha/despachos', authenticate, requireEncargado, rateLimit(
       ...data,
       consecutivo,
       fincaId: req.fincaId,
+      // Autoría en el documento monetizable: quién creó el despacho que sostiene
+      // un ingreso. Cierra el hueco forense "sin rastro de autoría" de forma más
+      // durable que un audit event (el doc no tiene TTL). Los creates de cosecha
+      // quedan fuera del audit stream por política del archivo (H5).
+      creadoPor: req.uid,
+      creadoPorEmail: req.userEmail || '',
       creadoEn: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id, consecutivo, ...data });
@@ -141,6 +181,25 @@ router.put('/api/cosecha/despachos/:id', authenticate, requireEncargado, rateLim
       if (typeof data.notaAnulacion !== 'string' || !data.notaAnulacion.trim()) {
         return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'notaAnulacion is required to void a dispatch.', 400);
       }
+      // Trazabilidad inversa cosecha↔ingreso: si un ingreso ACTIVO referencia este
+      // despacho, anularlo lo sacaría del conteo de cosecha mientras el ingreso
+      // sigue contando la plata → doble contabilidad / datos contaminados.
+      // Política: BLOQUEAR. El usuario debe primero revertir, editar (sacar el
+      // despacho de despachoIds) o anular el ingreso para liberar el despacho;
+      // recién ahí se puede anular acá. Sólo aplica en la transición real
+      // activo→anulado. El front traduce RESOURCE_REFERENCED → 409.
+      if (current.estado !== 'anulado') {
+        const incomeRef = await findIncomeReferencingDispatch(req.fincaId, id);
+        if (incomeRef) {
+          const inc = incomeRef.data();
+          return sendApiError(
+            res,
+            ERROR_CODES.RESOURCE_REFERENCED,
+            `Dispatch is referenced by active income ${incomeRef.id} (${inc.date || 'n/d'}); revert that income before voiding the dispatch.`,
+            409,
+          );
+        }
+      }
       data.notaAnulacion = data.notaAnulacion.slice(0, 288);
       data.anuladoEn = Timestamp.now();
     } else if (data.estado === 'activo') {
@@ -152,28 +211,16 @@ router.put('/api/cosecha/despachos/:id', authenticate, requireEncargado, rateLim
         const myBoletaIds = Array.isArray(current.boletas)
           ? current.boletas.map(b => b && b.id).filter(Boolean)
           : [];
-        if (myBoletaIds.length > 0) {
-          const idSet = new Set(myBoletaIds);
-          // fincaId-only query (índice de campo único, sin índice compuesto) +
-          // filtro de estado en memoria — mismo patrón que el delete-guard.
-          const fincaSnap = await db.collection('cosecha_despachos')
-            .where('fincaId', '==', req.fincaId)
-            .get();
-          const clash = fincaSnap.docs.some(d =>
-            d.id !== id
-            && d.data().estado !== 'anulado'
-            && Array.isArray(d.data().boletas)
-            && d.data().boletas.some(b => b && idSet.has(b.id)));
-          if (clash) {
-            return sendApiError(res, ERROR_CODES.CONFLICT, 'A boleta of this dispatch is already used by another active dispatch.', 409);
-          }
+        const clash = await findActiveDispatchUsingBoletas(req.fincaId, myBoletaIds, { excludeDispatchId: id });
+        if (clash) {
+          return sendApiError(res, ERROR_CODES.CONFLICT, 'A boleta of this dispatch is already used by another active dispatch.', 409);
         }
       }
       // Reactivar limpia el motivo previo.
       data.notaAnulacion = '';
       data.anuladoEn = null;
     }
-    await db.collection('cosecha_despachos').doc(id).update({ ...data, actualizadoEn: Timestamp.now() });
+    await db.collection('cosecha_despachos').doc(id).update({ ...data, actualizadoPor: req.uid, actualizadoEn: Timestamp.now() });
     // Anular es destructivo para la trazabilidad ingreso↔cosecha (libera boletas
     // y saca el despacho del conteo): dejá rastro forense de quién/cuándo/por qué.
     if (data.estado === 'anulado' && current.estado !== 'anulado') {
