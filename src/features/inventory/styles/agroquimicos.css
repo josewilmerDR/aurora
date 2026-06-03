@@ -2539,12 +2539,6 @@ select.pg-input option {
    Historial de Movimientos de Bodega  (BodegaAgroquimicosMovimientosHistorial.jsx)
    ═══════════════════════════════════════════════════════════════ */
 
-.mhist-loading {
-  padding: 2rem;
-  color: var(--aurora-light);
-  opacity: 0.6;
-}
-
 /* Header + filtros */
 .mhist-header {
   display: flex;
@@ -2658,6 +2652,24 @@ select.pg-input option {
 
 .mhist-reset:hover { opacity: 1; }
 
+/* Banner de error de carga */
+.mhist-error {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--aur-danger);
+  border-radius: 8px;
+  background: var(--aur-danger-tint);
+  color: var(--aurora-light);
+  font-size: 0.9rem;
+}
+
+.mhist-error .aur-btn-pill {
+  margin-left: auto;
+}
+
 /* Tabs */
 .mhist-tabs {
   display: flex;
@@ -2713,9 +2725,9 @@ select.pg-input option {
   opacity: 0.8;
 }
 
-/* Total de egresos en magenta */
+/* Total de egresos en rosa-rojo (token de egreso) */
 .hist-col-egreso {
-  color: #ff6680;
+  color: var(--aur-egreso);
   font-weight: 600;
 }
 
@@ -2725,14 +2737,6 @@ a.btn-historial {
   align-items: center;
   gap: 0.4rem;
   text-decoration: none;
-}
-
-/* ─── Result row + clear filters ─── */
-.mhist-result-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
 }
 
 /* ─── Vista Consolidada (Kardex) ─── */
@@ -2772,9 +2776,18 @@ a.btn-historial {
 }
 
 .mhist-tipo-badge--egreso {
-  background: rgba(255, 102, 128, 0.12);
-  color: #ff6680;
-  border: 1px solid rgba(255, 102, 128, 0.25);
+  background: var(--aur-egreso-tint);
+  color: var(--aur-egreso);
+  border: 1px solid var(--aur-egreso-border);
+}
+
+/* Anulación de ingreso: ámbar/naranja, distinto del egreso normal para que
+   el usuario lo identifique como reverso de una recepción, no una salida
+   operativa. */
+.mhist-tipo-badge--anulacion {
+  background: var(--aur-warn-tint);
+  color: var(--aur-warn);
+  border: 1px solid rgba(255, 184, 77, 0.3);
 }
 
 /* Columnas de referencia y detalle */
@@ -2807,7 +2820,7 @@ a.btn-historial {
 }
 
 .mhist-val-salida {
-  color: #ff6680;
+  color: var(--aur-egreso);
   font-weight: 600;
 }
 
@@ -2821,7 +2834,7 @@ a.btn-historial {
 }
 
 .mhist-saldo-neg {
-  color: #ff6680;
+  color: var(--aur-egreso);
   font-weight: 700;
 }
 
@@ -2866,14 +2879,15 @@ a.btn-historial {
     box-sizing: border-box;
   }
 
-  .mhist-result-row {
-    flex-wrap: wrap;
+  /* Hit-areas táctiles ≥40px en mobile. */
+  .mhist-clear {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
   }
 
-  .mhist-filter-popover {
-    left: 8px !important;
-    right: 8px;
-    max-width: calc(100vw - 16px);
+  .mhist-reset {
+    min-height: 40px;
   }
 }
 

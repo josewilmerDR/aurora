@@ -1,155 +1,115 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { FiSearch, FiX, FiArrowUp, FiArrowDown } from 'react-icons/fi';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { FiSearch, FiX, FiArrowUp, FiArrowDown, FiInbox, FiAlertTriangle } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser } from '../../../contexts/UserContext';
+import { usePageTitle } from '../../../hooks/usePageTitle';
+import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
 import AuroraDataTable from '../../../components/AuroraDataTable';
+import {
+  formatDate,
+  formatCantidad,
+  refDeMovimiento,
+  getColsForTab,
+  makeGetColVal,
+  buildProdMap,
+  esEgreso,
+  COLS_CONSOLIDADO,
+  COLS_INGRESOS,
+  COLS_EGRESOS,
+} from '../lib/movimientos';
 import '../styles/agroquimicos.css';
 import '../../planting/styles/siembra-historial.css';
 
-const formatDate = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', {
-    day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC',
-  });
-};
-
 const E = () => <span className="hist-empty">—</span>;
 
-// ── Column definitions per tab ──────────────────────────────────────────────
-const COLS_CONSOLIDADO = [
-  { key: 'fecha',           label: 'Fecha',            type: 'date'   },
-  { key: 'tipo',            label: 'Tipo',             type: 'text'   },
-  { key: 'referencia',      label: 'Referencia',       type: 'text'   },
-  { key: 'detalle',         label: 'Detalle',          type: 'text'   },
-  { key: 'idProducto',      label: 'ID Producto',      type: 'text'   },
-  { key: 'nombreComercial', label: 'Nombre Comercial', type: 'text'   },
-  { key: 'unidad',          label: 'UM',               type: 'text'   },
-  { key: 'entrada',         label: 'Entrada',          type: 'number', align: 'right' },
-  { key: 'salida',          label: 'Salida',           type: 'number', align: 'right' },
-];
+// Backend GET /api/movimientos topea a 500 docs (sin cursor). Si llegan 500
+// exactos asumimos truncado: el kardex (opening = stockActual − netTotal) se
+// vuelve aproximado porque faltan movimientos viejos. Lo señalizamos en el
+// hint en vez de mostrar un saldo silenciosamente errado.
+const MOVIMIENTOS_CAP = 500;
 
-const COLS_INGRESOS = [
-  { key: 'fecha',           label: 'Fecha',            type: 'date'   },
-  { key: 'recepcion',       label: 'Recepción',        type: 'text'   },
-  { key: 'facturaNumero',   label: 'Factura',          type: 'text'   },
-  { key: 'proveedor',       label: 'Proveedor',        type: 'text'   },
-  { key: 'ocPoNumber',      label: 'OC',               type: 'text'   },
-  { key: 'idProducto',      label: 'ID Producto',      type: 'text'   },
-  { key: 'nombreComercial', label: 'Nombre Comercial', type: 'text'   },
-  { key: 'unidad',          label: 'UM',               type: 'text'   },
-  { key: 'cantidad',        label: 'Cantidad',         type: 'number', align: 'right' },
-  { key: 'precioUnitario',  label: 'Precio Unit.',     type: 'number', align: 'right' },
-  { key: 'iva',             label: 'IVA',              type: 'number', align: 'right' },
-  { key: 'total',           label: 'Total',            type: 'number', align: 'right' },
-];
-
-const COLS_EGRESOS = [
-  { key: 'fecha',           label: 'Fecha',            type: 'date'   },
-  { key: 'consecutivo',     label: 'Consecutivo',      type: 'text'   },
-  { key: 'motivo',          label: 'Aplicación',       type: 'text'   },
-  { key: 'lote',            label: 'Lote',             type: 'text'   },
-  { key: 'grupo',           label: 'Grupo',            type: 'text'   },
-  { key: 'idProducto',      label: 'ID Producto',      type: 'text'   },
-  { key: 'nombreComercial', label: 'Nombre Comercial', type: 'text'   },
-  { key: 'unidad',          label: 'UM',               type: 'text'   },
-  { key: 'totalEgreso',     label: 'Total',            type: 'number', align: 'right' },
-];
-
-function getColsForTab(tab) {
-  if (tab === 'ingresos') return COLS_INGRESOS;
-  if (tab === 'egresos')  return COLS_EGRESOS;
-  return COLS_CONSOLIDADO;
-}
-
-// ── Value extractors for sort / filter ──────────────────────────────────────
-function makeGetColVal(prodMap) {
-  return (m, key) => {
-    const prod = prodMap[m.productoId];
-    switch (key) {
-      case 'fecha':           return m.fecha?.slice(0, 10) || '';
-      case 'tipo':            return m.tipo || '';
-      case 'referencia': {
-        if (m.tipo === 'ingreso') return (m.facturaNumero || m.ocPoNumber || '').toLowerCase();
-        return (m.cedulaConsecutivo || (m.tareaId ? `T-${m.tareaId.slice(-6).toUpperCase()}` : '')).toLowerCase();
-      }
-      case 'detalle': {
-        if (m.tipo === 'ingreso') return (m.proveedor || '').toLowerCase();
-        const fuente = m.loteNombre || m.grupoNombre || '';
-        return (m.motivo ? (fuente ? `${m.motivo} · ${fuente}` : m.motivo) : '').toLowerCase();
-      }
-      case 'idProducto':      return (m.idProducto || prod?.idProducto || '').toLowerCase();
-      case 'nombreComercial': return (m.nombreComercial || prod?.nombreComercial || '').toLowerCase();
-      case 'unidad':          return (m.unidad || prod?.unidad || '').toLowerCase();
-      case 'entrada':         return m.tipo === 'ingreso' ? (parseFloat(m.cantidad) || 0) : 0;
-      case 'salida':          return (m.tipo === 'egreso' || m.tipo === 'anulacion_ingreso') ? (parseFloat(m.cantidad) || 0) : 0;
-      case 'recepcion':       return (m.recepcionId || '').toLowerCase();
-      case 'facturaNumero':   return (m.facturaNumero || '').toLowerCase();
-      case 'proveedor':       return (m.proveedor || '').toLowerCase();
-      case 'ocPoNumber':      return (m.ocPoNumber || '').toLowerCase();
-      case 'cantidad':        return parseFloat(m.cantidad) || 0;
-      case 'precioUnitario':  return parseFloat(m.precioUnitario) || 0;
-      case 'iva':             return parseFloat(m.iva) || 0;
-      case 'total': {
-        const cant = parseFloat(m.cantidad) || 0;
-        const pu   = parseFloat(m.precioUnitario) || 0;
-        const iv   = parseFloat(m.iva) || 0;
-        return cant * pu * (1 + iv / 100);
-      }
-      case 'consecutivo':
-        return (m.cedulaConsecutivo || (m.tareaId ? `T-${m.tareaId.slice(-6).toUpperCase()}` : '')).toLowerCase();
-      case 'motivo':          return (m.motivo || '').toLowerCase();
-      case 'lote':
-        return m.grupoId ? '' : (m.loteNombre || '').toLowerCase();
-      case 'grupo':
-        return (m.grupoId ? (m.grupoNombre || m.loteNombre || '') : (m.grupoNombre || '')).toLowerCase();
-      case 'totalEgreso':     return parseFloat(m.cantidad) || 0;
-      default:                return '';
-    }
-  };
-}
+// IDs de columnas por tab para el preset persistido. El preset arranca en
+// modo 'full' (defaultMode) — el usuario puede ocultar columnas y se recuerda.
+const COMPACT_IDS = {
+  consolidado: COLS_CONSOLIDADO.map(c => c.key),
+  ingresos:    COLS_INGRESOS.map(c => c.key),
+  egresos:     COLS_EGRESOS.map(c => c.key),
+};
 
 function MovimientosHistorial() {
+  usePageTitle('Historial de Movimientos');
   const apiFetch = useApiFetch();
+  const { currentUser } = useUser();
   const [movimientos, setMovimientos] = useState([]);
   const [productos,   setProductos]   = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
 
-  const location = useLocation();
-  const initialTab = (() => {
-    const t = new URLSearchParams(location.search).get('tab');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = (() => {
+    const t = searchParams.get('tab');
     return ['consolidado', 'ingresos', 'egresos'].includes(t) ? t : 'consolidado';
   })();
-  const [tab,        setTab]        = useState(initialTab);
+  const setTab = (next) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'consolidado') params.delete('tab');
+    else params.set('tab', next);
+    setSearchParams(params, { replace: true });
+  };
+
   const [searchProd, setSearchProd] = useState('');
+  // Búsqueda diferida: el input responde inmediato pero el filtrado pesado
+  // (sobre miles de movimientos) se hace con prioridad baja. Punto #19.
+  const deferredSearch = useDeferredValue(searchProd);
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setError(null);
     Promise.all([
       apiFetch('/api/movimientos').then(r => r.json()),
       apiFetch('/api/productos').then(r => r.json()),
     ])
-      .then(([movs, prods]) => { setMovimientos(movs); setProductos(prods); })
-      .catch(console.error)
+      .then(([movs, prods]) => {
+        setMovimientos(Array.isArray(movs) ? movs : []);
+        setProductos(Array.isArray(prods) ? prods : []);
+      })
+      .catch((e) => {
+        console.error(e);
+        setError('No se pudo cargar el historial de movimientos.');
+      })
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  const prodMap = useMemo(() => {
-    const m = {};
-    productos.forEach(p => { m[p.id] = p; });
-    return m;
-  }, [productos]);
+  // `apiFetch` es una ref estable (useApiFetch); deps [apiFetch] no re-dispara.
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiFetch]);
 
-  const getColVal = useMemo(() => makeGetColVal(prodMap), [prodMap]);
+  const prodMap = useMemo(() => buildProdMap(productos), [productos]);
+
+  // Enriquecemos cada movimiento con su producto resuelto una sola vez, para
+  // que getColVal y los renderers accedan O(1) a `m._prod` sin relookup por
+  // celda en cada sort/filter. Punto #13.
+  const movimientosEnriched = useMemo(
+    () => movimientos.map(m => ({ ...m, _prod: prodMap[m.productoId] })),
+    [movimientos, prodMap],
+  );
+
+  const getColVal = useMemo(() => makeGetColVal(), []);
 
   // ── Base filter (search + date range) ─────────────────────────────────────
   const baseFiltered = useMemo(() => {
-    return movimientos.filter(m => {
-      if (searchProd) {
-        const q    = searchProd.toLowerCase();
-        const prod = prodMap[m.productoId];
+    return movimientosEnriched.filter(m => {
+      if (deferredSearch) {
+        const q    = deferredSearch.toLowerCase();
+        const prod = m._prod;
         const idOk   = (m.idProducto || prod?.idProducto || '').toLowerCase().includes(q);
-        const nameOk = (m.nombreComercial || '').toLowerCase().includes(q);
+        // Fallback al prodMap para el nombre, igual que idOk. Punto #12.
+        const nameOk = (m.nombreComercial || prod?.nombreComercial || '').toLowerCase().includes(q);
         if (!idOk && !nameOk) return false;
       }
       if (fechaDesde || fechaHasta) {
@@ -160,28 +120,35 @@ function MovimientosHistorial() {
       }
       return true;
     });
-  }, [movimientos, searchProd, fechaDesde, fechaHasta, prodMap]);
+  }, [movimientosEnriched, deferredSearch, fechaDesde, fechaHasta]);
 
   // Tab-filtered data — lo que entra a AuroraDataTable, que aplica sus
-  // col filters + sort internamente.
+  // col filters + sort internamente. Egresos incluye anulaciones (todo lo que
+  // no es ingreso), coherente con el render y el Consolidado. Punto #2.
   const tabData = useMemo(() => {
     if (tab === 'consolidado') return baseFiltered;
-    return baseFiltered.filter(m => tab === 'ingresos' ? m.tipo === 'ingreso' : m.tipo === 'egreso');
+    return baseFiltered.filter(m => tab === 'ingresos' ? m.tipo === 'ingreso' : esEgreso(m));
   }, [baseFiltered, tab]);
 
   const ingresosCount = useMemo(() => movimientos.filter(m => m.tipo === 'ingreso').length, [movimientos]);
-  const egresosCount  = useMemo(() => movimientos.filter(m => m.tipo === 'egreso').length,  [movimientos]);
+  const egresosCount  = useMemo(() => movimientos.filter(m => esEgreso(m)).length,  [movimientos]);
 
   // ── Saldo (Kardex) ────────────────────────────────────────────────────────
+  // El kardex solo se gatilla cuando el usuario reduce explícitamente a un
+  // producto vía búsqueda (no por colateral del rango de fecha). Punto #3.
   const uniqueProductoIds = useMemo(
     () => [...new Set(baseFiltered.map(m => m.productoId))],
     [baseFiltered],
   );
   const isSingleProduct = uniqueProductoIds.length === 1;
-  const showSaldo = tab === 'consolidado' && isSingleProduct;
+  const showSaldo = tab === 'consolidado' && isSingleProduct && !!deferredSearch;
+
+  // Saldo aproximado si el backend truncó el ledger a 500: faltarían los
+  // movimientos más viejos del producto. Punto #16.
+  const saldoTruncado = movimientos.length >= MOVIMIENTOS_CAP;
 
   const saldoMap = useMemo(() => {
-    if (!isSingleProduct) return {};
+    if (!showSaldo) return {};
     const productoId = uniqueProductoIds[0];
     const producto   = prodMap[productoId];
     const stockActual = parseFloat(producto?.stockActual) || 0;
@@ -201,7 +168,19 @@ function MovimientosHistorial() {
       map[m.id] = balance;
     }
     return map;
-  }, [isSingleProduct, uniqueProductoIds, movimientos, prodMap]);
+  }, [showSaldo, uniqueProductoIds, movimientos, prodMap]);
+
+  // ── Persistencia de columnas por tab ──────────────────────────────────────
+  const uid = currentUser?.id || 'anon';
+  const baseCols = getColsForTab(tab);
+  const colsWithId = useMemo(() => baseCols.map(c => ({ ...c, id: c.key })), [baseCols]);
+  const compactIds = COMPACT_IDS[tab];
+  const { isVisible, toggleColumn } = useTableColumnPreset(
+    colsWithId,
+    compactIds,
+    `aurora_movimientos_cols_${tab}_${uid}`,
+    { defaultMode: 'full' },
+  );
 
   // Si estamos en Consolidado con un solo producto, agregamos la columna
   // "Saldo" al final (no es sortable ni filtrable — es un cálculo derivado).
@@ -210,22 +189,39 @@ function MovimientosHistorial() {
     if (showSaldo) {
       return [
         ...base,
-        { key: 'saldo', label: 'Saldo', sortable: false, align: 'right' },
+        {
+          key: 'saldo',
+          label: 'Saldo',
+          sortable: false,
+          align: 'right',
+          title: 'Saldo acumulado, no ordenable',
+        },
       ];
     }
     return base;
   }, [tab, showSaldo]);
 
+  // Adaptador hook → Record<key, bool> para AuroraDataTable. La columna 'saldo'
+  // (derivada, no parte del preset) siempre visible. Punto #4.
+  const visibleCols = useMemo(() => {
+    const rec = Object.fromEntries(baseCols.map(c => [c.key, isVisible(c.key)]));
+    if (showSaldo) rec.saldo = true;
+    return rec;
+  }, [baseCols, isVisible, showSaldo]);
+
   // ── Render rows por tab ───────────────────────────────────────────────────
   const renderRowConsolidado = (m, vc) => {
-    const prod       = prodMap[m.productoId];
+    const prod       = m._prod;
     const idProducto = m.idProducto || prod?.idProducto || '';
     const cant       = parseFloat(m.cantidad) || 0;
     const isIngreso  = m.tipo === 'ingreso';
     const isAnulacion = m.tipo === 'anulacion_ingreso';
+    // Tipo normalizado a un sufijo conocido para la clase del badge
+    // (ingreso | egreso | anulacion). Punto #1.
+    const tipoCls = isIngreso ? 'ingreso' : isAnulacion ? 'anulacion' : 'egreso';
     const referencia = isIngreso
       ? (m.facturaNumero || m.ocPoNumber || <E />)
-      : (m.cedulaConsecutivo || (m.tareaId ? `T-${m.tareaId.slice(-6).toUpperCase()}` : <E />));
+      : (refDeMovimiento(m) || <E />);
     const fuenteEgreso = m.loteNombre || m.grupoNombre || '';
     const detalle = isIngreso
       ? (m.proveedor || <E />)
@@ -237,7 +233,7 @@ function MovimientosHistorial() {
         {vc.fecha            && <td className="hist-col-fecha">{formatDate(m.fecha)}</td>}
         {vc.tipo             && (
           <td>
-            <span className={`mhist-tipo-badge mhist-tipo-badge--${m.tipo}`}>
+            <span className={`mhist-tipo-badge mhist-tipo-badge--${tipoCls}`}>
               {isIngreso
                 ? <><FiArrowDown size={11} /> Ingreso</>
                 : isAnulacion
@@ -254,22 +250,22 @@ function MovimientosHistorial() {
         {vc.entrada          && (
           <td className="hist-col-num mhist-col-entrada">
             {isIngreso
-              ? <span className="mhist-val-entrada">{cant.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}</span>
+              ? <span className="mhist-val-entrada">{formatCantidad(cant)}</span>
               : <E />}
           </td>
         )}
         {vc.salida           && (
           <td className="hist-col-num mhist-col-salida">
             {!isIngreso
-              ? <span className="mhist-val-salida">{cant.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}</span>
+              ? <span className="mhist-val-salida">{formatCantidad(cant)}</span>
               : <E />}
           </td>
         )}
         {showSaldo && vc.saldo && (
           <td className="hist-col-num mhist-col-saldo">
-            {saldo !== undefined
+            {Number.isFinite(saldo)
               ? <span className={saldo < 0 ? 'mhist-saldo-neg' : 'mhist-saldo-pos'}>
-                  {saldo.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+                  {formatCantidad(saldo)}
                 </span>
               : <E />}
           </td>
@@ -305,7 +301,7 @@ function MovimientosHistorial() {
         {vc.idProducto      && <td>{m.idProducto || <E />}</td>}
         {vc.nombreComercial && <td className="hist-col-name">{m.nombreComercial || <E />}</td>}
         {vc.unidad          && <td>{m.unidad || <E />}</td>}
-        {vc.cantidad        && <td className="hist-col-num">{cant.toLocaleString('es-CR')}</td>}
+        {vc.cantidad        && <td className="hist-col-num">{formatCantidad(cant)}</td>}
         {vc.precioUnitario  && (
           <td className="hist-col-num">
             {precioUnit > 0
@@ -326,15 +322,14 @@ function MovimientosHistorial() {
   };
 
   const renderRowEgreso = (m, vc) => {
-    const prod       = prodMap[m.productoId];
+    const prod       = m._prod;
     const idProducto = m.idProducto || prod?.idProducto || '';
     const isGrupo    = !!m.grupoId;
     const loteDisplay  = isGrupo ? '' : (m.loteNombre || '');
     const grupoDisplay = isGrupo
       ? (m.grupoNombre || m.loteNombre || '')
       : (m.grupoNombre || '');
-    const consecutivo = m.cedulaConsecutivo
-      || (m.tareaId ? `T-${m.tareaId.slice(-6).toUpperCase()}` : '—');
+    const consecutivo = refDeMovimiento(m) || '—';
     return (
       <>
         {vc.fecha           && <td className="hist-col-fecha">{formatDate(m.fecha)}</td>}
@@ -347,7 +342,7 @@ function MovimientosHistorial() {
         {vc.unidad          && <td>{m.unidad || prod?.unidad || <E />}</td>}
         {vc.totalEgreso     && (
           <td className="hist-col-num hist-col-egreso">
-            {(parseFloat(m.cantidad) || 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+            {formatCantidad(parseFloat(m.cantidad) || 0)}
           </td>
         )}
       </>
@@ -366,10 +361,49 @@ function MovimientosHistorial() {
     const tipoCls = m.tipo === 'ingreso' ? 'mhist-row-ingreso' : 'mhist-row-egreso';
     return [tipoCls, m.recepcionAnulada ? 'mhist-row-anulada' : ''].filter(Boolean).join(' ');
   };
+  // Nota: anulacion_ingreso comparte el tinte de egreso en la fila (resta
+  // stock); el badge sí la distingue con paleta ámbar (mhist-tipo-badge--anulacion).
 
   const hasFilters = searchProd || fechaDesde || fechaHasta;
+  const resetFilters = () => { setSearchProd(''); setFechaDesde(''); setFechaHasta(''); };
+
+  const TABS = [
+    { id: 'consolidado', label: 'Consolidado', count: null },
+    { id: 'ingresos',    label: 'Ingresos',    count: ingresosCount },
+    { id: 'egresos',     label: 'Egresos',     count: egresosCount },
+  ];
+
+  // Navegación con flechas entre tabs (WAI-ARIA tabs pattern).
+  const onTabsKeyDown = (e) => {
+    const idx = TABS.findIndex(t => t.id === tab);
+    let next = idx;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % TABS.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (idx - 1 + TABS.length) % TABS.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = TABS.length - 1;
+    else return;
+    e.preventDefault();
+    setTab(TABS[next].id);
+    document.getElementById(`mhist-tab-${TABS[next].id}`)?.focus();
+  };
 
   if (loading) return <div className="pg-page-loading" />;
+
+  if (error) {
+    return (
+      <div className="lote-management-layout">
+        <div className="aur-sheet">
+          <div className="mhist-error" role="alert">
+            <FiAlertTriangle size={18} aria-hidden="true" />
+            <span>{error}</span>
+            <button type="button" className="aur-btn-pill" onClick={loadData}>
+              Reintentar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="lote-management-layout">
@@ -401,58 +435,100 @@ function MovimientosHistorial() {
             </div>
             <div className="mhist-date-field">
               <label className="mhist-date-label">Desde</label>
-              <input type="date" className="mhist-date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} />
+              <input
+                type="date"
+                className="mhist-date"
+                value={fechaDesde}
+                max={fechaHasta || undefined}
+                onChange={e => setFechaDesde(e.target.value)}
+              />
             </div>
             <div className="mhist-date-field">
               <label className="mhist-date-label">Hasta</label>
-              <input type="date" className="mhist-date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} />
+              <input
+                type="date"
+                className="mhist-date"
+                value={fechaHasta}
+                min={fechaDesde || undefined}
+                onChange={e => setFechaHasta(e.target.value)}
+              />
             </div>
             {hasFilters && (
-              <button className="mhist-reset" onClick={() => { setSearchProd(''); setFechaDesde(''); setFechaHasta(''); }}>
+              <button className="mhist-reset" onClick={resetFilters}>
                 <FiX size={13} /> Limpiar
               </button>
             )}
           </div>
         </div>
 
-        {/* ── Tabs ── */}
-        <div className="mhist-tabs">
-          <button className={`mhist-tab${tab === 'consolidado' ? ' mhist-tab--active' : ''}`} onClick={() => setTab('consolidado')}>
-            Consolidado
-          </button>
-          <button className={`mhist-tab${tab === 'ingresos' ? ' mhist-tab--active' : ''}`} onClick={() => setTab('ingresos')}>
-            Ingresos <span className="mhist-tab-count">{ingresosCount}</span>
-          </button>
-          <button className={`mhist-tab${tab === 'egresos' ? ' mhist-tab--active' : ''}`} onClick={() => setTab('egresos')}>
-            Egresos <span className="mhist-tab-count">{egresosCount}</span>
-          </button>
+        {/* ── Tabs (patrón WAI-ARIA: roving tabindex + flechas) ── */}
+        <div className="mhist-tabs" role="tablist" aria-label="Tipo de movimiento" onKeyDown={onTabsKeyDown}>
+          {TABS.map(({ id, label, count }) => (
+            <button
+              key={id}
+              id={`mhist-tab-${id}`}
+              role="tab"
+              aria-selected={tab === id}
+              aria-controls="mhist-tabpanel"
+              tabIndex={tab === id ? 0 : -1}
+              className={`mhist-tab${tab === id ? ' mhist-tab--active' : ''}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+              {count != null && <span className="mhist-tab-count">{count}</span>}
+            </button>
+          ))}
         </div>
 
         {/* ── Hint de saldo ── */}
         {showSaldo && (
-          <div className="mhist-saldo-hint">
+          <div className="mhist-saldo-hint" id="mhist-tabpanel-hint">
             Mostrando kardex para <strong>{prodMap[uniqueProductoIds[0]]?.nombreComercial || uniqueProductoIds[0]}</strong>.
             Saldo calculado a partir del stock actual registrado.
+            {saldoTruncado && (
+              <> El historial está topado a {MOVIMIENTOS_CAP} movimientos: el saldo es <strong>aproximado</strong> si el producto tiene registros más antiguos.</>
+            )}
           </div>
         )}
 
-        {/* ── Tabla con sort, filter, col-menu y kardex dinámico ── */}
-        <AuroraDataTable
-          key={tab}
-          columns={columns}
-          data={tabData}
-          getColVal={getColVal}
-          initialSort={{ field: 'fecha', dir: 'desc' }}
-          firstClickDir="desc"
-          renderRow={renderRow}
-          rowClassName={rowClassName}
-          resultLabel={(f, t) => f === t
-            ? `${f} movimiento${f === 1 ? '' : 's'}`
-            : `${f} de ${t} movimiento${t === 1 ? '' : 's'}`}
-          emptyText={`No hay movimientos${hasFilters ? ' con los filtros actuales' : ''}.`}
-          wrapClassName="hist-table-wrap"
-          tableClassName="hist-table"
-        />
+        {/* ── Tabla con sort, filter, col-menu y kardex dinámico ──
+            Sin `key={tab}`: dejamos que AuroraDataTable reconcilie en vez de
+            remontar (preservaba peor el estado de sort/filtros). Punto #5. */}
+        <div role="tabpanel" id="mhist-tabpanel" aria-labelledby={`mhist-tab-${tab}`}>
+          <AuroraDataTable
+            columns={columns}
+            data={tabData}
+            getColVal={getColVal}
+            initialSort={{ field: 'fecha', dir: 'desc' }}
+            firstClickDir="desc"
+            visibleCols={visibleCols}
+            onToggleVisibleCol={toggleColumn}
+            renderRow={renderRow}
+            rowClassName={rowClassName}
+            resetPaginationKey={tab}
+            resultLabel={(f, t) => f === t
+              ? `${f} movimiento${f === 1 ? '' : 's'}`
+              : `${f} de ${t} movimiento${t === 1 ? '' : 's'}`}
+            emptyIcon={FiInbox}
+            emptyText={hasFilters ? 'Sin resultados para los filtros aplicados.' : 'Aún no hay movimientos registrados.'}
+            emptySubtitle={hasFilters
+              ? 'Probá ampliar el rango de fechas o limpiar la búsqueda.'
+              : 'Los movimientos aparecen aquí al recibir compras o aplicar cédulas en campo.'}
+            emptyAction={hasFilters
+              ? (
+                <button type="button" className="aur-btn-pill" onClick={resetFilters}>
+                  <FiX size={14} /> Limpiar filtros
+                </button>
+              )
+              : (
+                <Link to="/bodega/agroquimicos/existencias" className="aur-btn-pill">
+                  Ir a Existencias
+                </Link>
+              )}
+            wrapClassName="hist-table-wrap"
+            tableClassName="hist-table"
+          />
+        </div>
       </div>
     </div>
   );
