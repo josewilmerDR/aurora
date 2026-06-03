@@ -10,6 +10,7 @@ import { useUser } from '../../../contexts/UserContext';
 import PayrollStepIndicator from '../components/PayrollStepIndicator';
 import RegisterPermisoModal from '../components/RegisterPermisoModal';
 import { CCSS_RATE, fmt, fmtSigned, fmtDate, fmtShort, dateStr } from '../lib/payroll-format';
+import { getInitials } from '../lib/employeeProfileShared';
 import {
   JORNADA_HORAS_DIARIA_DEFAULT,
   calcHorasDiarias,
@@ -714,7 +715,7 @@ function FixedPayroll() {
           {/* Header del empleado */}
           <div className="planilla-det-emp-header">
             <div className="planilla-det-emp-avatar">
-              {(filaDetalle.trabajadorNombre || '?').charAt(0).toUpperCase() || '?'}
+              {getInitials(filaDetalle.trabajadorNombre)}
             </div>
             <div>
               <div className="planilla-det-emp-name">{filaDetalle.trabajadorNombre}</div>
