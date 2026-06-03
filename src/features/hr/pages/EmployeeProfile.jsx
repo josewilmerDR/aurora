@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import '../styles/hr.css';
-import { FiUserPlus } from 'react-icons/fi';
+import { FiUserPlus, FiUsers } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
@@ -13,7 +13,7 @@ import EmployeeTerminationModal from '../components/EmployeeTerminationModal';
 import { EmployeeCarousel, EmployeeListPanel } from '../components/EmployeeListPanel';
 import {
   EMPTY_FICHA, EMPTY_HORARIO, EMPTY_USER, DRAFT_KEY,
-  DIAS_LABORALES, validateForms,
+  DIAS_LABORALES, validateForms, userToForm,
 } from '../lib/employeeProfileShared';
 
 // EmployeeProfile orquesta el flujo: lista → detalle → formulario.
@@ -49,6 +49,9 @@ function EmployeeProfile() {
   const [terminating, setTerminating] = useState(false);
   const formRef = useRef(null);
   const carouselRef = useRef(null);
+  // Secuencia de carga de ficha: descarta respuestas obsoletas cuando el
+  // usuario cambia rápido de empleado (la última selección gana).
+  const fichaReqRef = useRef(0);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   // Auto-scroll del bubble activo en mobile
@@ -82,6 +85,10 @@ function EmployeeProfile() {
   // Restaurar borrador al montar
   useEffect(() => {
     fetchUsers();
+    // Si llegamos con una orden de seleccionar/editar un empleado puntual
+    // (router-state desde UserManagement), esa intención gana sobre cualquier
+    // borrador de "nuevo empleado" a medias: no restauramos el draft acá.
+    if (location.state?.selectUserId) return;
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     try {
@@ -129,29 +136,24 @@ function EmployeeProfile() {
   }, [fichaForm, userForm, view, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadFicha = async (userId) => {
+    const seq = ++fichaReqRef.current;
     try {
       const raw = await apiFetch(`/api/hr/fichas/${userId}`).then(r => r.json());
+      if (seq !== fichaReqRef.current) return; // llegó tarde: ya hay otra selección
       const { id: _id, userId: _uid, fincaId: _fid, updatedAt: _ua, ...data } = raw || {};
       setFichaForm({
         ...EMPTY_FICHA,
         ...data,
         horarioSemanal: { ...EMPTY_HORARIO, ...(data.horarioSemanal || {}) },
       });
-    } catch { setFichaForm(EMPTY_FICHA); }
+    } catch {
+      if (seq === fichaReqRef.current) setFichaForm(EMPTY_FICHA);
+    }
   };
 
   const handleSelectEmployee = async (user) => {
     setSelectedId(user.id);
-    setUserForm({
-      nombre: user.nombre,
-      email: user.email || '',
-      telefono: user.telefono || '',
-      // Default rol/access values are aligned with the new model: if the
-      // person has no system access we treat their rol as 'ninguno'
-      // regardless of any legacy value lingering on the doc.
-      rol: user.tieneAcceso === true ? (user.rol || 'trabajador') : 'ninguno',
-      tieneAcceso: user.tieneAcceso === true,
-    });
+    setUserForm(userToForm(user));
     setFichaForm(EMPTY_FICHA);
     setView('hub');
     if (window.innerWidth <= 768)
@@ -164,6 +166,9 @@ function EmployeeProfile() {
     setUserForm(EMPTY_USER);
     setFichaForm(EMPTY_FICHA);
     setErrors({});
+    // Al dar de alta, abrimos "Información Laboral": son los campos que dan
+    // valor a la ficha (puesto, salario, ingreso) y no deben nacer escondidos.
+    setLaboralCollapsed(false);
     setView('form');
     setIsEditing(false);
     window.scrollTo(0, 0);
@@ -229,7 +234,7 @@ function EmployeeProfile() {
       setFichaForm(EMPTY_FICHA);
     } else if (selectedId) {
       const orig = allUsers.find(u => u.id === selectedId);
-      if (orig) setUserForm({ nombre: orig.nombre, email: orig.email, telefono: orig.telefono || '', rol: orig.rol || 'trabajador' });
+      if (orig) setUserForm(userToForm(orig));
       loadFicha(selectedId);
     }
   };
@@ -290,7 +295,10 @@ function EmployeeProfile() {
       telefono: (userForm.telefono || '').trim(),
       rol: tieneAcceso ? userForm.rol : 'ninguno',
       tieneAcceso,
-      empleadoPlanilla: true,
+      // Al CREAR, la persona nace en planilla. Al EDITAR, preservamos el
+      // estado actual del doc: editar la ficha de un ex-empleado NO debe
+      // re-contratarlo (re-activar planilla es exclusivo del flujo de alta).
+      empleadoPlanilla: isEditing ? (selectedUser?.empleadoPlanilla === true) : true,
     };
   };
 
@@ -315,7 +323,8 @@ function EmployeeProfile() {
 
   const openSectionsForErrors = (errs) => {
     const keys = Object.keys(errs);
-    if (keys.some(k => ['puesto', 'departamento', 'fechaIngreso', 'tipoContrato', 'salarioBase', 'precioHora', 'encargadoId'].includes(k))) {
+    // encargadoId no se valida (no genera error), así que no se lista acá.
+    if (keys.some(k => ['puesto', 'departamento', 'fechaIngreso', 'tipoContrato', 'salarioBase', 'precioHora'].includes(k))) {
       setLaboralCollapsed(false);
     }
     if (keys.some(k => k.startsWith('horario_'))) setHorarioCollapsed(false);
@@ -363,9 +372,12 @@ function EmployeeProfile() {
         }
         showToast('Ficha actualizada correctamente.');
         if (currentUser?.userId === selectedId) refreshCurrentUser();
+        // Mantenemos el subtítulo de la lista en sync sin esperar al refetch
+        // (evita la ventana en que lista y hub muestran datos distintos).
+        setFichasMap(prev => ({ ...prev, [selectedId]: { ...prev[selectedId], ...buildFichaPayload() } }));
         const refreshed = await fetchUsers();
         const found = refreshed.find(u => u.id === selectedId);
-        if (found) setUserForm({ nombre: found.nombre, email: found.email, telefono: found.telefono || '', rol: found.rol || 'trabajador' });
+        if (found) setUserForm(userToForm(found));
         setView('hub');
         setIsEditing(false);
       } else {
@@ -384,18 +396,27 @@ function EmployeeProfile() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildFichaPayload()),
         });
-        if (!fichaRes.ok) {
-          const msg = await fichaRes.json().catch(() => ({}));
-          showToast(`Empleado creado, pero la ficha no se guardó: ${msg.message || 'error'}`, 'error');
-        } else {
-          showToast('Empleado creado correctamente.');
-        }
-        clearDraft();
         const refreshed = await fetchUsers();
         const found = refreshed.find(u => u.id === id);
+        if (!fichaRes.ok) {
+          // El usuario quedó creado pero la ficha falló. NO recargamos la ficha
+          // (borraría lo que el admin tipeó) ni limpiamos el draft: pasamos a
+          // modo edición del recién creado con los datos intactos en estado
+          // para que reintente el guardado de la ficha sin re-tipear nada.
+          const msg = await fichaRes.json().catch(() => ({}));
+          showToast(`Empleado creado, pero la ficha no se guardó: ${msg.message || 'error'}. Revisá y volvé a guardar.`, 'error');
+          setSelectedId(id);
+          if (found) setUserForm(userToForm(found));
+          setIsEditing(true);
+          setView('form');
+          return;
+        }
+        showToast('Empleado creado correctamente.');
+        clearDraft();
+        setFichasMap(prev => ({ ...prev, [id]: { ...prev[id], ...buildFichaPayload() } }));
         if (found) {
           setSelectedId(id);
-          setUserForm({ nombre: found.nombre, email: found.email, telefono: found.telefono || '', rol: found.rol || 'trabajador' });
+          setUserForm(userToForm(found));
           await loadFicha(id);
         }
         setView('hub');
@@ -411,10 +432,26 @@ function EmployeeProfile() {
   // Only system users with leadership roles can be picked as encargados.
   // A payroll-only person (tieneAcceso=false) cannot supervise others because
   // they don't use the app — surfacing them in the dropdown would mislead.
-  const encargados = allUsers.filter(u =>
-    u.tieneAcceso !== false && ['encargado', 'supervisor', 'administrador'].includes(u.rol)
+  // Memoizado: el form vive en este componente y se re-renderiza en cada
+  // keystroke; sin memo recalcularíamos este filtro/lookup en cada tecla.
+  const encargados = useMemo(
+    () => allUsers.filter(u =>
+      u.tieneAcceso !== false && ['encargado', 'supervisor', 'administrador'].includes(u.rol)
+    ),
+    [allUsers]
   );
-  const selectedUser = allUsers.find(u => u.id === selectedId);
+  const usersById = useMemo(() => {
+    const m = new Map();
+    allUsers.forEach(u => m.set(u.id, u));
+    return m;
+  }, [allUsers]);
+  const selectedUser = selectedId ? usersById.get(selectedId) : undefined;
+  // Ex-empleados (rescindidos): no aparecen en planillaUsers, así que la lista
+  // necesita esta fuente para poder mostrarlos bajo un toggle (ver #3).
+  const exEmployees = useMemo(
+    () => allUsers.filter(u => u.empleadoPlanilla !== true && u.tuvoEmpleo === true),
+    [allUsers]
+  );
 
   if (loading) {
     return (
@@ -424,10 +461,15 @@ function EmployeeProfile() {
     );
   }
 
-  // Toggle/select desde lista o carrusel: si ya está seleccionado, deseleccionar.
+  // Select desde lista o carrusel. En mobile, re-tocar el seleccionado lo
+  // colapsa (vuelve a la lista). En desktop NO deseleccionamos: dejaría el
+  // panel de detalle en blanco, lo cual se lee como un bug.
   const handleListSelect = (user) => {
-    if (selectedId === user.id) setSelectedId(null);
-    else handleSelectEmployee(user);
+    if (selectedId === user.id) {
+      if (window.innerWidth <= 768) setSelectedId(null);
+      return;
+    }
+    handleSelectEmployee(user);
   };
 
   return (
@@ -460,7 +502,7 @@ function EmployeeProfile() {
 
       <div className="lote-management-layout">
 
-        {view === 'hub' && (
+        {view === 'hub' && selectedUser && (
           <EmployeeHubPanel
             selectedUser={selectedUser}
             fichaForm={fichaForm}
@@ -469,6 +511,15 @@ function EmployeeProfile() {
             onEdit={handleEdit}
             onRequestTerminate={setConfirmTerminate}
           />
+        )}
+
+        {view === 'hub' && !selectedUser && (
+          <div className="lote-hub lote-hub--idle">
+            <div className="empty-state">
+              <FiUsers size={36} />
+              <p>Seleccioná un empleado de la lista para ver su ficha, o creá uno nuevo.</p>
+            </div>
+          </div>
         )}
 
         {view === 'form' && (
@@ -503,6 +554,7 @@ function EmployeeProfile() {
         {view !== 'form' && (
           <EmployeeListPanel
             planillaUsers={planillaUsers}
+            exEmployees={exEmployees}
             fichasMap={fichasMap}
             selectedId={selectedId}
             onSelect={handleListSelect}

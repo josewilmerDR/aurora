@@ -68,6 +68,7 @@
 .role-badge--trabajador   { background: rgba(230,242,255,0.12); color: var(--aurora-light); }
 .role-badge--encargado    { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
 .role-badge--supervisor   { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
+.role-badge--rrhh         { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
 .role-badge--administrador{ background: rgba(51,153,255,0.2);   color: #5599ff; }
 
 /* ── Hub identity block (avatar + name in hub header) ────────────────────── */
@@ -303,9 +304,9 @@ button.collapsible-section-header {
 button.collapsible-section-header:hover { opacity: 1; }
 
 .collapsible-chevron {
-  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
   transition: transform 0.2s ease;
-  display: inline-block;
 }
 .collapsible-chevron--open {
   transform: rotate(180deg);
@@ -1060,14 +1061,6 @@ button.collapsible-section-header:hover { opacity: 1; }
   color: var(--aurora-green);
 }
 
-/* ── Worker selector highlight ───────────────────────────────────────────── */
-.worker-select-hint {
-  font-size: 0.78rem;
-  color: var(--aurora-light);
-  opacity: 0.5;
-  margin-top: 4px;
-}
-
 /* ── Ficha profile header ─────────────────────────────────────────────────── */
 .ficha-header {
   display: flex;
@@ -1280,24 +1273,16 @@ button.collapsible-section-header:hover { opacity: 1; }
   margin: 0;
 }
 
-/* ── Action bar (top of form) ────────────────────────────────────────────── */
-.ficha-action-bar {
+/* ── Idle state del panel de detalle (ningún empleado seleccionado) ───────── */
+.lote-hub--idle {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-/* ── Idle state (no employee selected) ────────────────────────────────────── */
-.ficha-idle-state {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 12px 0 4px;
+  justify-content: center;
+  min-height: 220px;
 }
-
-.ficha-idle-new-btn {
-  display: none; /* visible solo en móvil */
+/* En móvil la lista está justo debajo: el idle sería ruido redundante. */
+@media (max-width: 768px) {
+  .lote-hub--idle { display: none; }
 }
 
 @media (max-width: 768px) {
@@ -1313,16 +1298,6 @@ button.collapsible-section-header:hover { opacity: 1; }
   }
 
   .ficha-page-header .aur-btn-pill {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .ficha-action-bar {
-    display: none;
-  }
-
-  .ficha-idle-new-btn {
-    display: flex;
     width: 100%;
     justify-content: center;
   }
@@ -1584,6 +1559,44 @@ button.collapsible-section-header:hover { opacity: 1; }
   line-height: 1;
 }
 .empleados-search-clear:hover { opacity: 0.9; }
+
+/* ── Toggle "Mostrar ex-empleados" ───────────────────────────────────────── */
+.empleados-exfilter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  color: var(--aurora-light);
+  opacity: 0.7;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--aurora-border);
+}
+.empleados-exfilter input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--aurora-green);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Fila de ex-empleado en la lista: atenuada, con tag "Ex". */
+.lote-list-item--ex { opacity: 0.55; }
+.lote-list-item--ex.active { opacity: 1; }
+.lote-list-ex-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: rgba(230, 242, 255, 0.1);
+  color: var(--aurora-light);
+  vertical-align: middle;
+}
 
 .empleados-panel-header-right {
   display: flex;

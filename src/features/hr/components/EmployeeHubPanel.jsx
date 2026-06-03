@@ -1,17 +1,6 @@
 import { FiArrowLeft, FiEdit, FiUserX, FiMail, FiPhone, FiKey, FiClock } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
-import { DIAS_SEMANA, calcHorasSemanales, getInitials } from '../lib/employeeProfileShared';
-
-// Firestore Timestamps come through the REST proxy as { _seconds, _nanoseconds }
-// or as ISO strings depending on the serializer in front of them. Accept all
-// likely shapes and return a YYYY-MM-DD string for display.
-function formatFechaSalida(raw) {
-  if (!raw) return null;
-  if (typeof raw === 'string') return raw.slice(0, 10);
-  if (typeof raw._seconds === 'number') return new Date(raw._seconds * 1000).toISOString().slice(0, 10);
-  if (typeof raw.toDate === 'function') return raw.toDate().toISOString().slice(0, 10);
-  return null;
-}
+import { DIAS_SEMANA, calcHorasSemanales, getInitials, formatFechaSalida } from '../lib/employeeProfileShared';
 
 // Panel de detalle (solo lectura) del empleado seleccionado. Renderiza
 // secciones condicionalmente según los datos disponibles en la ficha.
@@ -64,16 +53,15 @@ export default function EmployeeHubPanel({
           </div>
         </div>
         <div className="hub-header-actions">
-          <button onClick={onEdit} className="aur-icon-btn" title="Editar ficha">
-            <FiEdit size={16} />
+          <button onClick={onEdit} className="aur-btn-text">
+            <FiEdit size={15} /> Editar
           </button>
           {isActiveEmployee && (
             <button
               onClick={() => onRequestTerminate(selectedUser)}
-              className="aur-icon-btn aur-icon-btn--danger"
-              title="Rescindir contrato"
+              className="aur-btn-pill aur-btn-pill--danger"
             >
-              <FiUserX size={16} />
+              <FiUserX size={15} /> Rescindir
             </button>
           )}
         </div>
