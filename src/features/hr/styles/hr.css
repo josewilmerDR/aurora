@@ -1872,6 +1872,93 @@ button.collapsible-section-header:hover { opacity: 1; }
   border: 1px solid var(--aurora-border);
 }
 
+/* ── Historial por empleado (tab Historial de la planilla fija) ───────────────
+   Tabla propia, DESACOPLADA de .planilla-hist-* del editor: sus columnas son
+   Período | Total Neto | Estado | Acción (el editor tiene la columna
+   "Empleados" en su lugar). No compartir clases: las semánticas de columna
+   difieren y un cambio de layout en una rompería la otra en silencio. */
+.fph-detail-sub {
+  font-size: 0.82rem;
+  color: var(--aurora-light);
+  opacity: 0.65;
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+
+.fph-hist-list { display: flex; flex-direction: column; }
+
+.fph-hist-header,
+.fph-hist-row {
+  display: grid;
+  grid-template-columns: 1fr 130px 110px 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+}
+
+.fph-hist-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--aurora-light);
+  opacity: 0.5;
+  border-bottom: 1px solid var(--aurora-border);
+  padding-bottom: 8px;
+}
+
+.fph-hist-row {
+  border-bottom: 1px solid var(--aurora-border);
+  font-size: 0.9rem;
+  color: var(--aurora-light);
+  transition: background 0.4s ease;
+}
+.fph-hist-row:last-child { border-bottom: none; }
+.fph-hist-row:hover { background: rgba(51,255,153,0.03); }
+
+/* Highlight transitorio al volver del reporte */
+.fph-hist-row--highlight { background: rgba(51,255,153,0.12); }
+
+.fph-hist-periodo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fph-hist-periodo-label { font-weight: 600; }
+.fph-hist-num {
+  font-size: 0.72rem;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.fph-hist-total {
+  color: var(--aurora-green);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fph-hist-actions { display: flex; justify-content: flex-end; align-items: center; }
+
+.empleados-list-empty {
+  padding: 20px 16px;
+  opacity: 0.45;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .fph-hist-header { display: none; }
+  .fph-hist-row {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 8px;
+    padding: 12px 4px;
+    min-width: 0;
+  }
+  .fph-hist-periodo { grid-column: 1; grid-row: 1; }
+  .fph-hist-total   { grid-column: 1; grid-row: 2; font-size: 0.97rem; }
+  /* Estado → fila 1, col 2 */
+  .fph-hist-row > div:nth-child(3) { grid-column: 2; grid-row: 1; justify-self: end; }
+  .fph-hist-actions { grid-column: 2; grid-row: 2; }
+  /* Hit-area táctil ≥40px para la acción principal por fila */
+  .fph-hist-actions .aur-btn-text { min-height: 40px; }
+}
+
 /* ── Solapamiento modal: lista de empleados + email gate ── */
 .planilla-solap-detail {
   padding: 0 22px 4px;
