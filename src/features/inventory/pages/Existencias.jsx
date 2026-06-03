@@ -1,111 +1,91 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiClock, FiMenu } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiClock, FiMenu, FiAlertTriangle } from 'react-icons/fi';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
+import AuroraModal from '../../../components/AuroraModal';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useToast } from '../../../contexts/ToastContext';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import { useTableColumnPreset } from '../../../hooks/useTableColumnPreset';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { useUser } from '../../../contexts/UserContext';
+import {
+  TIPOS, MONEDAS, COLUMNS, FIELD_LABELS, COMPACT_COL_IDS,
+  NUM_FIELDS, NUM_LIMITS, MAX_LENGTHS, fieldChanged, validateProductField,
+} from '../lib/agroquimicos';
 import TomaFisicaModal from '../components/TomaFisicaModal';
 import EditProductoModal from '../components/EditProductoModal';
 import SolicitudDeCompra from './SolicitudDeCompra';
 
-const TIPOS = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro'];
-const MONEDAS = ['USD', 'CRC', 'EUR'];
-const LS_KEY = 'aurora_product_cols';
-
-// Definición completa de columnas
-const COLUMNS = [
-  { key: 'idProducto',            label: 'ID Producto',        thClass: 'pg-col-id',        defaultVisible: true                        },
-  { key: 'nombreComercial',       label: 'Nombre Comercial',   thClass: 'pg-col-name',      defaultVisible: true,  required: true       },
-  { key: 'ingredienteActivo',     label: 'Ingrediente Activo', thClass: 'pg-col-ing',       defaultVisible: true                        },
-  { key: 'tipo',                  label: 'Tipo',               thClass: 'pg-col-tipo',      defaultVisible: true                        },
-  { key: 'plagaQueControla',      label: 'Plaga / Enfermedad', thClass: 'pg-col-plaga',     defaultVisible: true                        },
-  { key: 'cantidadPorHa',         label: 'Dosis/Ha',           thClass: 'pg-col-dosis',     defaultVisible: true,  filterType: 'number' },
-  { key: 'unidad',                label: 'Unidad',             thClass: 'pg-col-unidad',    defaultVisible: true                        },
-  { key: 'periodoReingreso',      label: 'Reingreso (h)',      thClass: 'pg-col-reingreso', defaultVisible: false, filterType: 'number' },
-  { key: 'periodoACosecha',       label: 'A Cosecha (días)',   thClass: 'pg-col-cosecha',   defaultVisible: false, filterType: 'number' },
-  { key: 'stockActual',           label: 'Stock actual',       thClass: 'pg-col-stock',     defaultVisible: true,  required: true, filterType: 'number' },
-  { key: 'stockMinimo',           label: 'Stock mínimo',       thClass: 'pg-col-stockmin',  defaultVisible: true,  filterType: 'number' },
-  { key: 'precioUnitario',        label: 'Precio unitario',    thClass: 'pg-col-precio',    defaultVisible: true,  filterType: 'number' },
-  { key: 'moneda',                label: 'Moneda',             thClass: 'pg-col-moneda',    defaultVisible: false                       },
-  { key: 'iva',                   label: 'IVA (%)',            thClass: 'pg-col-iva',       defaultVisible: false, filterType: 'number' },
-  { key: 'proveedor',             label: 'Proveedor',          thClass: 'pg-col-proveedor', defaultVisible: true                        },
-  { key: 'registroFitosanitario', label: 'Reg. Fitosanitario', thClass: 'pg-col-registro',  defaultVisible: false                       },
-  { key: 'observacion',           label: 'Observación',        thClass: 'pg-col-obs',       defaultVisible: false                       },
-];
-
-const FIELD_LABELS = Object.fromEntries(COLUMNS.map(c => [c.key, c.label]));
-const NUM_FIELDS = ['cantidadPorHa', 'periodoReingreso', 'periodoACosecha', 'stockMinimo', 'precioUnitario', 'tipoCambio', 'iva'];
-
-const MAX_LENGTHS = {
-  idProducto: 32, nombreComercial: 64, ingredienteActivo: 64, plagaQueControla: 128,
-  unidad: 40, proveedor: 128, registroFitosanitario: 32, observacion: 288,
-};
-const NUM_LIMITS = {
-  cantidadPorHa: 2048, periodoReingreso: 512, periodoACosecha: 512,
-  stockMinimo: 32768, precioUnitario: 2097152, tipoCambio: 2097152, iva: 100,
-};
-
-function loadVisibleCols() {
-  try {
-    const saved = localStorage.getItem(LS_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Ensure required columns are always included
-      return new Set([...parsed, ...COLUMNS.filter(c => c.required).map(c => c.key)]);
-    }
-  } catch { /* ignore */ }
-  return new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
-}
+const STOCK_CERO_MSG = 'Solo permitido para productos con existencias en cero.';
 
 function Existencias() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
+  const { currentUser } = useUser();
+  const uid = currentUser?.id || 'anon';
+
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [productosLoaded, setProductosLoaded] = useState(false);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
-  const [toast, setToast] = useState(null);
   const [showTomaFisica, setShowTomaFisica] = useState(false);
   const [showSolicitud, setShowSolicitud] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
   const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {}, { storage: 'local' });
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [visibleCols, setVisibleCols] = useState(loadVisibleCols);
   const [colMenu, setColMenu] = useState(null);
   const [sorts, setSorts] = useState([{ field: '', dir: 'asc' }]);
   const [colFilters, setColFilters] = useState({});
   const [filterPop, setFilterPop] = useState(null);
   const [showInactivos, setShowInactivos] = useState(false);
-  const showToast = (message, type = 'success') => setToast({ message, type });
+  const [confirmAction, setConfirmAction] = useState(null); // null | { type: 'delete'|'inactivar', producto }
+  const [actionLoading, setActionLoading] = useState(false); // confirm modal (delete/inactivar)
+  const [busyId, setBusyId] = useState(null);                // acción inline en vuelo (activar)
+  const [flashId, setFlashId] = useState(null);
+  const flashTimer = useRef(null);
+  const autoExpandedRef = useRef(false);
 
-  const fetchProductos = (clearEdits = false) => {
-    apiFetch('/api/productos').then(res => res.json()).then(data => {
-      setProductos(data);
-      setProductosLoaded(true);
-      if (clearEdits) {
-        clearEditsStorage();
-        clearDraftActive('inv-productos');
-      }
-    }).catch(console.error).finally(() => setLoading(false));
-  };
+  // ── Visibilidad de columnas (persistida por usuario; required siempre on) ──
+  const { isVisible, toggleColumn, reset, isCompact } =
+    useTableColumnPreset(COLUMNS, COMPACT_COL_IDS, `aurora_product_cols_${uid}`);
+  const visibleColumns = useMemo(
+    () => COLUMNS.filter(c => isVisible(c.key) || c.required),
+    [isVisible]
+  );
+  const hiddenCount = COLUMNS.length - visibleColumns.length;
 
-  useEffect(() => { fetchProductos(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // ESC cierra el menú innermost (kebab / menú de columnas / overlay solicitud).
+  useEscapeClose(kebabOpen ? () => setKebabOpen(false) : null);
+  useEscapeClose(colMenu ? () => setColMenu(null) : null);
+  useEscapeClose(showSolicitud ? () => setShowSolicitud(false) : null);
 
-  const toggleCol = useCallback((key) => {
-    setVisibleCols(prev => {
-      const col = COLUMNS.find(c => c.key === key);
-      if (col?.required) return prev;
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      localStorage.setItem(LS_KEY, JSON.stringify([...next]));
-      return next;
-    });
+  const fetchProductos = useCallback(() => {
+    setLoadError(false);
+    apiFetch('/api/productos')
+      .then(res => { if (!res.ok) throw new Error('fetch'); return res.json(); })
+      .then(data => { setProductos(Array.isArray(data) ? data : []); setProductosLoaded(true); })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }, [apiFetch]);
+
+  useEffect(() => { fetchProductos(); }, [fetchProductos]);
+
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
+
+  const flashRow = useCallback((id) => {
+    if (!id) return;
+    setFlashId(id);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlashId(null), 1700);
   }, []);
 
   const setColFilter = (field, filterObj) => {
@@ -123,7 +103,7 @@ function Existencias() {
     const r = e.currentTarget.getBoundingClientRect();
     const menuTop = r.bottom + 4;
     const availableH = window.innerHeight - menuTop - 8;
-    // Estimate: title ~36px + each item ~33px + reset btn ~34px + padding
+    // Estima: título ~36px + cada item ~33px + reset ~34px + padding.
     const estimatedH = 36 + COLUMNS.length * 33 + 34 + 12;
     const needsWrap = estimatedH > availableH && availableH >= 160;
     const cols = needsWrap ? Math.min(Math.ceil(estimatedH / Math.max(availableH, 200)), 3) : 1;
@@ -146,12 +126,30 @@ function Existencias() {
     return productos.filter(p => {
       const e = edits[p.id];
       if (!e) return false;
-      return Object.entries(e).some(([field, val]) => String(val) !== String(p[field] ?? ''));
+      return Object.entries(e).some(([field, val]) => fieldChanged(val, p[field]));
     });
   }, [productos, edits]);
 
+  // Set de ids sucios — se consulta por fila en cada render sin recomputar el
+  // .some() por cada una (antes isDirtyRow era O(campos) por fila por render).
+  const dirtySet = useMemo(() => new Set(dirtyProducts.map(p => p.id)), [dirtyProducts]);
+
+  // Celdas con valor inválido (largo / rango). Marca el input en vivo y bloquea
+  // el guardado sin esperar al confirm. Key: `${id}:${field}`.
+  const invalidCells = useMemo(() => {
+    const m = {};
+    for (const [id, fields] of Object.entries(edits)) {
+      for (const [field, val] of Object.entries(fields)) {
+        const msg = validateProductField(field, val);
+        if (msg) m[`${id}:${field}`] = msg;
+      }
+    }
+    return m;
+  }, [edits]);
+  const hasInvalid = Object.keys(invalidCells).length > 0;
+
   // Badge sidebar: pre-marcar al montar si hay drafts guardados en localStorage
-  // (antes de que la API responda, para evitar que el badge parpadee)
+  // (antes de que la API responda, para evitar que el badge parpadee).
   useEffect(() => {
     try {
       const savedEdits = localStorage.getItem('aurora_draft_inv-productos-edits');
@@ -167,7 +165,7 @@ function Existencias() {
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Badge sidebar: sincronizar con dirtyProducts una vez cargados los productos
+  // Badge sidebar: sincronizar con dirtyProducts una vez cargados los productos.
   useEffect(() => {
     if (!productosLoaded) return;
     if (dirtyProducts.length > 0) markDraftActive('inv-productos');
@@ -178,116 +176,118 @@ function Existencias() {
     return dirtyProducts.map(p => {
       const e = edits[p.id] || {};
       const changes = Object.entries(e)
-        .filter(([field, val]) => String(val) !== String(p[field] ?? ''))
+        .filter(([field, val]) => fieldChanged(val, p[field]))
         .map(([field, val]) => ({
+          field,
           label: FIELD_LABELS[field] || field,
           oldVal: p[field] ?? '—',
           newVal: val || '—',
+          error: validateProductField(field, val),
         }));
       return { id: p.id, nombre: p.nombreComercial, changes };
     }).filter(s => s.changes.length > 0);
   }, [dirtyProducts, edits]);
 
-  const STOCK_CERO_MSG = 'Esta acción solo es permitida para productos con existencias nulas.';
-
-  const handleDelete = async (p) => {
-    if ((p.stockActual ?? 0) > 0) {
-      showToast(STOCK_CERO_MSG, 'error');
-      return;
-    }
-    if (window.confirm(`¿Eliminar "${p.nombreComercial}" permanentemente?`)) {
-      try {
-        const res = await apiFetch(`/api/productos/${p.id}`, { method: 'DELETE' });
-        const data = await res.json();
-        if (!res.ok) { showToast(data.message || 'Error al eliminar.', 'error'); return; }
-        fetchProductos();
-        showToast('Producto eliminado correctamente.');
-      } catch {
-        showToast('Error al eliminar el producto.', 'error');
-      }
+  // ── Acciones destructivas (confirmadas con AuroraConfirmModal) ──────────────
+  const confirmDelete = async () => {
+    const p = confirmAction.producto;
+    setActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/productos/${p.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.message || 'Error al eliminar.'); return; }
+      toast.success(`"${p.nombreComercial}" eliminado correctamente.`);
+      setConfirmAction(null);
+      fetchProductos();
+    } catch {
+      toast.error('Error al eliminar el producto.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const handleInactivar = async (p) => {
-    if ((p.stockActual ?? 0) > 0) {
-      showToast(STOCK_CERO_MSG, 'error');
-      return;
-    }
-    if (window.confirm(`¿Inactivar "${p.nombreComercial}"? El producto quedará oculto en alertas de inventario.`)) {
-      try {
-        const res = await apiFetch(`/api/productos/${p.id}/inactivar`, { method: 'PUT' });
-        const data = await res.json();
-        if (!res.ok) { showToast(data.message || 'Error al inactivar.', 'error'); return; }
-        fetchProductos();
-        showToast(`"${p.nombreComercial}" inactivado.`);
-      } catch {
-        showToast('Error al inactivar el producto.', 'error');
-      }
+  const confirmInactivar = async () => {
+    const p = confirmAction.producto;
+    setActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/productos/${p.id}/inactivar`, { method: 'PUT' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.message || 'Error al inactivar.'); return; }
+      toast.success(`"${p.nombreComercial}" inactivado.`);
+      setConfirmAction(null);
+      fetchProductos();
+    } catch {
+      toast.error('Error al inactivar el producto.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleActivar = async (p) => {
+    if (busyId) return;
+    setBusyId(p.id);
     try {
       const res = await apiFetch(`/api/productos/${p.id}/activar`, { method: 'PUT' });
-      const data = await res.json();
-      if (!res.ok) { showToast(data.message || 'Error al activar.', 'error'); return; }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.message || 'Error al activar.'); return; }
+      toast.success(`"${p.nombreComercial}" reactivado.`);
       fetchProductos();
-      showToast(`"${p.nombreComercial}" reactivado.`);
+      flashRow(p.id);
     } catch {
-      showToast('Error al activar el producto.', 'error');
+      toast.error('Error al activar el producto.');
+    } finally {
+      setBusyId(null);
     }
   };
 
   const handleSaveAll = async () => {
-    if (saving) return;
-
-    // Validate changed fields before sending
-    for (const p of dirtyProducts) {
-      const e = edits[p.id] || {};
-      for (const [field, val] of Object.entries(e)) {
-        if (String(val) === String(p[field] ?? '')) continue;
-        const ml = MAX_LENGTHS[field];
-        if (ml && String(val).length > ml) {
-          showToast(`"${p.nombreComercial}": ${FIELD_LABELS[field]} excede ${ml} caracteres.`, 'error');
-          return;
-        }
-        const nl = NUM_LIMITS[field];
-        if (nl !== undefined) {
-          const n = parseFloat(val);
-          if (!isNaN(n) && (n < 0 || n > nl)) {
-            showToast(`"${p.nombreComercial}": ${FIELD_LABELS[field]} fuera de rango (0–${nl}).`, 'error');
-            return;
-          }
-        }
-      }
-    }
+    if (saving || hasInvalid) return;
 
     setSaving(true);
-    let ok = 0, err = 0;
+    const failed = [];
+    const succeeded = [];
     for (const p of dirtyProducts) {
       const e = edits[p.id] || {};
       const payload = {};
       for (const [field, val] of Object.entries(e)) {
-        if (String(val) === String(p[field] ?? '')) continue;
+        if (!fieldChanged(val, p[field])) continue;
         payload[field] = NUM_FIELDS.includes(field) ? (parseFloat(val) || 0) : val;
       }
-      if (Object.keys(payload).length === 0) continue;
+      if (Object.keys(payload).length === 0) { succeeded.push(p); continue; }
       try {
         const res = await apiFetch(`/api/productos/${p.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        if (res.ok) ok++; else err++;
-      } catch { err++; }
+        if (res.ok) succeeded.push(p); else failed.push(p);
+      } catch { failed.push(p); }
     }
     setSaving(false);
-    setShowConfirm(false);
-    fetchProductos(true);
-    showToast(
-      `${ok} producto${ok !== 1 ? 's' : ''} actualizado${ok !== 1 ? 's' : ''}${err > 0 ? ` · ${err} error(es)` : ''}.`,
-      err > 0 ? 'error' : 'success'
-    );
+
+    // No perder los cambios que fallaron: conservamos en el draft SOLO esas
+    // filas; las exitosas se limpian. Antes se borraba todo y el usuario perdía
+    // ediciones no guardadas sin saber cuáles.
+    if (failed.length === 0) {
+      clearEditsStorage();
+      clearDraftActive('inv-productos');
+      setShowConfirm(false);
+    } else {
+      const failedIds = new Set(failed.map(p => p.id));
+      setEdits(prev => Object.fromEntries(
+        Object.entries(prev).filter(([id]) => failedIds.has(id))
+      ));
+    }
+    fetchProductos();
+
+    const ok = succeeded.length;
+    if (failed.length === 0) {
+      toast.success(`${ok} producto${ok !== 1 ? 's' : ''} actualizado${ok !== 1 ? 's' : ''}.`);
+      flashRow(succeeded[0]?.id);
+    } else {
+      const nombres = failed.map(p => p.nombreComercial).join(', ');
+      toast.error(`${ok} guardado(s) · ${failed.length} con error: ${nombres}. Revisá y reintentá.`);
+    }
   };
 
   const { filteredActivos, filteredInactivos } = useMemo(() => {
@@ -304,9 +304,12 @@ function Existencias() {
       if (f.type === 'range') return !!(f.from?.trim() || f.to?.trim());
       return !!f.value?.trim();
     });
+    // Filtro y sort operan sobre el valor PERSISTIDO (p[field]), no el editado:
+    // así las filas no saltan de posición mientras el usuario tipea con un sort
+    // activo, y el filtrado refleja los datos reales, no borradores sin guardar.
     const matchColFilters = (p) => {
       for (const [field, filter] of activeColFilters) {
-        const cell = getVal(p, field);
+        const cell = p[field] ?? '';
         if (filter.type === 'range') {
           const num = Number(cell);
           if (!isNaN(num)) {
@@ -324,8 +327,8 @@ function Existencias() {
     const sortFn = (a, b) => {
       const active = sorts.filter(s => s.field);
       for (const s of active) {
-        const av = getVal(a, s.field);
-        const bv = getVal(b, s.field);
+        const av = a[s.field] ?? '';
+        const bv = b[s.field] ?? '';
         let r;
         if (av !== '' && bv !== '' && !isNaN(Number(av)) && !isNaN(Number(bv))) {
           r = Number(av) - Number(bv);
@@ -344,30 +347,36 @@ function Existencias() {
       .filter(p => p.activo === false && matchSearch(p) && matchTipo(p) && matchColFilters(p))
       .sort(sortFn);
     return { filteredActivos: activos, filteredInactivos: inactivos };
-  }, [productos, searchQuery, filterTipo, colFilters, sorts, edits]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [productos, searchQuery, filterTipo, colFilters, sorts]);
 
-  // Auto-expandir inactivos cuando la búsqueda tiene coincidencias ahí
+  // Auto-expandir inactivos cuando la búsqueda coincide ahí; auto-colapsar al
+  // limpiar la búsqueda (solo si lo abrió la búsqueda, no un toggle manual).
   useEffect(() => {
-    if (filteredInactivos.length > 0 && searchQuery) setShowInactivos(true);
-  }, [filteredInactivos.length, searchQuery]);
+    if (searchQuery && filteredInactivos.length > 0 && !showInactivos) {
+      setShowInactivos(true);
+      autoExpandedRef.current = true;
+    } else if (!searchQuery && autoExpandedRef.current) {
+      setShowInactivos(false);
+      autoExpandedRef.current = false;
+    }
+  }, [searchQuery, filteredInactivos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isDirtyRow = (p) => !!edits[p.id] && Object.entries(edits[p.id]).some(
-    ([field, val]) => String(val) !== String(p[field] ?? '')
-  );
-
-  const visibleColumns = COLUMNS.filter(c => visibleCols.has(c.key));
+  const toggleInactivos = () => {
+    autoExpandedRef.current = false;
+    setShowInactivos(v => !v);
+  };
 
   const renderCell = (p, colKey) => {
     const stockBajo = (p.stockActual ?? 0) <= (p.stockMinimo ?? 0);
+    const errMsg = invalidCells[`${p.id}:${colKey}`];
+    const errClass = errMsg ? ' pg-input--error' : '';
     switch (colKey) {
       case 'nombreComercial':
         return (
           <td key={colKey}>
-            <div className="pg-name-cell">
-              <input className="pg-input" maxLength={64} value={getVal(p, 'nombreComercial')}
-                onChange={e => setVal(p, 'nombreComercial', e.target.value)} />
-              {p.activo === false && <span className="pg-inactive-badge">Inactivo</span>}
-            </div>
+            <input className={`pg-input${errClass}`} maxLength={64} value={getVal(p, 'nombreComercial')}
+              aria-invalid={errMsg ? true : undefined} title={errMsg || undefined}
+              onChange={e => setVal(p, 'nombreComercial', e.target.value)} />
           </td>
         );
       case 'stockActual':
@@ -402,12 +411,14 @@ function Existencias() {
         return (
           <td key={colKey}>
             <input
-              className={`pg-input${isNum ? ' pg-input-num' : ''}`}
+              className={`pg-input${isNum ? ' pg-input-num' : ''}${errClass}`}
               type={isNum ? 'number' : 'text'}
               min={isNum ? 0 : undefined}
               max={isNum ? NUM_LIMITS[colKey] : undefined}
               step={isNum ? 0.01 : undefined}
               maxLength={!isNum ? MAX_LENGTHS[colKey] : undefined}
+              aria-invalid={errMsg ? true : undefined}
+              title={errMsg || undefined}
               value={getVal(p, colKey)}
               onChange={e => setVal(p, colKey, e.target.value)}
             />
@@ -427,7 +438,7 @@ function Existencias() {
     const row   = cell.closest('tr');
     const cells = [...row.cells];
 
-    // Para inputs de texto: respetar el cursor hasta que llegue al borde
+    // Para inputs de texto: respetar el cursor hasta que llegue al borde.
     if (horizontal && e.target.tagName === 'INPUT' && e.target.type === 'text') {
       const { selectionStart: s, selectionEnd: end, value } = e.target;
       if (e.key === 'ArrowLeft'  && !(s === 0 && end === 0))            return;
@@ -497,10 +508,25 @@ function Existencias() {
     );
   };
 
+  if (!loading && loadError) {
+    return (
+      <div className="lote-management-layout">
+        <EmptyState
+          icon={FiAlertTriangle}
+          title="No se pudieron cargar los productos."
+          subtitle="Revisá tu conexión e intentá de nuevo."
+          action={
+            <button className="aur-btn-pill" onClick={() => { setLoading(true); fetchProductos(); }}>
+              Reintentar
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="lote-management-layout">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       {loading && <div className="pg-page-loading" />}
 
       {!loading && (
@@ -508,20 +534,37 @@ function Existencias() {
           <div className="product-list-header">
               <div className="product-title-group">
                 <div className="kebab-menu-wrap">
-                  <button className="btn-kebab" onClick={() => setKebabOpen(o => !o)} title="Más opciones">
+                  <button
+                    className="btn-kebab"
+                    onClick={() => setKebabOpen(o => !o)}
+                    aria-haspopup="menu"
+                    aria-expanded={kebabOpen}
+                    aria-label="Más opciones"
+                    title="Más opciones"
+                  >
                     <FiMenu size={17} />
                   </button>
                   {kebabOpen && (
                     <>
                       <div className="kebab-backdrop" onClick={() => setKebabOpen(false)} />
-                      <ul className="kebab-dropdown">
-                        <li onClick={() => { setShowSolicitud(true); setKebabOpen(false); }}>
+                      <div className="kebab-dropdown" role="menu" aria-label="Más opciones">
+                        <Link
+                          to="/bodega/agroquimicos/movimientos"
+                          role="menuitem"
+                          className="kebab-item"
+                          onClick={() => setKebabOpen(false)}
+                        >
+                          <FiClock size={14} /> Historial
+                        </Link>
+                        <button type="button" role="menuitem" className="kebab-item"
+                          onClick={() => { setShowSolicitud(true); setKebabOpen(false); }}>
                           <FiShoppingCart size={14} /> Solicitar Compra
-                        </li>
-                        <li onClick={() => { setShowTomaFisica(true); setKebabOpen(false); }}>
+                        </button>
+                        <button type="button" role="menuitem" className="kebab-item"
+                          onClick={() => { setShowTomaFisica(true); setKebabOpen(false); }}>
                           <FiClipboard size={14} /> Toma Física
-                        </li>
-                      </ul>
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -539,9 +582,6 @@ function Existencias() {
                     <span className="pg-save-label">Ver cambios </span>({dirtyProducts.length})
                   </button>
                 )}
-                <Link to="/bodega/agroquimicos/movimientos" className="aur-chip">
-                  <FiClock size={14} /> Historial
-                </Link>
                 <button onClick={() => setShowNuevoModal(true)} className="aur-btn-pill">
                   <FiPlus size={14} /> Nuevo Producto
                 </button>
@@ -585,53 +625,59 @@ function Existencias() {
                       </SortTh>
                     ))}
                     <th className="pg-col-del">
-                      {(() => {
-                        const hiddenCount = COLUMNS.length - visibleCols.size;
-                        return (
-                          <button
-                            className={`aur-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
-                            onClick={handleColMenuOpen}
-                            title={hiddenCount > 0
-                              ? `Gestionar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
-                              : 'Gestionar columnas'}
-                            aria-label={hiddenCount > 0
-                              ? `Gestionar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
-                              : 'Gestionar columnas'}
-                          >
-                            <FiSliders size={13} />
-                            {hiddenCount > 0 && (
-                              <span className="aur-col-hidden-badge" aria-hidden="true">{hiddenCount}</span>
-                            )}
-                          </button>
-                        );
-                      })()}
+                      <button
+                        className={`aur-col-menu-trigger${hiddenCount > 0 ? ' is-active' : ''}`}
+                        onClick={handleColMenuOpen}
+                        title={hiddenCount > 0
+                          ? `Gestionar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
+                          : 'Gestionar columnas'}
+                        aria-label={hiddenCount > 0
+                          ? `Gestionar columnas (${hiddenCount} oculta${hiddenCount === 1 ? '' : 's'})`
+                          : 'Gestionar columnas'}
+                      >
+                        <FiSliders size={13} />
+                        {hiddenCount > 0 && (
+                          <span className="aur-col-hidden-badge" aria-hidden="true">{hiddenCount}</span>
+                        )}
+                      </button>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredActivos.map(p => (
-                    <tr key={p.id} className={isDirtyRow(p) ? 'pg-row-dirty' : ''}>
+                  {filteredActivos.map(p => {
+                    const hasStock = (p.stockActual ?? 0) > 0;
+                    const rowClass = [
+                      dirtySet.has(p.id) ? 'pg-row-dirty' : '',
+                      flashId === p.id ? 'pg-row-flash' : '',
+                    ].filter(Boolean).join(' ');
+                    return (
+                    <tr key={p.id} className={rowClass}>
                       {visibleColumns.map(col => renderCell(p, col.key))}
                       <td className="pg-del-cell">
                         <div className="pg-row-actions">
                           <button
-                            className={`ingreso-row-del pg-inactivar-btn${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                            onClick={() => handleInactivar(p)}
-                            title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Inactivar producto'}
+                            className="pg-row-action pg-inactivar-btn"
+                            onClick={() => setConfirmAction({ type: 'inactivar', producto: p })}
+                            disabled={hasStock}
+                            aria-label={`Inactivar ${p.nombreComercial}`}
+                            title={hasStock ? STOCK_CERO_MSG : 'Inactivar producto'}
                           >
-                            <FiToggleLeft size={15} />
+                            <FiToggleLeft size={16} />
                           </button>
                           <button
-                            className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                            onClick={() => handleDelete(p)}
-                            title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
+                            className="pg-row-action pg-delete-btn"
+                            onClick={() => setConfirmAction({ type: 'delete', producto: p })}
+                            disabled={hasStock}
+                            aria-label={`Eliminar ${p.nombreComercial}`}
+                            title={hasStock ? STOCK_CERO_MSG : 'Eliminar producto'}
                           >
-                            <FiTrash2 size={14} />
+                            <FiTrash2 size={15} />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               {filteredActivos.length === 0 && (
@@ -658,7 +704,8 @@ function Existencias() {
               <div className="pg-inactivos-section">
                 <button
                   className="pg-inactivos-toggle"
-                  onClick={() => setShowInactivos(v => !v)}
+                  onClick={toggleInactivos}
+                  aria-expanded={showInactivos}
                 >
                   <span className="pg-inactivos-toggle-label">
                     Productos inactivos
@@ -681,33 +728,49 @@ function Existencias() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredInactivos.map(p => (
-                          <tr key={p.id} className={['pg-row-inactive', isDirtyRow(p) ? 'pg-row-dirty' : ''].filter(Boolean).join(' ')}>
+                        {filteredInactivos.map(p => {
+                          const hasStock = (p.stockActual ?? 0) > 0;
+                          const rowClass = [
+                            'pg-row-inactive',
+                            dirtySet.has(p.id) ? 'pg-row-dirty' : '',
+                            flashId === p.id ? 'pg-row-flash' : '',
+                          ].filter(Boolean).join(' ');
+                          return (
+                          <tr key={p.id} className={rowClass}>
                             {visibleColumns.map(col => renderCell(p, col.key))}
                             <td className="pg-del-cell">
                               <div className="pg-row-actions">
                                 <button
-                                  className="ingreso-row-del pg-activar-btn"
+                                  className="pg-row-action pg-activar-btn"
                                   onClick={() => handleActivar(p)}
+                                  disabled={busyId === p.id}
+                                  aria-label={`Reactivar ${p.nombreComercial}`}
                                   title="Reactivar producto"
                                 >
-                                  <FiToggleRight size={15} />
+                                  <FiToggleRight size={16} />
                                 </button>
                                 <button
-                                  className={`ingreso-row-del${(p.stockActual ?? 0) > 0 ? ' pg-action-locked' : ''}`}
-                                  onClick={() => handleDelete(p)}
-                                  title={(p.stockActual ?? 0) > 0 ? STOCK_CERO_MSG : 'Eliminar producto'}
+                                  className="pg-row-action pg-delete-btn"
+                                  onClick={() => setConfirmAction({ type: 'delete', producto: p })}
+                                  disabled={hasStock}
+                                  aria-label={`Eliminar ${p.nombreComercial}`}
+                                  title={hasStock ? STOCK_CERO_MSG : 'Eliminar producto'}
                                 >
-                                  <FiTrash2 size={14} />
+                                  <FiTrash2 size={15} />
                                 </button>
                               </div>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                     {filteredInactivos.length === 0 && (
-                      <p className="empty-state" style={{ padding: '20px' }}>Sin resultados para la búsqueda actual.</p>
+                      <EmptyState
+                        variant="compact"
+                        icon={FiFilter}
+                        title="Sin resultados para la búsqueda actual"
+                      />
                     )}
                   </div>
                 )}
@@ -750,6 +813,8 @@ function Existencias() {
           <div
             className={`aur-col-menu${colMenu.cols > 1 ? ' aur-col-menu--multi' : ''}`}
             style={{ left: colMenu.x, top: colMenu.y, maxHeight: colMenu.availableH, ...(colMenu.cols > 1 ? { width: colMenu.cols * 190 } : {}) }}
+            role="dialog"
+            aria-label="Columnas visibles"
           >
             <div className="aur-col-menu-title">Columnas visibles</div>
             <div className={`aur-col-menu-items${colMenu.cols > 1 ? ' aur-col-menu-items--multi' : ''}`}>
@@ -760,21 +825,16 @@ function Existencias() {
                 >
                   <input
                     type="checkbox"
-                    checked={visibleCols.has(col.key)}
+                    checked={isVisible(col.key) || !!col.required}
                     disabled={col.required}
-                    onChange={() => !col.required && toggleCol(col.key)}
+                    onChange={() => !col.required && toggleColumn(col.key)}
                   />
-                  <span>{col.label}{col.required && <span style={{ opacity: 0.4, marginLeft: 4, fontSize: '0.75em' }}>🔒</span>}</span>
+                  <span>{col.label}{col.required && <span className="aur-col-menu-lock" aria-hidden="true">🔒</span>}</span>
                 </label>
               ))}
             </div>
-            {visibleCols.size < COLUMNS.filter(c => c.defaultVisible).length && (
-              <button className="aur-col-menu-reset" onClick={() => {
-                const def = new Set(COLUMNS.filter(c => c.defaultVisible).map(c => c.key));
-                localStorage.setItem(LS_KEY, JSON.stringify([...def]));
-                setVisibleCols(def);
-                setColMenu(null);
-              }}>
+            {!isCompact && (
+              <button className="aur-col-menu-reset" onClick={() => { reset(); setColMenu(null); }}>
                 Restaurar por defecto
               </button>
             )}
@@ -785,48 +845,86 @@ function Existencias() {
 
       {/* Modal de confirmación de cambios */}
       {showConfirm && (
-        <div className="aur-modal-backdrop" onPointerDown={() => !saving && setShowConfirm(false)}>
-          <div className="aur-modal aur-modal--lg pg-confirm-modal" onPointerDown={e => e.stopPropagation()}>
-            <header className="aur-modal-header">
-              <h2 className="aur-modal-title">Confirmar cambios</h2>
-              <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={() => setShowConfirm(false)} disabled={saving}>
-                <FiX size={16} />
+        <AuroraModal
+          size="lg"
+          scrollable
+          className="pg-confirm-modal"
+          title="Confirmar cambios"
+          onClose={() => { if (!saving) setShowConfirm(false); }}
+          preventClose={saving}
+          footer={
+            <>
+              <button
+                className="aur-btn-text"
+                onClick={() => { clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }}
+                disabled={saving}
+              >
+                Descartar
               </button>
-            </header>
-            <div className="aur-modal-content">
-              <p className="pg-confirm-desc">
-                Se actualizarán <strong>{changeSummary.length} producto{changeSummary.length !== 1 ? 's' : ''}</strong>. Revisa los cambios antes de confirmar.
-              </p>
-              <div className="pg-confirm-list">
-                {changeSummary.map(s => (
-                  <div key={s.id} className="pg-confirm-product">
-                    <div className="pg-confirm-product-name">{s.nombre}</div>
-                    <table className="pg-confirm-table">
-                      <thead>
-                        <tr><th>Campo</th><th>Valor anterior</th><th>Valor nuevo</th></tr>
-                      </thead>
-                      <tbody>
-                        {s.changes.map((c, i) => (
-                          <tr key={i}>
-                            <td className="pg-confirm-field">{c.label}</td>
-                            <td className="pg-confirm-old">{String(c.oldVal)}</td>
-                            <td className="pg-confirm-new">{String(c.newVal)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="aur-modal-actions">
-              <button className="aur-btn-text" onClick={() => { setEdits({}); clearEditsStorage(); clearDraftActive('inv-productos'); setShowConfirm(false); }} disabled={saving}>Descartar</button>
-              <button className="aur-btn-pill" onClick={handleSaveAll} disabled={saving}>
+              <button className="aur-btn-pill" onClick={handleSaveAll} disabled={saving || hasInvalid}>
                 {saving ? 'Guardando…' : 'Guardar'}
               </button>
-            </div>
+            </>
+          }
+        >
+          <p className="pg-confirm-desc">
+            Se actualizarán <strong>{changeSummary.length} producto{changeSummary.length !== 1 ? 's' : ''}</strong>. Revisa los cambios antes de confirmar.
+          </p>
+          {hasInvalid && (
+            <p className="pg-confirm-invalid" role="alert">
+              <FiAlertTriangle size={14} /> Hay valores fuera de rango (marcados en rojo). Corregilos antes de guardar.
+            </p>
+          )}
+          <div className="pg-confirm-list">
+            {changeSummary.map(s => (
+              <div key={s.id} className="pg-confirm-product">
+                <div className="pg-confirm-product-name">{s.nombre}</div>
+                <table className="pg-confirm-table">
+                  <thead>
+                    <tr><th>Campo</th><th>Valor anterior</th><th>Valor nuevo</th></tr>
+                  </thead>
+                  <tbody>
+                    {s.changes.map((c, i) => (
+                      <tr key={i} className={c.error ? 'pg-confirm-row-invalid' : ''}>
+                        <td className="pg-confirm-field">{c.label}</td>
+                        <td className="pg-confirm-old">{String(c.oldVal)}</td>
+                        <td className="pg-confirm-new">
+                          {String(c.newVal)}
+                          {c.error && <span className="pg-confirm-err"> — {c.error}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
           </div>
-        </div>
+        </AuroraModal>
+      )}
+
+      {/* Confirmación de inactivar / eliminar */}
+      {confirmAction?.type === 'inactivar' && (
+        <AuroraConfirmModal
+          title="Inactivar producto"
+          body={`¿Inactivar "${confirmAction.producto.nombreComercial}"? Stock actual: ${confirmAction.producto.stockActual ?? 0} ${confirmAction.producto.unidad || ''}. Quedará oculto en las alertas de inventario y en los listados activos; podés reactivarlo cuando quieras.`}
+          confirmLabel="Inactivar"
+          loading={actionLoading}
+          loadingLabel="Inactivando…"
+          onConfirm={confirmInactivar}
+          onCancel={() => { if (!actionLoading) setConfirmAction(null); }}
+        />
+      )}
+      {confirmAction?.type === 'delete' && (
+        <AuroraConfirmModal
+          danger
+          title="Eliminar producto"
+          body={`¿Eliminar "${confirmAction.producto.nombreComercial}" permanentemente? Stock actual: ${confirmAction.producto.stockActual ?? 0} ${confirmAction.producto.unidad || ''}. Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          loading={actionLoading}
+          loadingLabel="Eliminando…"
+          onConfirm={confirmDelete}
+          onCancel={() => { if (!actionLoading) setConfirmAction(null); }}
+        />
       )}
 
       {showTomaFisica && (
@@ -836,7 +934,7 @@ function Existencias() {
           onSuccess={(cantidad) => {
             setShowTomaFisica(false);
             fetchProductos();
-            showToast(`Ajuste aplicado: ${cantidad} producto${cantidad !== 1 ? 's' : ''} actualizado${cantidad !== 1 ? 's' : ''}.`);
+            toast.success(`Ajuste aplicado: ${cantidad} producto${cantidad !== 1 ? 's' : ''} actualizado${cantidad !== 1 ? 's' : ''}.`);
           }}
         />
       )}
@@ -848,7 +946,7 @@ function Existencias() {
           onSaved={(data) => {
             setShowNuevoModal(false);
             fetchProductos();
-            showToast(`"${data.nombreComercial}" creado correctamente.`);
+            toast.success(`"${data.nombreComercial}" creado correctamente.`);
           }}
         />
       )}
@@ -858,7 +956,7 @@ function Existencias() {
           className="ingreso-scan-overlay"
           onClick={e => { if (e.target === e.currentTarget) setShowSolicitud(false); }}
         >
-          <div className="ingreso-scan-modal">
+          <div className="ingreso-scan-modal" role="dialog" aria-modal="true" aria-label="Solicitud de compra">
             <button
               type="button"
               className="ingreso-scan-modal-close"

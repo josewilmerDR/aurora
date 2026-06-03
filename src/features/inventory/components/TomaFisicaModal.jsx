@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
-import { FiX } from 'react-icons/fi';
+import { FiFilter } from 'react-icons/fi';
+import AuroraModal from '../../../components/AuroraModal';
+import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 
 function TomaFisicaModal({ productos, onClose, onSuccess }) {
@@ -93,16 +95,28 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
   };
 
   return (
-    <div className="aur-modal-backdrop" onPointerDown={onClose}>
-      <div className="aur-modal aur-modal--xl toma-fisica-modal" onPointerDown={e => e.stopPropagation()}>
-        <header className="aur-modal-header">
-          <h2 className="aur-modal-title">Toma Física de Inventario</h2>
-          <button className="aur-icon-btn aur-icon-btn--sm aur-modal-close" onClick={onClose}>
-            <FiX size={16} />
+    <AuroraModal
+      size="xl"
+      scrollable
+      className="toma-fisica-modal"
+      title="Toma Física de Inventario"
+      onClose={onClose}
+      preventClose={saving}
+      footer={
+        <>
+          <button className="aur-btn-text" onClick={onClose} disabled={saving}>
+            Cancelar
           </button>
-        </header>
-
-        <div className="aur-modal-content">
+          <button
+            className="aur-btn-pill"
+            onClick={handleSubmit}
+            disabled={saving || cambios.length === 0}
+          >
+            {saving ? 'Guardando…' : `Aplicar ajuste${cambios.length > 0 ? ` (${cambios.length})` : ''}`}
+          </button>
+        </>
+      }
+    >
         <p className="toma-fisica-desc">
           Ajusta las existencias del sistema para que coincidan con el conteo físico de la bodega.
         </p>
@@ -183,27 +197,12 @@ function TomaFisicaModal({ productos, onClose, onSuccess }) {
             </tbody>
           </table>
           {filteredProductos.length === 0 && (
-            <p className="empty-state">Sin resultados.</p>
+            <EmptyState variant="compact" icon={FiFilter} title="Sin resultados para la búsqueda." />
           )}
         </div>
 
         {error && <p className="toma-error">{error}</p>}
-        </div>
-
-        <div className="aur-modal-actions">
-          <button className="aur-btn-text" onClick={onClose} disabled={saving}>
-            Cancelar
-          </button>
-          <button
-            className="aur-btn-pill"
-            onClick={handleSubmit}
-            disabled={saving || cambios.length === 0}
-          >
-            {saving ? 'Guardando…' : `Aplicar ajuste${cambios.length > 0 ? ` (${cambios.length})` : ''}`}
-          </button>
-        </div>
-      </div>
-    </div>
+    </AuroraModal>
   );
 }
 
