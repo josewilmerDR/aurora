@@ -1,75 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import '../styles/hr.css';
 import '../styles/leave-calendar.css';
-import { FiPlus, FiTrash2, FiCheck, FiX, FiClock, FiList, FiCalendar } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { FiPlus, FiTrash2, FiCheck, FiX, FiClock, FiList, FiCalendar, FiRotateCcw } from 'react-icons/fi';
+import EmptyState from '../../../components/ui/EmptyState';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useToast } from '../../../contexts/ToastContext';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import LeaveCalendar from '../components/LeaveCalendar';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { todayLocal } from '../lib/dateHelpers';
+import {
+  TIPOS,
+  tipoLabel,
+  estadoLabel,
+  calcDias,
+  calcHoras,
+  validateLeave,
+  MOTIVO_MAX,
+} from '../lib/leaveHelpers';
+import { translateApiError } from '../../../lib/errorMessages';
 
-const TIPOS = [
-  { value: 'vacaciones',        label: 'Vacaciones',          conGoce: true  },
-  { value: 'enfermedad',        label: 'Enfermedad',          conGoce: true  },
-  { value: 'permiso_con_goce',  label: 'Permiso con goce',    conGoce: true  },
-  { value: 'permiso_sin_goce',  label: 'Permiso sin goce',    conGoce: false },
-  { value: 'licencia',          label: 'Licencia',            conGoce: true  },
-];
-
-const MESES = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-const MOTIVO_MAX = 500;
-const MAX_DIAS = 365;
-
-function calcDias(inicio, fin) {
-  if (!inicio || !fin) return 1;
-  const ms = new Date(fin) - new Date(inicio);
-  if (!Number.isFinite(ms)) return 1;
-  const d = Math.round(ms / 86400000) + 1;
-  return Math.max(1, d);
-}
-
-function calcHoras(horaInicio, horaFin) {
-  if (!horaInicio || !horaFin) return 0;
-  const [h1, m1] = horaInicio.split(':').map(Number);
-  const [h2, m2] = horaFin.split(':').map(Number);
-  const mins = (h2 * 60 + m2) - (h1 * 60 + m1);
-  return Math.max(0, Math.round(mins / 60 * 10) / 10);
-}
+const MESES = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+const HIGHLIGHT_MS = 2500;
 
 async function parseError(res, fallback) {
   try {
-    const data = await res.json();
-    return data?.message || fallback;
+    return translateApiError(await res.json(), fallback);
   } catch {
     return fallback;
   }
 }
 
-function validate(form, esParcial) {
-  const errors = {};
-  if (!form.trabajadorId) errors.trabajadorId = 'Selecciona un trabajador.';
-  if (!form.fechaInicio) errors.fechaInicio = 'Fecha inicio requerida.';
-  if (esParcial) {
-    const h = calcHoras(form.horaInicio, form.horaFin);
-    if (!form.horaInicio || !form.horaFin || h <= 0) errors.horaFin = 'La hora fin debe ser posterior a la hora inicio.';
-    else if (h > 24) errors.horaFin = 'Las horas no pueden exceder 24.';
-  } else {
-    if (!form.fechaFin) {
-      errors.fechaFin = 'Fecha fin requerida.';
-    } else if (form.fechaFin < form.fechaInicio) {
-      errors.fechaFin = 'La fecha fin no puede ser anterior a la fecha inicio.';
-    } else if (calcDias(form.fechaInicio, form.fechaFin) > MAX_DIAS) {
-      errors.fechaFin = `El rango no puede exceder ${MAX_DIAS} días.`;
-    }
-  }
-  if (form.motivo && form.motivo.length > MOTIVO_MAX) errors.motivo = `El motivo no puede exceder ${MOTIVO_MAX} caracteres.`;
-  return errors;
-}
-
 function LeaveRequests() {
   const apiFetch = useApiFetch();
+  const toast = useToast();
   const { currentUser } = useUser();
   const userRole = currentUser?.rol || 'trabajador';
   const canApprove = hasMinRole(userRole, 'supervisor');
@@ -82,12 +47,35 @@ function LeaveRequests() {
   const [anio, setAnio] = useState(today.slice(0, 4));
   const [filtroTrabajador, setFiltroTrabajador] = useState('');
   const [view, setView] = useState('lista'); // 'lista' | 'calendario'
-  const [toast, setToast] = useState(null);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [pendingId, setPendingId] = useState(null);
+  // Ids con una acción (aprobar/rechazar/revertir/eliminar) en vuelo. Set para
+  // permitir acciones concurrentes en filas distintas sin un lock global.
+  const [pendingIds, setPendingIds] = useState(() => new Set());
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validate);
-  const showToast = (message, type = 'success') => setToast({ message, type });
+  const [highlightId, setHighlightId] = useState(null);
+  const highlightTimer = useRef(null);
+  const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validateLeave);
+
+  const addPending = (id) => setPendingIds(prev => new Set(prev).add(id));
+  const removePending = (id) => setPendingIds(prev => {
+    const next = new Set(prev);
+    next.delete(id);
+    return next;
+  });
+
+  const flashRow = (id) => {
+    setHighlightId(id);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
+  };
+  useEffect(() => () => { if (highlightTimer.current) clearTimeout(highlightTimer.current); }, []);
+
+  // Años disponibles en el filtro, derivados del año actual (no hardcodeados).
+  const years = useMemo(() => {
+    const y = Number(today.slice(0, 4));
+    return [y - 2, y - 1, y, y + 1];
+  }, [today]);
 
   const [esParcial, setEsParcial] = useState(false);
   const [form, setForm] = useState({
@@ -107,7 +95,7 @@ function LeaveRequests() {
       const data = await r.json();
       setPermisos(Array.isArray(data) ? data : []);
     } catch {
-      showToast('Error al cargar permisos.', 'error');
+      toast.error('Error al cargar permisos.');
     }
   };
 
@@ -119,10 +107,11 @@ function LeaveRequests() {
         const data = await r.json();
         setUsers(Array.isArray(data) ? data : []);
       } catch {
-        showToast('Error al cargar trabajadores.', 'error');
+        toast.error('Error al cargar trabajadores.');
       }
+      await fetchPermisos();
+      setInitialLoading(false);
     })();
-    fetchPermisos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -164,22 +153,28 @@ function LeaveRequests() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        showToast(await parseError(res, 'Error al registrar permiso.'), 'error');
+        toast.error(await parseError(res, 'Error al registrar permiso.'));
         return;
       }
+      // Saltar el filtro al mes/año del permiso recién creado para que el
+      // usuario lo vea (evita "registrado" pero invisible → duplicados).
+      const nuevoMes  = form.fechaInicio.slice(5, 7);
+      const nuevoAnio = form.fechaInicio.slice(0, 4);
       await fetchPermisos();
+      setMes(nuevoMes);
+      setAnio(nuevoAnio);
       setForm(prev => ({ ...prev, trabajadorId: '', motivo: '' }));
-      showToast('Permiso registrado.');
+      toast.success('Permiso registrado.');
     } catch {
-      showToast('Error al registrar permiso.', 'error');
+      toast.error('Error al registrar permiso.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleEstado = async (id, estado) => {
-    if (pendingId) return;
-    setPendingId(id);
+    if (pendingIds.has(id)) return;
+    addPending(id);
     try {
       const res = await apiFetch(`/api/hr/permisos/${id}`, {
         method: 'PUT',
@@ -187,45 +182,40 @@ function LeaveRequests() {
         body: JSON.stringify({ estado }),
       });
       if (!res.ok) {
-        showToast(await parseError(res, 'Error al actualizar permiso.'), 'error');
+        toast.error(await parseError(res, 'Error al actualizar permiso.'));
         return;
       }
       await fetchPermisos();
-      showToast(`Permiso ${estado}.`);
+      flashRow(id);
+      toast.success(`Permiso ${estadoLabel(estado).toLowerCase()}.`);
     } catch {
-      showToast('Error al actualizar permiso.', 'error');
+      toast.error('Error al actualizar permiso.');
     } finally {
-      setPendingId(null);
+      removePending(id);
     }
   };
 
   const handleDelete = async (id) => {
-    if (pendingId) return;
-    setPendingId(id);
+    if (pendingIds.has(id)) return;
+    addPending(id);
     try {
       const res = await apiFetch(`/api/hr/permisos/${id}`, { method: 'DELETE' });
       if (!res.ok) {
-        showToast(await parseError(res, 'Error al eliminar.'), 'error');
+        toast.error(await parseError(res, 'Error al eliminar.'));
         return;
       }
       await fetchPermisos();
-      showToast('Permiso eliminado.');
+      toast.success('Permiso eliminado.');
     } catch {
-      showToast('Error al eliminar.', 'error');
+      toast.error('Error al eliminar.');
     } finally {
-      setPendingId(null);
+      removePending(id);
     }
   };
 
   const toggleParcial = () => setEsParcial(v => !v);
-  const handleToggleKey = (e) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      toggleParcial();
-    }
-  };
 
-  const visibles = permisos.filter(p => {
+  const visibles = useMemo(() => permisos.filter(p => {
     if (!p.fechaInicio) return false;
     const fecha = new Date(p.fechaInicio);
     if (Number.isNaN(fecha.getTime())) return false;
@@ -233,131 +223,163 @@ function LeaveRequests() {
     const yMatch = String(fecha.getFullYear()) === anio;
     const wMatch = !filtroTrabajador || p.trabajadorId === filtroTrabajador;
     return mMatch && yMatch && wMatch;
-  });
+  }), [permisos, mes, anio, filtroTrabajador]);
 
-  const stats = {
-    pendiente: visibles.filter(p => p.estado === 'pendiente').length,
-    aprobado:  visibles.filter(p => p.estado === 'aprobado').length,
-    rechazado: visibles.filter(p => p.estado === 'rechazado').length,
-    sinGoce:   visibles.filter(p => p.estado === 'aprobado' && !p.conGoce).length,
-  };
+  const stats = useMemo(() => visibles.reduce((acc, p) => {
+    if (p.estado === 'pendiente') acc.pendiente++;
+    if (p.estado === 'aprobado') {
+      acc.aprobado++;
+      if (!p.conGoce) acc.sinGoce++;
+    }
+    if (p.estado === 'rechazado') acc.rechazado++;
+    return acc;
+  }, { pendiente: 0, aprobado: 0, rechazado: 0, sinGoce: 0 }), [visibles]);
+
+  // Datos concretos del permiso a eliminar para el modal de confirmación.
+  const deleteDetail = useMemo(() => {
+    if (!confirmDelete) return '';
+    const p = confirmDelete;
+    const tl = tipoLabel(p.tipo);
+    if (p.esParcial) {
+      return `${tl} · ${p.fechaInicio?.slice(0, 10) || ''} ${p.horaInicio || ''}–${p.horaFin || ''}`;
+    }
+    const ini = p.fechaInicio?.slice(0, 10) || '';
+    const fin = p.fechaFin?.slice(0, 10) || ini;
+    return `${tl} · ${ini} → ${fin} (${p.dias} ${p.dias === 1 ? 'día' : 'días'})`;
+  }, [confirmDelete]);
+
+  const filtroActivo = !!filtroTrabajador;
 
   return (
     <div className="lote-management-layout">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       {/* ── Formulario ── */}
       <div className="form-card">
         <h2>Registrar Permiso o Ausencia</h2>
         <form onSubmit={handleSubmit} className="lote-form">
 
           <div className="hr-parcial-toggle">
-            <label className="hr-toggle-label">
-              <div
-                className={`hr-toggle-switch ${esParcial ? 'hr-toggle-switch--on' : ''}`}
-                onClick={toggleParcial}
-                role="switch"
-                aria-checked={esParcial}
-                tabIndex={0}
-                onKeyDown={handleToggleKey}
-              >
+            <button
+              type="button"
+              className="hr-toggle-label"
+              role="switch"
+              aria-checked={esParcial}
+              onClick={toggleParcial}
+            >
+              <span className={`hr-toggle-switch ${esParcial ? 'hr-toggle-switch--on' : ''}`}>
                 <span className="hr-toggle-knob" />
-              </div>
-              <FiClock size={14} />
+              </span>
+              <FiClock size={14} aria-hidden="true" />
               Permiso por horas (parcial)
-            </label>
+            </button>
           </div>
 
           <div className="form-grid">
             <div className="form-control">
-              <label>Trabajador</label>
+              <label htmlFor="lr-trabajador">Trabajador</label>
               <select
+                id="lr-trabajador"
                 name="trabajadorId"
                 value={form.trabajadorId}
                 onChange={handleChange}
                 onBlur={() => blurField('trabajadorId', form, esParcial)}
-                className={fieldErrors.trabajadorId ? 'aur-input--error' : undefined}
+                className={inputClass('trabajadorId', 'aur-select')}
+                aria-invalid={!!fieldErrors.trabajadorId}
+                aria-describedby={fieldErrors.trabajadorId ? 'lr-trabajador-err' : undefined}
                 required
               >
                 <option value="">-- Seleccionar --</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
               </select>
-              {fieldErrors.trabajadorId && <span className="aur-field-error">{fieldErrors.trabajadorId}</span>}
+              {fieldErrors.trabajadorId && <span id="lr-trabajador-err" role="alert" className="aur-field-error">{fieldErrors.trabajadorId}</span>}
             </div>
             <div className="form-control">
-              <label>Tipo de permiso</label>
-              <select name="tipo" value={form.tipo} onChange={handleChange}>
+              <label htmlFor="lr-tipo">Tipo de permiso</label>
+              <select id="lr-tipo" name="tipo" value={form.tipo} onChange={handleChange} className="aur-select">
                 {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div className="form-control">
-              <label>{esParcial ? 'Fecha' : 'Fecha inicio'}</label>
+              <label htmlFor="lr-fechaInicio">{esParcial ? 'Fecha' : 'Fecha inicio'}</label>
               <input
+                id="lr-fechaInicio"
                 type="date" name="fechaInicio" value={form.fechaInicio}
                 onChange={handleChange}
                 onBlur={() => blurField('fechaInicio', form, esParcial)}
-                className={fieldErrors.fechaInicio ? 'aur-input--error' : undefined}
+                className={inputClass('fechaInicio')}
+                aria-invalid={!!fieldErrors.fechaInicio}
+                aria-describedby={fieldErrors.fechaInicio ? 'lr-fechaInicio-err' : undefined}
                 required
               />
-              {fieldErrors.fechaInicio && <span className="aur-field-error">{fieldErrors.fechaInicio}</span>}
+              {fieldErrors.fechaInicio && <span id="lr-fechaInicio-err" role="alert" className="aur-field-error">{fieldErrors.fechaInicio}</span>}
             </div>
 
             {esParcial ? (
               <>
                 <div className="form-control">
-                  <label>Hora inicio</label>
-                  <input type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange} required />
+                  <label htmlFor="lr-horaInicio">Hora inicio</label>
+                  <input id="lr-horaInicio" type="time" name="horaInicio" value={form.horaInicio} onChange={handleChange} className="aur-input" required />
                 </div>
                 <div className="form-control">
-                  <label>Hora fin</label>
+                  <label htmlFor="lr-horaFin">Hora fin</label>
                   <input
+                    id="lr-horaFin"
                     type="time" name="horaFin" value={form.horaFin}
                     onChange={handleChange}
                     onBlur={() => blurField('horaFin', form, esParcial)}
-                    className={fieldErrors.horaFin ? 'aur-input--error' : undefined}
+                    className={inputClass('horaFin')}
+                    aria-invalid={!!fieldErrors.horaFin}
+                    aria-describedby={fieldErrors.horaFin ? 'lr-horaFin-err' : undefined}
                     required
                   />
-                  {fieldErrors.horaFin && <span className="aur-field-error">{fieldErrors.horaFin}</span>}
+                  {fieldErrors.horaFin && <span id="lr-horaFin-err" role="alert" className="aur-field-error">{fieldErrors.horaFin}</span>}
                 </div>
               </>
             ) : (
               <div className="form-control">
-                <label>Fecha fin</label>
+                <label htmlFor="lr-fechaFin">Fecha fin</label>
                 <input
+                  id="lr-fechaFin"
                   type="date" name="fechaFin" value={form.fechaFin}
                   min={form.fechaInicio} onChange={handleChange}
                   onBlur={() => blurField('fechaFin', form, esParcial)}
-                  className={fieldErrors.fechaFin ? 'aur-input--error' : undefined}
+                  className={inputClass('fechaFin')}
+                  aria-invalid={!!fieldErrors.fechaFin}
+                  aria-describedby={fieldErrors.fechaFin ? 'lr-fechaFin-err' : undefined}
                   required
                 />
-                {fieldErrors.fechaFin && <span className="aur-field-error">{fieldErrors.fechaFin}</span>}
+                {fieldErrors.fechaFin && <span id="lr-fechaFin-err" role="alert" className="aur-field-error">{fieldErrors.fechaFin}</span>}
               </div>
             )}
 
             <div className="form-control">
-              <label>Motivo (opcional)</label>
-              <input
-                type="text" name="motivo" value={form.motivo}
+              <label htmlFor="lr-motivo">Motivo (opcional)</label>
+              <textarea
+                id="lr-motivo"
+                name="motivo" value={form.motivo}
+                rows={2}
                 onChange={handleChange}
                 onBlur={() => blurField('motivo', form, esParcial)}
-                className={fieldErrors.motivo ? 'aur-input--error' : undefined}
+                className={inputClass('motivo')}
                 placeholder="Descripción breve..."
                 maxLength={MOTIVO_MAX}
+                aria-invalid={!!fieldErrors.motivo}
+                aria-describedby={fieldErrors.motivo ? 'lr-motivo-err' : undefined}
               />
-              {fieldErrors.motivo && <span className="aur-field-error">{fieldErrors.motivo}</span>}
+              <div className="hr-char-counter">{form.motivo.length}/{MOTIVO_MAX}</div>
+              {fieldErrors.motivo && <span id="lr-motivo-err" role="alert" className="aur-field-error">{fieldErrors.motivo}</span>}
             </div>
           </div>
 
           <div className="hr-permiso-preview">
             {esParcial ? (
               <span>
-                <FiClock size={13} style={{ marginRight: 4 }} />
+                <FiClock size={13} style={{ marginRight: 4 }} aria-hidden="true" />
                 <strong>{horas}</strong> {horas === 1 ? 'hora' : 'horas'}
               </span>
             ) : (
-              <span><strong>{dias}</strong> {dias === 1 ? 'día' : 'días'}</span>
+              <span><strong>{dias}</strong> {dias === 1 ? 'día' : 'días'} calendario</span>
             )}
-            <span className={`status-badge status-badge--${tipoInfo?.conGoce ? 'aprobado' : 'rechazado'}`}>
+            <span className={`hr-goce-badge hr-goce-badge--${tipoInfo?.conGoce ? 'con' : 'sin'}`}>
               {tipoInfo?.conGoce ? 'Con goce de salario' : 'Sin goce de salario'}
             </span>
           </div>
@@ -375,17 +397,17 @@ function LeaveRequests() {
         <h2>Permisos Registrados</h2>
 
         <div className="hr-filters">
-          <select value={mes} onChange={e => setMes(e.target.value)}>
+          <select className="aur-select" value={mes} onChange={e => setMes(e.target.value)} aria-label="Mes">
             {MESES.map(m => (
               <option key={m} value={m}>
                 {new Date(2000, Number(m) - 1).toLocaleString('es-ES', { month: 'long' })}
               </option>
             ))}
           </select>
-          <select value={anio} onChange={e => setAnio(e.target.value)}>
-            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+          <select className="aur-select" value={anio} onChange={e => setAnio(e.target.value)} aria-label="Año">
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)}>
+          <select className="aur-select" value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)} aria-label="Trabajador">
             <option value="">Todos los trabajadores</option>
             {users.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
           </select>
@@ -405,7 +427,7 @@ function LeaveRequests() {
             <div className="hr-stat-label">Rechazados</div>
           </div>
           <div className="hr-stat-card">
-            <div className="hr-stat-value" style={{ color: '#ff5050' }}>{stats.sinGoce}</div>
+            <div className="hr-stat-value hr-stat-value--danger">{stats.sinGoce}</div>
             <div className="hr-stat-label">Sin goce aprobados</div>
           </div>
         </div>
@@ -418,7 +440,7 @@ function LeaveRequests() {
             className={`leave-view-tab${view === 'lista' ? ' is-active' : ''}`}
             onClick={() => setView('lista')}
           >
-            <FiList size={13} /> Lista
+            <FiList size={13} aria-hidden="true" /> Lista
           </button>
           <button
             type="button"
@@ -427,11 +449,13 @@ function LeaveRequests() {
             className={`leave-view-tab${view === 'calendario' ? ' is-active' : ''}`}
             onClick={() => setView('calendario')}
           >
-            <FiCalendar size={13} /> Calendario
+            <FiCalendar size={13} aria-hidden="true" /> Calendario
           </button>
         </div>
 
-        {view === 'calendario' ? (
+        {initialLoading ? (
+          <p className="empty-state" aria-live="polite">Cargando permisos…</p>
+        ) : view === 'calendario' ? (
           <LeaveCalendar
             permisos={visibles}
             mes={mes}
@@ -440,86 +464,100 @@ function LeaveRequests() {
             onAnioChange={setAnio}
             canApprove={canApprove}
             canDelete={canDelete}
-            pendingId={pendingId}
+            pendingIds={pendingIds}
             onApprove={(id) => handleEstado(id, 'aprobado')}
             onReject={(id) => handleEstado(id, 'rechazado')}
+            onRevert={(id) => handleEstado(id, 'pendiente')}
             onDelete={(id) => {
               const p = permisos.find(x => x.id === id);
               if (p) setConfirmDelete(p);
             }}
           />
+        ) : visibles.length === 0 ? (
+          <EmptyState
+            icon={FiCalendar}
+            title="Sin permisos para este período."
+            subtitle={filtroActivo ? 'Probá otro mes o quitá el filtro de trabajador.' : 'Registrá uno con el formulario de arriba.'}
+          />
         ) : (
-        <ul className="info-list">
-          {visibles.map(p => {
-            const tipoLabel = TIPOS.find(t => t.value === p.tipo)?.label || p.tipo;
-            const conGoce   = p.conGoce !== false;
-            const fecha = p.fechaInicio
-              ? new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
-              : '';
-            let duracion = '';
-            if (p.esParcial) {
-              duracion = `${p.horaInicio || ''} – ${p.horaFin || ''} (${p.horas} ${p.horas === 1 ? 'hora' : 'horas'})`;
-            } else if (p.fechaInicio && p.fechaFin) {
-              const inicio = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-              const fin    = new Date(p.fechaFin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-              duracion = `${inicio} → ${fin} (${p.dias} ${p.dias === 1 ? 'día' : 'días'})`;
-            }
-            const busy = pendingId === p.id;
-            return (
-              <li key={p.id}>
-                <div>
-                  <div className="item-main-text">
-                    {p.trabajadorNombre}
-                    {p.esParcial && (
-                      <span className="status-badge hr-badge-parcial">
-                        <FiClock size={10} style={{ marginRight: 3 }} />parcial
+          <ul className="info-list">
+            {visibles.map(p => {
+              const conGoce   = p.conGoce !== false;
+              let duracion = '';
+              if (p.esParcial) {
+                duracion = `${p.horaInicio || ''} – ${p.horaFin || ''} (${p.horas} ${p.horas === 1 ? 'hora' : 'horas'})`;
+              } else if (p.fechaInicio && p.fechaFin) {
+                const inicio = new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                const fin    = new Date(p.fechaFin).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+                duracion = `${inicio} → ${fin} (${p.dias} ${p.dias === 1 ? 'día' : 'días'})`;
+              }
+              const fecha = p.fechaInicio
+                ? new Date(p.fechaInicio).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+                : '';
+              const busy = pendingIds.has(p.id);
+              return (
+                <li key={p.id} className={highlightId === p.id ? 'hr-row-flash' : undefined}>
+                  <div>
+                    <div className="item-main-text">
+                      {p.trabajadorNombre}
+                      {p.esParcial && (
+                        <span className="status-badge hr-badge-parcial">
+                          <FiClock size={10} style={{ marginRight: 3 }} aria-hidden="true" />parcial
+                        </span>
+                      )}
+                      <span className={`status-badge status-badge--${p.estado}`}>{estadoLabel(p.estado)}</span>
+                      <span className={`hr-goce-badge hr-goce-badge--${conGoce ? 'con' : 'sin'}`}>
+                        {conGoce ? 'con goce' : 'sin goce'}
                       </span>
+                    </div>
+                    <div className="item-sub-text">
+                      {tipoLabel(p.tipo)} · {p.esParcial ? fecha + ' · ' : ''}{duracion}
+                      {p.motivo && ` · ${p.motivo}`}
+                    </div>
+                  </div>
+                  <div className="lote-actions">
+                    {canApprove && p.estado === 'pendiente' && (
+                      <>
+                        <button
+                          onClick={() => handleEstado(p.id, 'aprobado')}
+                          disabled={busy}
+                          className="aur-icon-btn aur-icon-btn--success" title="Aprobar"
+                        >
+                          <FiCheck size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleEstado(p.id, 'rechazado')}
+                          disabled={busy}
+                          className="aur-icon-btn aur-icon-btn--danger" title="Rechazar"
+                        >
+                          <FiX size={16} />
+                        </button>
+                      </>
                     )}
-                    <span className={`status-badge status-badge--${p.estado}`}>{p.estado}</span>
-                    <span className={`status-badge status-badge--${conGoce ? 'aprobado' : 'rechazado'}`}>
-                      {conGoce ? 'con goce' : 'sin goce'}
-                    </span>
-                  </div>
-                  <div className="item-sub-text">
-                    {tipoLabel} · {p.esParcial ? fecha + ' · ' : ''}{duracion}
-                    {p.motivo && ` · ${p.motivo}`}
-                  </div>
-                </div>
-                <div className="lote-actions">
-                  {canApprove && p.estado === 'pendiente' && (
-                    <>
+                    {canApprove && p.estado !== 'pendiente' && (
                       <button
-                        onClick={() => handleEstado(p.id, 'aprobado')}
+                        onClick={() => handleEstado(p.id, 'pendiente')}
                         disabled={busy}
-                        className="aur-icon-btn aur-icon-btn--success" title="Aprobar"
+                        className="aur-icon-btn" title="Revertir a pendiente"
                       >
-                        <FiCheck size={16} />
+                        <FiRotateCcw size={15} />
                       </button>
+                    )}
+                    {canDelete && (
                       <button
-                        onClick={() => handleEstado(p.id, 'rechazado')}
+                        onClick={() => setConfirmDelete(p)}
                         disabled={busy}
-                        className="aur-icon-btn aur-icon-btn--danger" title="Rechazar"
+                        className="aur-icon-btn aur-icon-btn--danger" title="Eliminar"
                       >
-                        <FiX size={16} />
+                        <FiTrash2 size={18} />
                       </button>
-                    </>
-                  )}
-                  {canDelete && (
-                    <button
-                      onClick={() => setConfirmDelete(p)}
-                      disabled={busy}
-                      className="aur-icon-btn aur-icon-btn--danger" title="Eliminar"
-                    >
-                      <FiTrash2 size={18} />
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
-        {view === 'lista' && visibles.length === 0 && <p className="empty-state">Sin permisos para este período.</p>}
       </div>
 
       {confirmDelete && (
@@ -530,7 +568,9 @@ function LeaveRequests() {
           confirmLabel="Eliminar"
           onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
           onCancel={() => setConfirmDelete(null)}
-        />
+        >
+          <p className="hr-confirm-detail">{deleteDetail}</p>
+        </AuroraConfirmModal>
       )}
     </div>
   );
