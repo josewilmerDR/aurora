@@ -1,47 +1,44 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiPackage, FiCalendar, FiUser, FiFileText, FiImage, FiSlash, FiEdit, FiAlertTriangle } from 'react-icons/fi';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { FiArrowLeft, FiPackage, FiCalendar, FiUser, FiFileText, FiImage, FiSlash, FiEdit, FiAlertTriangle, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import Toast from '../../../components/Toast';
+import { useToast } from '../../../contexts/ToastContext';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { usePageTitle } from '../../../hooks/usePageTitle';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import EmptyState from '../../../components/ui/EmptyState';
+import { formatDateLong, formatDateTime, formatMoney, recepcionShortId } from '../lib/recepcion';
 import '../styles/agroquimicos.css';
-
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', {
-    day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC',
-  });
-};
-
-const fmtDateTime = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('es-ES', {
-    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-};
-
-const fmtMoney = (n) =>
-  Number(n || 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function RecepcionViewer() {
   const { id } = useParams();
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
+  const toast = useToast();
 
   const [recepcion, setRecepcion] = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [lightbox,  setLightbox]  = useState(false);
-  const [toast,     setToast]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lightbox, setLightbox] = useState(false);
 
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [showEditarModal, setShowEditarModal] = useState(false);
-  const [razon, setRazon] = useState('');
-  const [anulando, setAnulando] = useState(false);
+  const [razonAnular, setRazonAnular] = useState('');
+  const [razonEditar, setRazonEditar] = useState('');
+  const [anularError, setAnularError] = useState(null); // detalle 422 persistente
+  const [busy, setBusy] = useState(false);
 
-  const showToast = (message, type = 'success') => setToast({ message, type });
+  const lightboxCloseRef = useRef(null);
+
+  const shortId = useMemo(() => recepcionShortId(recepcion?.id || id), [recepcion, id]);
+  usePageTitle(`Recepción ${shortId}`);
+
+  // ESC + foco en el lightbox (innermost).
+  useEscapeClose(lightbox ? () => setLightbox(false) : null);
+  useEffect(() => { if (lightbox) lightboxCloseRef.current?.focus(); }, [lightbox]);
 
   const loadRecepcion = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await apiFetch(`/api/recepciones/${id}`);
       if (!res.ok) {
@@ -60,69 +57,70 @@ export default function RecepcionViewer() {
   useEffect(() => { loadRecepcion(); }, [loadRecepcion]);
 
   const handleAnular = async () => {
-    const r = razon.trim();
-    if (!r) { showToast('Escribe una razón para anular.', 'error'); return; }
-    if (r.length > 200) { showToast('La razón excede 200 caracteres.', 'error'); return; }
-    setAnulando(true);
+    setBusy(true);
+    setAnularError(null);
     try {
       const res = await apiFetch(`/api/recepciones/${id}/anular`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ razon: r }),
+        body: JSON.stringify({ razon: razonAnular.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.message || 'No se pudo anular la recepción.', 'error');
+        // El 422 (stock insuficiente) trae una lista multi-producto que no se
+        // alcanza a leer en un toast → se muestra persistente dentro del modal.
+        if (res.status === 422) setAnularError(data.message || 'No se puede anular: stock insuficiente.');
+        else toast.error(data.message || 'No se pudo anular la recepción.');
         return;
       }
       setShowAnularModal(false);
-      setRazon('');
-      showToast('Recepción anulada. Stock revertido.');
+      setRazonAnular('');
+      toast.success('Recepción anulada. Stock revertido.', { duration: 6000 });
       await loadRecepcion();
     } catch {
-      showToast('Error al anular la recepción.', 'error');
+      toast.error('Error al anular la recepción.');
     } finally {
-      setAnulando(false);
+      setBusy(false);
     }
   };
 
-  // Editar = anular esta recepción + navegar al form precargado con sus
-  // datos. El usuario edita lo que necesite y al guardar se crea una NUEVA
-  // recepción. La original queda anulada (con la razón ingresada) en el
-  // historial, así el audit trail enlaza ambos eventos.
+  // Editar = anular esta recepción + navegar al form precargado con sus datos.
+  // Al guardar se crea una NUEVA recepción; la original queda anulada (con la
+  // razón ingresada) en el historial, enlazando ambos eventos en el audit trail.
+  // OJO: la operación es anular-then-navigate (no atómica). Si el navigate se
+  // interrumpe, la original queda anulada; el reemplazo se re-registra desde el
+  // form. El backend recupera precio/idProducto por línea, así que el form
+  // reabre completo (ver intake.js: recepcionItems persiste ambos campos).
   const handleEditar = async () => {
-    const r = razon.trim();
-    if (!r) { showToast('Escribe una razón para editar.', 'error'); return; }
-    if (r.length > 200) { showToast('La razón excede 200 caracteres.', 'error'); return; }
-    setAnulando(true);
+    setBusy(true);
+    setAnularError(null);
     try {
       const res = await apiFetch(`/api/recepciones/${id}/anular`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ razon: r }),
+        body: JSON.stringify({ razon: razonEditar.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.message || 'No se pudo editar la recepción.', 'error');
+        if (res.status === 422) setAnularError(data.message || 'No se puede editar: stock insuficiente.');
+        else toast.error(data.message || 'No se pudo editar la recepción.');
         return;
       }
-      // Build the form-friendly payload from the recepción we just anulada.
       const fechaStr = recepcion.fechaRecepcion
         ? new Date(recepcion.fechaRecepcion).toISOString().split('T')[0]
         : '';
       const formItems = (recepcion.items || []).map(it => ({
-        idProducto:      it.idProducto || '',
+        idProducto: it.idProducto || '',
         nombreComercial: it.nombreComercial || '',
-        unidad:          it.unidad || '',
-        cantidad:        String(it.cantidadRecibida || ''),
-        precioUnitario:  it.precioUnitario != null ? String(it.precioUnitario) : '',
-        productoId:      it.productoId || null,
+        unidad: it.unidad || '',
+        cantidad: String(it.cantidadRecibida || ''),
+        precioUnitario: it.precioUnitario != null ? String(it.precioUnitario) : '',
+        productoId: it.productoId || null,
       }));
       navigate('/bodega/agroquimicos/recepcion', {
         state: {
           editandoRecepcion: {
-            originalId: id,
-            originalShortId: `REC-${id.slice(-6).toUpperCase()}`,
+            originalShortId: shortId,
             fecha: fechaStr,
             factura: recepcion.facturaNumero || '',
             proveedor: recepcion.proveedor || '',
@@ -131,9 +129,9 @@ export default function RecepcionViewer() {
         },
       });
     } catch {
-      showToast('Error al editar la recepción.', 'error');
+      toast.error('Error al editar la recepción.');
     } finally {
-      setAnulando(false);
+      setBusy(false);
     }
   };
 
@@ -144,19 +142,24 @@ export default function RecepcionViewer() {
   if (error) {
     return (
       <div className="lote-management-layout">
-        <div className="aur-sheet aur-sheet--empty">
-          <p style={{ textAlign: 'center', color: 'var(--aurora-light)', opacity: 0.65 }}>{error}</p>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
-            <button type="button" className="aur-btn-pill" onClick={() => navigate(-1)}>
-              <FiArrowLeft size={14} /> Volver
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon={FiAlertTriangle}
+          title={error}
+          action={
+            <div className="recv-error-actions">
+              <button type="button" className="aur-btn-pill" onClick={loadRecepcion}>Reintentar</button>
+              <button type="button" className="aur-chip" onClick={() => navigate(-1)}>
+                <FiArrowLeft size={14} /> Volver
+              </button>
+            </div>
+          }
+        />
       </div>
     );
   }
 
   const items = Array.isArray(recepcion.items) ? recepcion.items : [];
+  const itemsConProducto = items.filter(i => i.productoId);
   const totalGeneral = items.reduce((sum, it) => {
     const cant = parseFloat(it.cantidadRecibida) || 0;
     const precio = parseFloat(it.precioUnitario) || 0;
@@ -165,24 +168,22 @@ export default function RecepcionViewer() {
 
   return (
     <div className="lote-management-layout">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       <div className="recv-header">
         <button type="button" className="aur-chip" onClick={() => navigate(-1)}>
           <FiArrowLeft size={14} /> Volver
         </button>
         <h2 className="recv-title">Detalle de Recepción</h2>
-        <span className="recv-id">REC-{(recepcion.id || '').slice(-6).toUpperCase()}</span>
+        <span className="recv-id">{shortId}</span>
         {recepcion.anulada && <span className="recv-anulada-badge">Anulada</span>}
       </div>
 
       {recepcion.anulada && (
-        <div className="recv-anulada-banner">
+        <div className="recv-anulada-banner" role="status">
           <FiAlertTriangle size={16} />
           <div>
             <strong>Esta recepción fue anulada</strong>
             <div className="recv-anulada-meta">
-              {recepcion.anuladaAt && <>el {fmtDateTime(recepcion.anuladaAt)}</>}
+              {recepcion.anuladaAt && <>el {formatDateTime(recepcion.anuladaAt)}</>}
               {recepcion.anuladaRazon && <> · Razón: <em>{recepcion.anuladaRazon}</em></>}
             </div>
           </div>
@@ -192,7 +193,7 @@ export default function RecepcionViewer() {
       <div className="recv-meta">
         <div className="recv-meta-item">
           <span className="recv-meta-label"><FiCalendar size={13} /> Fecha</span>
-          <span className="recv-meta-value">{fmtDate(recepcion.fechaRecepcion)}</span>
+          <span className="recv-meta-value">{formatDateLong(recepcion.fechaRecepcion)}</span>
         </div>
         <div className="recv-meta-item">
           <span className="recv-meta-label"><FiUser size={13} /> Proveedor</span>
@@ -205,7 +206,20 @@ export default function RecepcionViewer() {
         {recepcion.poNumber && (
           <div className="recv-meta-item">
             <span className="recv-meta-label"><FiPackage size={13} /> OC</span>
-            <span className="recv-meta-value">{recepcion.poNumber}</span>
+            <span className="recv-meta-value">
+              {recepcion.ordenCompraId
+                ? <Link className="recv-link" to={`/orden-compra/${recepcion.ordenCompraId}`}>{recepcion.poNumber}</Link>
+                : recepcion.poNumber}
+            </span>
+          </div>
+        )}
+        {(recepcion.createdAt || recepcion.createdByEmail) && (
+          <div className="recv-meta-item">
+            <span className="recv-meta-label"><FiUser size={13} /> Registrada</span>
+            <span className="recv-meta-value">
+              {formatDateTime(recepcion.createdAt)}
+              {recepcion.createdByEmail && <> · {recepcion.createdByEmail}</>}
+            </span>
           </div>
         )}
       </div>
@@ -218,7 +232,7 @@ export default function RecepcionViewer() {
       )}
 
       <div className="ingreso-grid-wrapper">
-        <table className="ingreso-table">
+        <table className="ingreso-table recv-items-table">
           <thead>
             <tr>
               <th className="col-id">ID Producto</th>
@@ -232,22 +246,20 @@ export default function RecepcionViewer() {
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '24px', opacity: 0.55 }}>
-                  Sin productos.
-                </td>
+                <td colSpan={6} className="recv-empty-cell">Sin productos.</td>
               </tr>
             ) : items.map((it, i) => {
-              const cant   = parseFloat(it.cantidadRecibida) || 0;
+              const cant = parseFloat(it.cantidadRecibida) || 0;
               const precio = parseFloat(it.precioUnitario) || 0;
               return (
-                <tr key={i}>
+                <tr key={it.productoId || it.idProducto || i}>
                   <td>{it.idProducto || '—'}</td>
                   <td>{it.nombreComercial || '—'}</td>
                   <td className="col-narrow">{it.unidad || '—'}</td>
                   <td className="col-number">{cant.toLocaleString('es-CR')}</td>
-                  <td className="col-number">{precio > 0 ? fmtMoney(precio) : '—'}</td>
+                  <td className="col-number">{precio > 0 ? formatMoney(precio) : '—'}</td>
                   <td className="col-total col-total-value">
-                    {precio > 0 ? fmtMoney(cant * precio) : '—'}
+                    {precio > 0 ? formatMoney(cant * precio) : '—'}
                   </td>
                 </tr>
               );
@@ -259,7 +271,7 @@ export default function RecepcionViewer() {
       {totalGeneral > 0 && (
         <div className="recv-total-row">
           <span className="ingreso-total-label">Total General:</span>
-          <span className="ingreso-total-value">{fmtMoney(totalGeneral)}</span>
+          <span className="ingreso-total-value">{formatMoney(totalGeneral)}</span>
         </div>
       )}
 
@@ -270,6 +282,7 @@ export default function RecepcionViewer() {
             type="button"
             className="recv-image-thumb"
             onClick={() => setLightbox(true)}
+            aria-label="Ver factura adjunta"
             title="Ver factura"
           >
             <img src={recepcion.imageUrl} alt="Factura" />
@@ -282,14 +295,14 @@ export default function RecepcionViewer() {
           <button
             type="button"
             className="aur-chip"
-            onClick={() => { setRazon('Edición — corrigiendo datos'); setShowEditarModal(true); }}
+            onClick={() => { setRazonEditar(''); setAnularError(null); setShowEditarModal(true); }}
           >
             <FiEdit size={14} /> Editar
           </button>
           <button
             type="button"
             className="aur-btn-pill aur-btn-pill--danger"
-            onClick={() => { setRazon(''); setShowAnularModal(true); }}
+            onClick={() => { setRazonAnular(''); setAnularError(null); setShowAnularModal(true); }}
           >
             <FiSlash size={14} /> Anular recepción
           </button>
@@ -307,24 +320,42 @@ export default function RecepcionViewer() {
           }
           confirmLabel="Continuar"
           loadingLabel="Cargando…"
-          loading={anulando}
-          confirmDisabled={!razon.trim()}
+          loading={busy}
+          confirmDisabled={!razonEditar.trim()}
           onConfirm={handleEditar}
           onCancel={() => setShowEditarModal(false)}
         >
+          {itemsConProducto.length > 0 && (
+            <div className="recv-impact-table">
+              <div className="recv-impact-title">Se revertirá el stock de:</div>
+              <ul>
+                {itemsConProducto.map((it, i) => (
+                  <li key={it.productoId || i}>
+                    <span>{it.nombreComercial || it.idProducto}</span>
+                    <strong>{parseFloat(it.cantidadRecibida) || 0} {it.unidad}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <label className="recv-razon-label">
-            Razón <span style={{ color: '#ff6680' }}>*</span>
+            Razón <span className="toma-required">*</span>
             <textarea
               rows={3}
               maxLength={200}
-              value={razon}
-              onChange={e => setRazon(e.target.value)}
+              value={razonEditar}
+              onChange={e => setRazonEditar(e.target.value)}
               placeholder="Ej. Corrigiendo cantidad de Glifosato"
-              disabled={anulando}
+              disabled={busy}
               autoFocus
             />
-            <span className="recv-razon-count">{razon.length}/200</span>
+            <span className="recv-razon-count">{razonEditar.length}/200</span>
           </label>
+          {anularError && (
+            <div className="recv-anular-warn" role="alert">
+              <FiAlertTriangle size={14} /> {anularError}
+            </div>
+          )}
         </AuroraConfirmModal>
       )}
 
@@ -335,45 +366,63 @@ export default function RecepcionViewer() {
           body={
             <>
               <FiAlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
-              Esta acción reversará el stock ingresado de los {items.filter(i => i.productoId).length} producto(s).
-              No se puede deshacer y debe quedar justificada.
+              Esta acción revertirá el stock ingresado. No se puede deshacer y debe quedar justificada.
             </>
           }
           confirmLabel="Confirmar anulación"
           loadingLabel="Anulando…"
-          loading={anulando}
-          confirmDisabled={!razon.trim()}
+          loading={busy}
+          confirmDisabled={!razonAnular.trim()}
           onConfirm={handleAnular}
           onCancel={() => setShowAnularModal(false)}
         >
+          {itemsConProducto.length > 0 && (
+            <div className="recv-impact-table">
+              <div className="recv-impact-title">Se revertirá el stock de:</div>
+              <ul>
+                {itemsConProducto.map((it, i) => (
+                  <li key={it.productoId || i}>
+                    <span>{it.nombreComercial || it.idProducto}</span>
+                    <strong>{parseFloat(it.cantidadRecibida) || 0} {it.unidad}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <label className="recv-razon-label">
-            Razón <span style={{ color: '#ff6680' }}>*</span>
+            Razón <span className="toma-required">*</span>
             <textarea
               rows={3}
               maxLength={200}
-              value={razon}
-              onChange={e => setRazon(e.target.value)}
+              value={razonAnular}
+              onChange={e => setRazonAnular(e.target.value)}
               placeholder="Ej. Factura duplicada, proveedor equivocado…"
-              disabled={anulando}
+              disabled={busy}
               autoFocus
             />
-            <span className="recv-razon-count">{razon.length}/200</span>
+            <span className="recv-razon-count">{razonAnular.length}/200</span>
           </label>
+          {anularError && (
+            <div className="recv-anular-warn" role="alert">
+              <FiAlertTriangle size={14} /> {anularError}
+            </div>
+          )}
         </AuroraConfirmModal>
       )}
 
       {lightbox && (
         <div className="ingreso-scan-overlay" onClick={(e) => { if (e.target === e.currentTarget) setLightbox(false); }}>
-          <div className="factura-lightbox-inner">
+          <div className="factura-lightbox-inner" role="dialog" aria-modal="true" aria-label="Factura adjunta">
             <button
+              ref={lightboxCloseRef}
               type="button"
               className="ingreso-scan-modal-close"
               onClick={() => setLightbox(false)}
               aria-label="Cerrar"
             >
-              ×
+              <FiX size={18} />
             </button>
-            <img src={recepcion.imageUrl} alt="Factura" style={{ maxWidth: '100%', maxHeight: '90vh' }} />
+            <img src={recepcion.imageUrl} alt="Factura" className="factura-lightbox-img" />
           </div>
         </div>
       )}

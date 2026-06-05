@@ -186,14 +186,19 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
       fechaRecepcion: Timestamp.now(),
       items: recibidos.map(i => ({
         productoId: i.productoId || null,
+        idProducto: i.idProducto || '',
         nombreComercial: i.nombreComercial || '',
         cantidadOC: parseFloat(i.cantidadOC) || 0,
         cantidadRecibida: parseFloat(i.cantidadRecibida),
         unidad: i.unidad || '',
+        precioUnitario: parseFloat(i.precioUnitario) || 0,
+        iva: parseFloat(i.iva) || 0,
       })),
       notas: notas || '',
       imageUrl: imageUrl || null,
       createdAt: Timestamp.now(),
+      createdBy: req.uid || null,
+      createdByEmail: req.userEmail || '',
     });
 
     if (ordenCompraId) {
