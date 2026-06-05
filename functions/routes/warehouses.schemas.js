@@ -15,6 +15,10 @@ const { z } = require('zod');
 
 const VALID_CURRENCIES = new Set(['USD', 'CRC', 'EUR']);
 const VALID_MEDIA = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+// Whitelist de íconos: debe coincidir con ICON_MAP en src/features/inventory/lib/bodega.js.
+// Cualquier valor fuera de este set cae a 'FiBox' (no se persiste basura ni un
+// ícono que la UI no sabe renderizar).
+const VALID_ICONS = new Set(['FiBox', 'FiTool', 'FiTruck', 'FiDroplet', 'FiPackage']);
 
 const MAX_NAME = 200;
 const MAX_DESC = 500;
@@ -61,6 +65,11 @@ const currency = z.unknown().transform((v) => (VALID_CURRENCIES.has(v) ? v : 'CR
 
 const optionalId = trimmedString(MAX_ID);
 
+const MAX_BODEGA_NAME = 80; // coincide con maxLength del input en BodegasAdmin.jsx
+
+// Ícono whitelist-eado; cualquier valor inválido cae a 'FiBox'.
+const icono = z.unknown().transform((v) => (VALID_ICONS.has(v) ? v : 'FiBox'));
+
 // ─── Schemas ───────────────────────────────────────────────────────────────
 
 const itemCreateSchema = z.object({
@@ -84,6 +93,26 @@ const itemUpdateSchema = z.object({
   activo: z.boolean().optional(),
   total: nullableTotal.optional(),
   moneda: currency.optional(),
+}).strip();
+
+// Bodega (warehouse) genérica: el create exige nombre; el update lo deja
+// opcional para permitir cambiar solo el ícono. `tipo`/`orden`/`fincaId` los
+// fija el backend, nunca el cliente → no van en el schema.
+const bodegaCreateSchema = z.object({
+  nombre: trimmedString(MAX_BODEGA_NAME).refine((s) => s.length > 0, { message: 'Name is required.' }),
+  icono,
+  // Clave de idempotencia opcional generada por el cliente (mismo patrón que
+  // clientMovId): evita una bodega duplicada ante reintento de red. Se usa como
+  // doc ID; un reintento con la misma clave devuelve el doc ya creado.
+  clientBodegaId: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().slice(0, MAX_ID) : ''),
+    z.string().regex(/^[A-Za-z0-9_-]*$/, { message: 'clientBodegaId has invalid characters.' }),
+  ),
+}).strip();
+
+const bodegaUpdateSchema = z.object({
+  nombre: trimmedString(MAX_BODEGA_NAME).refine((s) => s.length > 0, { message: 'Name cannot be empty.' }).optional(),
+  icono: icono.optional(),
 }).strip();
 
 const movementCreateSchema = z.object({
@@ -144,9 +173,21 @@ function buildMovementCreate(body) {
   return r.success ? { data: r.data } : { error: firstIssue(r) };
 }
 
+function buildBodegaCreate(body) {
+  const r = bodegaCreateSchema.safeParse(body || {});
+  return r.success ? { data: r.data } : { error: firstIssue(r) };
+}
+
+function buildBodegaUpdate(body) {
+  const r = bodegaUpdateSchema.safeParse(body || {});
+  return r.success ? { data: r.data } : { error: firstIssue(r) };
+}
+
 module.exports = {
   buildItemCreate,
   buildItemUpdate,
   buildMovementCreate,
+  buildBodegaCreate,
+  buildBodegaUpdate,
   VALID_MEDIA,
 };
