@@ -95,8 +95,22 @@ router.get('/api/hr/permisos', authenticate, rateLimit('hr_permisos_read', 'cost
       .orderBy('fechaInicio', 'desc').get();
     const data = snap.docs.map(d => {
       const dt = d.data();
+      // Whitelist explícita en vez de spread `...dt`: cualquier campo nuevo que
+      // se agregue al doc no viaja al cliente sin una decisión deliberada.
       return {
-        id: d.id, ...dt,
+        id: d.id,
+        trabajadorId: dt.trabajadorId || '',
+        trabajadorNombre: dt.trabajadorNombre || '',
+        tipo: dt.tipo || '',
+        estado: dt.estado || '',
+        dias: dt.dias ?? 0,
+        horas: dt.horas ?? 0,
+        esParcial: dt.esParcial === true,
+        horaInicio: dt.horaInicio ?? null,
+        horaFin: dt.horaFin ?? null,
+        motivo: dt.motivo || '',
+        conGoce: dt.conGoce !== false,
+        fincaId: dt.fincaId || '',
         fechaInicio: dt.fechaInicio?.toDate ? dt.fechaInicio.toDate().toISOString() : null,
         fechaFin:    dt.fechaFin?.toDate    ? dt.fechaFin.toDate().toISOString()    : null,
         createdAt:   dt.createdAt?.toDate   ? dt.createdAt.toDate().toISOString()   : null,
@@ -126,7 +140,9 @@ router.post('/api/hr/permisos', authenticate, rateLimit('hr_permisos_write', 'wr
 
     const ref = await db.collection('hr_permisos').add({
       trabajadorId: clean.trabajadorId,
-      trabajadorNombre: clean.trabajadorNombre || workerDoc.data().nombre || '',
+      // Nombre canónico del doc `users` (no el del payload): el cliente no debe
+      // poder guardar un nombre que no corresponda al trabajadorId validado.
+      trabajadorNombre: workerDoc.data().nombre || clean.trabajadorNombre || '',
       tipo: clean.tipo,
       fechaInicio: Timestamp.fromDate(new Date(clean.fechaInicio + 'T12:00:00')),
       fechaFin:    Timestamp.fromDate(new Date(clean.fechaFin    + 'T12:00:00')),
@@ -147,8 +163,14 @@ router.post('/api/hr/permisos', authenticate, rateLimit('hr_permisos_write', 'wr
   }
 });
 
-router.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
+router.put('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write', 'write'), async (req, res) => {
   try {
+    // Cambiar el estado de un permiso (incluido revertir a pendiente) altera el
+    // flujo que descuenta/justifica nómina — operación de RR.HH., encargado+ only.
+    // Sin este piso un trabajador podía revertir aprobaciones de toda la finca.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to update permiso.', 403);
+    }
     const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
 
@@ -164,30 +186,29 @@ router.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
     await db.collection('hr_permisos').doc(req.params.id).update({
       estado, updatedAt: Timestamp.now(),
     });
-    // Aprobar/rechazar vuelve efectivo (o revierte) un permiso que descuenta/
-    // justifica nómina — operación privilegiada con valor forense.
-    if (estado === 'aprobado' || estado === 'rechazado') {
-      writeAuditEvent({
-        fincaId: req.fincaId,
-        actor: req,
-        action: ACTIONS.PERMISO_DECISION,
-        target: { type: 'permiso', id: req.params.id },
-        metadata: {
-          estado,
-          previousEstado: prev.estado || null,
-          trabajadorId: prev.trabajadorId || null,
-          tipo: prev.tipo || null,
-        },
-        severity: SEVERITY.WARNING,
-      });
-    }
+    // Toda transición de estado vuelve efectivo (o revierte) un permiso que
+    // descuenta/justifica nómina — operación privilegiada con valor forense.
+    // Se audita también revertir a pendiente (deshace una decisión previa).
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PERMISO_DECISION,
+      target: { type: 'permiso', id: req.params.id },
+      metadata: {
+        estado,
+        previousEstado: prev.estado || null,
+        trabajadorId: prev.trabajadorId || null,
+        tipo: prev.tipo || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
     res.status(200).json({ message: 'Permiso updated.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update permiso.', 500);
   }
 });
 
-router.delete('/api/hr/permisos/:id', authenticate, async (req, res) => {
+router.delete('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

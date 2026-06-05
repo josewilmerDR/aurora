@@ -59,6 +59,7 @@ export const ACTION_OPTIONS = [
   { value: 'payroll.pay',                   label: 'Pago de planilla' },
   { value: 'payroll.approve',               label: 'Planilla aprobada' },
   { value: 'payroll.delete',                label: 'Planilla eliminada' },
+  { value: 'payroll.edit',                  label: 'Planilla editada' },
   { value: 'hr.ficha.salary.change',        label: 'Ficha — cambio de salario' },
   { value: 'asistencia.delete',             label: 'Registro de asistencia eliminado' },
   { value: 'permiso.decision',              label: 'Permiso aprobado/rechazado' },
