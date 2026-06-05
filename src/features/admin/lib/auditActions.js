@@ -40,6 +40,9 @@ export const ACTION_OPTIONS = [
 
   // Operaciones de negocio de alto valor
   { value: 'producto.delete',               label: 'Eliminación de producto' },
+  { value: 'producto.deactivate',           label: 'Inactivación de producto' },
+  { value: 'producto.activate',             label: 'Activación de producto' },
+  { value: 'producto.price.change',         label: 'Cambio de precio de producto' },
   { value: 'bodega.delete',                 label: 'Eliminación de bodega' },
   { value: 'bodega_item.delete',            label: 'Eliminación de ítem de bodega' },
   { value: 'unidad_medida.delete',          label: 'Eliminación de unidad de medida' },
