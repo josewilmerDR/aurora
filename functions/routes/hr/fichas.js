@@ -11,6 +11,7 @@ const { authenticate } = require('../../lib/middleware');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { TIME_RE } = require('./helpers');
 
 const router = Router();
@@ -101,7 +102,7 @@ function validateFichaPayload(body) {
   return { errs, clean };
 }
 
-router.get('/api/hr/fichas', authenticate, async (req, res) => {
+router.get('/api/hr/fichas', authenticate, rateLimit('hr_fichas_read', 'costly_read'), async (req, res) => {
   try {
     // Fichas carry salaries, cédula and emergency contacts. Gate to encargado+
     // so a trabajador can't enumerate the finca's payroll via direct API call
@@ -118,7 +119,7 @@ router.get('/api/hr/fichas', authenticate, async (req, res) => {
   }
 });
 
-router.get('/api/hr/fichas/:userId', authenticate, async (req, res) => {
+router.get('/api/hr/fichas/:userId', authenticate, rateLimit('hr_fichas_read', 'costly_read'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read an HR ficha.', 403);
@@ -165,10 +166,35 @@ router.put('/api/hr/fichas/:userId', authenticate, rateLimit('hr_fichas_write', 
         return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid encargado.', 400);
       }
     }
-    await db.collection('hr_fichas').doc(req.params.userId).set(
+    const fichaRef = db.collection('hr_fichas').doc(req.params.userId);
+    const prevSnap = await fichaRef.get();
+    const prev = prevSnap.exists ? prevSnap.data() : {};
+    await fichaRef.set(
       { ...clean, fincaId: req.fincaId, updatedAt: Timestamp.now() },
       { merge: true }
     );
+
+    // Audit ONLY salary/precio-hora changes: it's the monetary base of payroll
+    // (forensic: quién subió/bajó el salario de quién, de cuánto a cuánto). The
+    // rest of the ficha (puesto, horario, contacto, notas) is routine editing
+    // and stays out of the stream, aligned with auditLog.js policy.
+    const salaryChanged = ['salarioBase', 'precioHora'].some(
+      k => clean[k] !== undefined && (prev[k] ?? null) !== (clean[k] ?? null)
+    );
+    if (salaryChanged) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.HR_FICHA_SALARY_CHANGE,
+        target: { type: 'user', id: req.params.userId },
+        metadata: {
+          salarioBase: { from: prev.salarioBase ?? null, to: clean.salarioBase ?? null },
+          precioHora: { from: prev.precioHora ?? null, to: clean.precioHora ?? null },
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
+
     res.status(200).json({ message: 'Ficha updated.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save ficha.', 500);

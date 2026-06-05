@@ -110,6 +110,11 @@ const ACTIONS = Object.freeze({
   MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',
   PAYROLL_PAY: 'payroll.pay',
+  // Ficha laboral. Solo el cambio de salario/precio-hora queda auditado: es la
+  // base monetaria de la nómina (forensic: quién lo cambió, sobre qué trabajador
+  // y de cuánto a cuánto). El resto de la ficha (puesto, horario, contacto,
+  // notas) es edición rutinaria y queda fuera, alineado con la política del archivo.
+  HR_FICHA_SALARY_CHANGE: 'hr.ficha.salary.change',
   // Asistencia diaria. Solo DELETE queda auditado: borrar un registro de
   // asistencia es irreversible y altera la base de cálculo de nómina del
   // trabajador (días/horas extra). Forensic: quién lo borró y de qué doc
