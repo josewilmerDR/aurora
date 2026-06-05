@@ -14,6 +14,7 @@ const { authenticate } = require('../../lib/middleware');
 const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { TIME_RE, DATE_RE } = require('./helpers');
 
 const router = Router();
@@ -180,8 +181,19 @@ router.put('/api/hr/fichas/:userId', authenticate, rateLimit('hr_fichas_write', 
 
 // ─── Asistencia ──────────────────────────────────────────────────────────
 
-router.get('/api/hr/asistencia', authenticate, async (req, res) => {
+const ASISTENCIA_ESTADOS = ['presente', 'ausente', 'vacaciones', 'incapacidad', 'permiso'];
+const ASISTENCIA_BATCH_MAX = 200;
+const ASISTENCIA_FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ASISTENCIA_NOTAS_MAX = 500;
+
+router.get('/api/hr/asistencia', authenticate, rateLimit('hr_asistencia_read', 'costly_read'), async (req, res) => {
   try {
+    // La asistencia (estado/horas extra/notas de cada trabajador) es dato de
+    // nómina — encargado+ only, igual que fichas/planilla. Sin esto cualquier
+    // trabajador leía la cuadrilla completa por llamada directa.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read attendance.', 403);
+    }
     const { mes, anio } = req.query;
     let query = db.collection('hr_asistencia').where('fincaId', '==', req.fincaId);
     if (mes && anio) {
@@ -197,14 +209,31 @@ router.get('/api/hr/asistencia', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/hr/asistencia', authenticate, async (req, res) => {
+router.post('/api/hr/asistencia', authenticate, rateLimit('hr_asistencia_write', 'write'), async (req, res) => {
   try {
-    const { trabajadorId, trabajadorNombre, fecha, estado, horasExtra, notas } = req.body;
-    if (!trabajadorId || !fecha || !estado) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'trabajadorId, fecha and estado are required.', 400);
+    // Mismo boundary que el batch: escribe la base de nómina, así que exige
+    // encargado+, valida estado contra la enum, la fecha con regex y que el
+    // trabajador pertenezca a la finca (no se confía el nombre del cliente —
+    // se canoniza desde users).
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register attendance.', 403);
+    }
+    const { trabajadorId, fecha, estado, horasExtra, notas } = req.body || {};
+    const id = String(trabajadorId || '').trim();
+    if (!id || !ASISTENCIA_FECHA_RE.test(String(fecha)) || !ASISTENCIA_ESTADOS.includes(String(estado))) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, `trabajadorId, fecha (YYYY-MM-DD) and a valid estado (${ASISTENCIA_ESTADOS.join(', ')}) are required.`, 400);
+    }
+    const workerDoc = await db.collection('users').doc(id).get();
+    if (!workerDoc.exists || workerDoc.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid worker.', 400);
+    }
     const ref = await db.collection('hr_asistencia').add({
-      trabajadorId, trabajadorNombre: trabajadorNombre || '',
+      trabajadorId: id,
+      trabajadorNombre: workerDoc.data().nombre || '',
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
-      estado, horasExtra: Number(horasExtra) || 0, notas: notas || '',
+      estado,
+      horasExtra: Math.max(0, Math.min(24, Number(horasExtra) || 0)),
+      notas: String(notas || '').slice(0, ASISTENCIA_NOTAS_MAX),
       fincaId: req.fincaId, createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
@@ -217,13 +246,14 @@ router.post('/api/hr/asistencia', authenticate, async (req, res) => {
 // en un solo request. Usa doc id determinista `${trabajadorId}_${fecha}`
 // para que reenviar el mismo día sobreescriba en lugar de duplicar — la
 // asistencia es naturalmente "una por trabajador por día".
-const ASISTENCIA_ESTADOS = ['presente', 'ausente', 'vacaciones', 'incapacidad', 'permiso'];
-const ASISTENCIA_BATCH_MAX = 200;
-const ASISTENCIA_FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
-const ASISTENCIA_NOTAS_MAX = 500;
-
-router.post('/api/hr/asistencia/batch', authenticate, async (req, res) => {
+router.post('/api/hr/asistencia/batch', authenticate, rateLimit('hr_asistencia_write', 'write'), async (req, res) => {
   try {
+    // Escribe la base de nómina (estado/horas extra) de toda la cuadrilla.
+    // encargado+ only, igual que el resto del módulo HR — la UI lo gatea a
+    // encargado pero el backend es el boundary real ante una llamada directa.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can save attendance.', 403);
+    }
     const { fecha, registros } = req.body || {};
     if (!fecha || !ASISTENCIA_FECHA_RE.test(String(fecha))) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'fecha must be YYYY-MM-DD.', 400);
@@ -248,15 +278,15 @@ router.post('/api/hr/asistencia/batch', authenticate, async (req, res) => {
       const id = String(r.trabajadorId || '').trim();
       const estado = String(r.estado || '').trim();
       if (!id || !userMap.has(id)) {
-        errors.push({ index: i, msg: 'trabajadorId inválido o no pertenece a la finca' });
+        errors.push({ index: i, msg: 'trabajadorId is invalid or does not belong to the finca.' });
         continue;
       }
       if (seenIds.has(id)) {
-        errors.push({ index: i, msg: 'trabajadorId duplicado en el mismo batch' });
+        errors.push({ index: i, msg: 'Duplicate trabajadorId in the same batch.' });
         continue;
       }
       if (!ASISTENCIA_ESTADOS.includes(estado)) {
-        errors.push({ index: i, msg: `estado debe ser uno de: ${ASISTENCIA_ESTADOS.join(', ')}` });
+        errors.push({ index: i, msg: `estado must be one of: ${ASISTENCIA_ESTADOS.join(', ')}.` });
         continue;
       }
       seenIds.add(id);
@@ -300,7 +330,29 @@ router.post('/api/hr/asistencia/batch', authenticate, async (req, res) => {
 
 router.delete('/api/hr/asistencia/:id', authenticate, async (req, res) => {
   try {
+    // Los doc id son deterministas (`${trabajadorId}_${fecha}`) → adivinables.
+    // Sin verifyOwnership cualquier autenticado borraría registros de OTRA
+    // finca. Y borrar asistencia es irreversible y altera la nómina, así que
+    // exigimos encargado+ y dejamos rastro forense.
+    const ownership = await verifyOwnership('hr_asistencia', req.params.id, req.fincaId);
+    if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to delete attendance.', 403);
+    }
+    const prev = ownership.doc.data() || {};
     await db.collection('hr_asistencia').doc(req.params.id).delete();
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.ASISTENCIA_DELETE,
+      target: { type: 'asistencia', id: req.params.id },
+      metadata: {
+        trabajadorId: prev.trabajadorId || null,
+        estado: prev.estado || null,
+        horasExtra: prev.horasExtra ?? null,
+      },
+      severity: SEVERITY.WARNING,
+    });
     res.status(200).json({ message: 'Record deleted.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete record.', 500);
@@ -376,8 +428,14 @@ function validatePermisoPayload(body) {
   return { errs, clean };
 }
 
-router.get('/api/hr/permisos', authenticate, async (req, res) => {
+router.get('/api/hr/permisos', authenticate, rateLimit('hr_permisos_read', 'costly_read'), async (req, res) => {
   try {
+    // Los permisos llevan `motivo` y tipo `enfermedad` (dato cuasi-médico) de
+    // toda la finca. encargado+ only — sin esto un trabajador leía las
+    // ausencias y motivos de salud de todos sus compañeros.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read permisos.', 403);
+    }
     const snap = await db.collection('hr_permisos')
       .where('fincaId', '==', req.fincaId)
       .orderBy('fechaInicio', 'desc').get();
@@ -396,8 +454,14 @@ router.get('/api/hr/permisos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/hr/permisos', authenticate, async (req, res) => {
+router.post('/api/hr/permisos', authenticate, rateLimit('hr_permisos_write', 'write'), async (req, res) => {
   try {
+    // Crear permisos a nombre de cualquier trabajador es operación de RR.HH.
+    // (alimenta el flujo de aprobación que descuenta nómina). encargado+ only
+    // — sin esto un trabajador podía generar solicitudes falsas para terceros.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create permisos.', 403);
+    }
     const { errs, clean } = validatePermisoPayload(req.body || {});
     if (errs.length) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, errs.join(' '), 400);
 
@@ -442,9 +506,27 @@ router.put('/api/hr/permisos/:id', authenticate, async (req, res) => {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to approve or reject.', 403);
     }
 
+    const prev = ownership.doc.data() || {};
     await db.collection('hr_permisos').doc(req.params.id).update({
       estado, updatedAt: Timestamp.now(),
     });
+    // Aprobar/rechazar vuelve efectivo (o revierte) un permiso que descuenta/
+    // justifica nómina — operación privilegiada con valor forense.
+    if (estado === 'aprobado' || estado === 'rechazado') {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PERMISO_DECISION,
+        target: { type: 'permiso', id: req.params.id },
+        metadata: {
+          estado,
+          previousEstado: prev.estado || null,
+          trabajadorId: prev.trabajadorId || null,
+          tipo: prev.tipo || null,
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
     res.status(200).json({ message: 'Permiso updated.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update permiso.', 500);
@@ -458,7 +540,20 @@ router.delete('/api/hr/permisos/:id', authenticate, async (req, res) => {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to delete.', 403);
     }
+    const prev = ownership.doc.data() || {};
     await db.collection('hr_permisos').doc(req.params.id).delete();
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PERMISO_DELETE,
+      target: { type: 'permiso', id: req.params.id },
+      metadata: {
+        trabajadorId: prev.trabajadorId || null,
+        tipo: prev.tipo || null,
+        estado: prev.estado || null,
+      },
+      severity: SEVERITY.WARNING,
+    });
     res.status(200).json({ message: 'Permiso deleted.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete permiso.', 500);
