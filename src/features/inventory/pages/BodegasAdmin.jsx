@@ -40,6 +40,11 @@ function BodegasAdmin() {
   const [flashId, setFlashId] = useState(null);
 
   const flashTimer = useRef(null);
+  // Clave de idempotencia por sesión-de-creación: se genera al abrir el modal
+  // de creación y se reenvía en cada reintento del mismo guardado, de modo que
+  // un reintento de red no cree una bodega duplicada. Solo IDs URL-safe (la
+  // valida el backend con regex).
+  const clientBodegaId = useRef(null);
 
   // Refetch silencioso: NO reactiva el spinner de página tras un CRUD. El
   // feedback ya lo dan el toast + el flash de la card; un overlay full-screen
@@ -78,6 +83,10 @@ function BodegasAdmin() {
     setForm(EMPTY_FORM);
     setInitialForm(EMPTY_FORM);
     setFormErr(false);
+    // Nueva clave de idempotencia para esta creación (estable entre reintentos).
+    clientBodegaId.current =
+      (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+        .replace(/[^A-Za-z0-9_-]/g, '');
     setShowForm(true);
   };
 
@@ -115,6 +124,7 @@ function BodegasAdmin() {
       const method = editingId ? 'PUT' : 'POST';
       const url = editingId ? `/api/bodegas/${editingId}` : '/api/bodegas';
       const payload = { nombre: form.nombre.trim(), icono: form.icono };
+      if (!editingId && clientBodegaId.current) payload.clientBodegaId = clientBodegaId.current;
       const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
