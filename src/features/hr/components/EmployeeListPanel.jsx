@@ -18,7 +18,7 @@ const byNombre = (a, b) => a.nombre.localeCompare(b.nombre, 'es');
 // empleado seleccionado y la vista es 'hub' — eso lo controla el padre
 // pasando renderCarousel.
 
-export function EmployeeCarousel({ planillaUsers, selectedId, onSelect, onNew, carouselRef }) {
+export function EmployeeCarousel({ planillaUsers, selectedId, onSelect, onNew, canCreate = true, carouselRef }) {
   const sorted = useMemo(() => [...planillaUsers].sort(byNombre), [planillaUsers]);
   return (
     <div className="lote-carousel" ref={carouselRef}>
@@ -32,10 +32,12 @@ export function EmployeeCarousel({ planillaUsers, selectedId, onSelect, onNew, c
           <span className="lote-bubble-label">{u.nombre.split(' ')[0]}</span>
         </button>
       ))}
-      <button className="lote-bubble lote-bubble--add" onClick={onNew}>
-        <span className="lote-bubble-avatar lote-bubble-avatar--add"><FiPlus /></span>
-        <span className="lote-bubble-label">Nuevo</span>
-      </button>
+      {canCreate && (
+        <button className="lote-bubble lote-bubble--add" onClick={onNew}>
+          <span className="lote-bubble-avatar lote-bubble-avatar--add"><FiPlus /></span>
+          <span className="lote-bubble-label">Nuevo</span>
+        </button>
+      )}
     </div>
   );
 }

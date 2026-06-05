@@ -5,7 +5,7 @@ import '../styles/hr.css';
 import { FiUserPlus, FiUsers } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
-import { useUser } from '../../../contexts/UserContext';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useHrActiveEmployee } from '../../../contexts/HrContext';
 import { translateApiError } from '../../../lib/errorMessages';
 import EmployeeForm from '../components/EmployeeForm';
@@ -30,6 +30,10 @@ function EmployeeProfile() {
   const navigate = useNavigate();
   const { currentUser, refreshCurrentUser } = useUser();
   const { activeEmployeeId, setActiveEmployee, clearActiveEmployee } = useHrActiveEmployee();
+  // Crear un empleado es POST /api/users → admin-only en el backend. Un encargado
+  // sí gestiona fichas (encargado+), pero no da de alta usuarios: ocultamos los
+  // accesos de "Nuevo Empleado" para no llevarlo a un 403 garantizado.
+  const canCreate = hasMinRole(currentUser?.rol, 'administrador');
   const [allUsers, setAllUsers] = useState([]);
   const [planillaUsers, setPlanillaUsers] = useState([]);
   const [fichasMap, setFichasMap] = useState({});
@@ -147,7 +151,14 @@ function EmployeeProfile() {
     if (view !== 'form' || isEditing) return;
     const { nombre, email } = userForm;
     if (nombre || email) {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ userForm, fichaForm }));
+      // No persistimos PII/financiero de la ficha en localStorage: salario,
+      // cédula, dirección y contacto de emergencia no deben sobrevivir en un
+      // navegador compartido (el siguiente encargado rehidrataría el draft y
+      // los vería). Guardamos sólo el esqueleto identidad + laboral no sensible;
+      // los campos omitidos se restauran vacíos desde EMPTY_FICHA al recargar.
+      const { cedula, salarioBase, precioHora, direccion, contactoEmergencia,
+        telefonoEmergencia, notas, ...fichaSafe } = fichaForm;
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ userForm, fichaForm: fichaSafe }));
       markDraftActive('hr-ficha');
     } else {
       clearDraft();
@@ -370,6 +381,7 @@ function EmployeeProfile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return; // anti doble-submit: Enter/click repetido antes del re-render
     const errs = validateForms(userForm, fichaForm);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -386,14 +398,32 @@ function EmployeeProfile() {
     setSaving(true);
     try {
       if (isEditing) {
-        const userRes = await apiFetch(`/api/users/${selectedId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildUserPayload()),
-        });
-        if (!userRes.ok) {
-          const msg = await userRes.json().catch(() => ({}));
-          throw new Error(msg.message || 'Error al actualizar usuario.');
+        // El PUT /api/users es admin-only, pero la ficha es encargado+. Para que
+        // un encargado pueda editar la ficha (salario/horario/contacto) sin
+        // chocar contra el endpoint admin, sólo llamamos a /api/users cuando de
+        // verdad cambió un campo de cuenta (nombre/email/teléfono/rol/acceso).
+        // Si el encargado intenta tocar email o rol, el 403 del backend sigue
+        // mandando — es la defensa real; esto sólo evita el 403 espurio cuando
+        // la cuenta no cambió. La planilla no se toca al editar (ver buildUserPayload).
+        const userPayload = buildUserPayload();
+        const cur = selectedUser || {};
+        const curTieneAcceso = cur.tieneAcceso === true;
+        const accountChanged =
+          userPayload.nombre !== (cur.nombre || '').trim() ||
+          userPayload.email !== (cur.email || '').trim().toLowerCase() ||
+          userPayload.telefono !== (cur.telefono || '').trim() ||
+          userPayload.tieneAcceso !== curTieneAcceso ||
+          userPayload.rol !== (curTieneAcceso ? (cur.rol || 'trabajador') : 'ninguno');
+        if (accountChanged) {
+          const userRes = await apiFetch(`/api/users/${selectedId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userPayload),
+          });
+          if (!userRes.ok) {
+            const msg = await userRes.json().catch(() => null);
+            throw new Error(translateApiError(msg, 'Error al actualizar usuario.'));
+          }
         }
         const fichaRes = await apiFetch(`/api/hr/fichas/${selectedId}`, {
           method: 'PUT',
@@ -401,8 +431,8 @@ function EmployeeProfile() {
           body: JSON.stringify(buildFichaPayload()),
         });
         if (!fichaRes.ok) {
-          const msg = await fichaRes.json().catch(() => ({}));
-          throw new Error(msg.message || 'Error al guardar ficha.');
+          const msg = await fichaRes.json().catch(() => null);
+          throw new Error(translateApiError(msg, 'Error al guardar ficha.'));
         }
         showToast('Ficha actualizada correctamente.');
         if (currentUser?.userId === selectedId) refreshCurrentUser();
@@ -421,8 +451,8 @@ function EmployeeProfile() {
           body: JSON.stringify(buildUserPayload()),
         });
         if (!res.ok) {
-          const msg = await res.json().catch(() => ({}));
-          throw new Error(msg.message || 'Error al crear usuario.');
+          const msg = await res.json().catch(() => null);
+          throw new Error(translateApiError(msg, 'Error al crear usuario.'));
         }
         const { id } = await res.json();
         const fichaRes = await apiFetch(`/api/hr/fichas/${id}`, {
@@ -437,8 +467,9 @@ function EmployeeProfile() {
           // (borraría lo que el admin tipeó) ni limpiamos el draft: pasamos a
           // modo edición del recién creado con los datos intactos en estado
           // para que reintente el guardado de la ficha sin re-tipear nada.
-          const msg = await fichaRes.json().catch(() => ({}));
-          showToast(`Empleado creado, pero la ficha no se guardó: ${msg.message || 'error'}. Revisá y volvé a guardar.`, 'error');
+          const msg = await fichaRes.json().catch(() => null);
+          const detalle = translateApiError(msg, 'error al guardar la ficha');
+          showToast(`Empleado creado, pero la ficha no se guardó: ${detalle}. Revisá y volvé a guardar.`, 'error');
           setSelectedId(id);
           if (found) setUserForm(userToForm(found));
           setIsEditing(true);
@@ -516,6 +547,7 @@ function EmployeeProfile() {
           selectedId={selectedId}
           onSelect={handleListSelect}
           onNew={handleNew}
+          canCreate={canCreate}
           carouselRef={carouselRef}
         />
       )}
@@ -528,9 +560,11 @@ function EmployeeProfile() {
               Datos personales, laborales y de horario de cada empleado en planilla.
             </p>
           </div>
-          <button className="aur-btn-pill" onClick={handleNew}>
-            <FiUserPlus /> Nuevo Empleado
-          </button>
+          {canCreate && (
+            <button className="aur-btn-pill" onClick={handleNew}>
+              <FiUserPlus /> Nuevo Empleado
+            </button>
+          )}
         </div>
       )}
 
