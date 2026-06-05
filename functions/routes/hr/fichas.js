@@ -119,6 +119,24 @@ router.get('/api/hr/fichas', authenticate, rateLimit('hr_fichas_read', 'costly_r
   }
 });
 
+// Lightweight roster: solo los userId que tienen ficha en la finca, SIN PII
+// (sin salario, cédula ni contactos). Lo consumen pantallas que únicamente
+// necesitan saber "quién es empleado con ficha" para poblar selects de
+// operario (ej. movimientos de bodega), sin jalar toda la planilla al bundle.
+// Definir ANTES de /:userId para que 'ids' no caiga en el param.
+router.get('/api/hr/fichas/ids', authenticate, rateLimit('hr_fichas_read', 'costly_read'), async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read HR ficha ids.', 403);
+    }
+    const snap = await db.collection('hr_fichas')
+      .where('fincaId', '==', req.fincaId).get();
+    res.status(200).json(snap.docs.map(d => ({ userId: d.id })));
+  } catch (error) {
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch ficha ids.', 500);
+  }
+});
+
 router.get('/api/hr/fichas/:userId', authenticate, rateLimit('hr_fichas_read', 'costly_read'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {

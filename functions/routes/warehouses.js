@@ -156,6 +156,19 @@ router.post('/api/bodegas/:id/items', authenticate, requireRole('encargado'), ra
       creadoEn: Timestamp.now(),
     };
     const docRef = await db.collection('bodega_items').add(item);
+    // Trazabilidad del asiento inicial: crear un ítem ya con stock o valor
+    // siembra inventario sin un movimiento que lo respalde. Se deja constancia
+    // en el feed (las entradas/salidas posteriores ya lo hacen).
+    if ((data.stockActual || 0) > 0 || (data.total || 0) > 0) {
+      writeFeedEvent({
+        fincaId: req.fincaId,
+        uid: req.uid,
+        userEmail: req.userEmail,
+        eventType: 'bodega_item',
+        activityType: 'create',
+        title: `Alta de ítem ${data.nombre} (stock inicial ${data.stockActual || 0})`,
+      });
+    }
     return res.status(201).json({ id: docRef.id, ...item });
   } catch (err) {
     console.error('[bodega_items POST]', err);
@@ -173,8 +186,27 @@ router.put('/api/bodegas/:id/items/:itemId', authenticate, requireRole('encargad
     }
     const { data: updates, error } = buildItemUpdate(req.body);
     if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
+    const prev = itemDoc.data();
     await itemDoc.ref.update(updates);
-    return res.json({ id: req.params.itemId, ...itemDoc.data(), ...updates });
+    // Cambiar el valor contable (`total`) o dar de baja lógica el ítem
+    // (`activo:false`, que lo oculta de la UI sin borrarlo) son ediciones de
+    // peso que antes no dejaban rastro. Se registran en el feed; el borrado
+    // físico irreversible sigue yendo al audit log.
+    const totalChanged = updates.total !== undefined && updates.total !== prev.total;
+    const activoChanged = updates.activo !== undefined && updates.activo !== prev.activo;
+    if (totalChanged || activoChanged) {
+      writeFeedEvent({
+        fincaId: req.fincaId,
+        uid: req.uid,
+        userEmail: req.userEmail,
+        eventType: 'bodega_item',
+        activityType: activoChanged && updates.activo === false ? 'baja' : 'update',
+        title: activoChanged && updates.activo === false
+          ? `Baja de ítem ${prev.nombre}`
+          : `Ajuste de ítem ${prev.nombre}`,
+      });
+    }
+    return res.json({ id: req.params.itemId, ...prev, ...updates });
   } catch (err) {
     console.error('[bodega_items PUT]', err);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update item.', 500);
