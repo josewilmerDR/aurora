@@ -14,13 +14,20 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
 
 const router = Router();
 
-router.get('/api/solicitudes-compra', authenticate, async (req, res) => {
+// Rate-limited + encargado floor: las solicitudes exponen items con nombres
+// comerciales, cantidades y niveles de stock; un trabajador autenticado no debe
+// poder polearlas vía API aunque la UI le niegue la ruta.
+router.get('/api/solicitudes-compra', authenticate, rateLimit('solicitudes_read', 'public_read'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can list solicitudes.', 403);
+    }
     const snapshot = await db.collection('solicitudes_compra')
       .where('fincaId', '==', req.fincaId)
       .orderBy('fechaCreacion', 'desc')
@@ -33,7 +40,7 @@ router.get('/api/solicitudes-compra', authenticate, async (req, res) => {
     }));
     res.status(200).json(solicitudes);
   } catch (error) {
-    console.error('[solicitudes-compra:list]', error);
+    console.error('[solicitudes-compra:list]', error?.message);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch solicitudes.', 500);
   }
 });
@@ -115,7 +122,7 @@ router.post('/api/solicitudes-compra', authenticate, async (req, res) => {
     await batch.commit();
     res.status(201).json({ id: solicitudRef.id, taskId: taskRef.id, message: 'Solicitud created.' });
   } catch (error) {
-    console.error('[solicitudes-compra:post]', error);
+    console.error('[solicitudes-compra:post]', error?.message);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create solicitud.', 500);
   }
 });
@@ -137,7 +144,7 @@ router.put('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
     await db.collection('solicitudes_compra').doc(id).update(update);
     res.status(200).json({ message: 'Solicitud updated.' });
   } catch (error) {
-    console.error('[solicitudes-compra:put]', error);
+    console.error('[solicitudes-compra:put]', error?.message);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update solicitud.', 500);
   }
 });
@@ -149,7 +156,7 @@ router.delete('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
     await db.collection('solicitudes_compra').doc(req.params.id).delete();
     res.status(200).json({ message: 'Solicitud deleted.' });
   } catch (error) {
-    console.error('[solicitudes-compra:delete]', error);
+    console.error('[solicitudes-compra:delete]', error?.message);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete solicitud.', 500);
   }
 });
