@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiClock, FiMenu, FiAlertTriangle } from 'react-icons/fi';
+import { FiTrash2, FiClipboard, FiToggleLeft, FiToggleRight, FiSave, FiChevronDown, FiChevronUp, FiBox, FiPlus, FiFilter, FiSliders, FiX, FiShoppingCart, FiClock, FiMenu, FiAlertTriangle, FiTruck } from 'react-icons/fi';
 import AuroraFilterPopover from '../../../components/AuroraFilterPopover';
 import AuroraModal from '../../../components/AuroraModal';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -15,11 +15,10 @@ import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { useUser } from '../../../contexts/UserContext';
 import {
   TIPOS, MONEDAS, COLUMNS, FIELD_LABELS, COMPACT_COL_IDS,
-  NUM_FIELDS, NUM_LIMITS, MAX_LENGTHS, fieldChanged, validateProductField,
+  NUM_FIELDS, NUM_LIMITS, MAX_LENGTHS, fieldChanged, validateProductField, isStockBajo,
 } from '../lib/agroquimicos';
 import TomaFisicaModal from '../components/TomaFisicaModal';
 import EditProductoModal from '../components/EditProductoModal';
-import SolicitudDeCompra from './SolicitudDeCompra';
 
 const STOCK_CERO_MSG = 'Solo permitido para productos con existencias en cero.';
 
@@ -33,11 +32,11 @@ function Existencias() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [productosLoaded, setProductosLoaded] = useState(false);
+  const [pendingSolicitudes, setPendingSolicitudes] = useState(0);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
   const [showTomaFisica, setShowTomaFisica] = useState(false);
-  const [showSolicitud, setShowSolicitud] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
   const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {}, { storage: 'local' });
   const [showConfirm, setShowConfirm] = useState(false);
@@ -66,7 +65,6 @@ function Existencias() {
   // ESC cierra el menú innermost (kebab / menú de columnas / overlay solicitud).
   useEscapeClose(kebabOpen ? () => setKebabOpen(false) : null);
   useEscapeClose(colMenu ? () => setColMenu(null) : null);
-  useEscapeClose(showSolicitud ? () => setShowSolicitud(false) : null);
 
   const fetchProductos = useCallback(() => {
     setLoadError(false);
@@ -78,6 +76,21 @@ function Existencias() {
   }, [apiFetch]);
 
   useEffect(() => { fetchProductos(); }, [fetchProductos]);
+
+  // Cuenta de solicitudes de compra pendientes: hace visible desde Existencias
+  // el tramo del ciclo que vive en procurement (solicitud → OC → recepción).
+  useEffect(() => {
+    let active = true;
+    apiFetch('/api/solicitudes-compra')
+      .then(res => (res.ok ? res.json() : []))
+      .then(data => {
+        if (!active) return;
+        const pend = Array.isArray(data) ? data.filter(s => s.estado === 'pendiente').length : 0;
+        setPendingSolicitudes(pend);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [apiFetch]);
 
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
@@ -367,7 +380,7 @@ function Existencias() {
   };
 
   const renderCell = (p, colKey) => {
-    const stockBajo = (p.stockActual ?? 0) <= (p.stockMinimo ?? 0);
+    const stockBajo = isStockBajo(p);
     const errMsg = invalidCells[`${p.id}:${colKey}`];
     const errClass = errMsg ? ' pg-input--error' : '';
     switch (colKey) {
@@ -549,6 +562,22 @@ function Existencias() {
                       <div className="kebab-backdrop" onClick={() => setKebabOpen(false)} />
                       <div className="kebab-dropdown" role="menu" aria-label="Más opciones">
                         <Link
+                          to="/bodega/agroquimicos/recepcion"
+                          role="menuitem"
+                          className="kebab-item"
+                          onClick={() => setKebabOpen(false)}
+                        >
+                          <FiTruck size={14} /> Recibir Mercancía
+                        </Link>
+                        <Link
+                          to="/bodega/agroquimicos/solicitud"
+                          role="menuitem"
+                          className="kebab-item"
+                          onClick={() => setKebabOpen(false)}
+                        >
+                          <FiShoppingCart size={14} /> Solicitar Compra
+                        </Link>
+                        <Link
                           to="/bodega/agroquimicos/movimientos"
                           role="menuitem"
                           className="kebab-item"
@@ -556,10 +585,6 @@ function Existencias() {
                         >
                           <FiClock size={14} /> Historial
                         </Link>
-                        <button type="button" role="menuitem" className="kebab-item"
-                          onClick={() => { setShowSolicitud(true); setKebabOpen(false); }}>
-                          <FiShoppingCart size={14} /> Solicitar Compra
-                        </button>
                         <button type="button" role="menuitem" className="kebab-item"
                           onClick={() => { setShowTomaFisica(true); setKebabOpen(false); }}>
                           <FiClipboard size={14} /> Toma Física
@@ -576,6 +601,16 @@ function Existencias() {
                 </div>
               </div>
               <div className="product-header-actions">
+                {pendingSolicitudes > 0 && (
+                  <Link
+                    to="/procurement/ordenes/historial"
+                    className="aur-chip"
+                    title="Ver solicitudes de compra en Compras"
+                  >
+                    <FiShoppingCart size={14} />
+                    {pendingSolicitudes} solicitud{pendingSolicitudes !== 1 ? 'es' : ''} pendiente{pendingSolicitudes !== 1 ? 's' : ''}
+                  </Link>
+                )}
                 {dirtyProducts.length > 0 && (
                   <button className="btn-save-grid" onClick={() => setShowConfirm(true)}>
                     <FiSave size={15} />
@@ -951,24 +986,6 @@ function Existencias() {
         />
       )}
 
-      {showSolicitud && (
-        <div
-          className="ingreso-scan-overlay"
-          onClick={e => { if (e.target === e.currentTarget) setShowSolicitud(false); }}
-        >
-          <div className="ingreso-scan-modal" role="dialog" aria-modal="true" aria-label="Solicitud de compra">
-            <button
-              type="button"
-              className="ingreso-scan-modal-close"
-              onClick={() => setShowSolicitud(false)}
-              aria-label="Cerrar"
-            >
-              <FiX size={18} />
-            </button>
-            <SolicitudDeCompra onClose={() => setShowSolicitud(false)} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -49,6 +49,12 @@ export const NUM_LIMITS = {
   stockMinimo: 32768, precioUnitario: 2097152, iva: 100,
 };
 
+// Regla canónica de "stock bajo": el stock actual llegó o cruzó el mínimo.
+// Única fuente de verdad para Existencias, Solicitud de Compra y cualquier
+// vista que pinte la alerta de reposición — antes la condición estaba duplicada
+// en cada página con riesgo de divergir. Defiende nulos como 0.
+export const isStockBajo = (p) => (p?.stockActual ?? 0) <= (p?.stockMinimo ?? 0);
+
 // Formatea un monto con 2 decimales y la moneda. Defiende contra valores no
 // numéricos (undefined/null/string sucio) para no pintar "NaN" en la card.
 // Vive acá (no en la página) porque tanto el catálogo como otras vistas de

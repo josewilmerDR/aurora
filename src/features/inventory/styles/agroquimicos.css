@@ -2121,6 +2121,19 @@ select.pg-input option {
   padding-top: 4px;
 }
 
+.ingreso-oc-list-legend {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--aurora-light);
+  opacity: 0.75;
+}
+
+.ingreso-oc-legend-link {
+  color: var(--aurora-green);
+  white-space: nowrap;
+}
+
 .ingreso-oc-list-card {
   background: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-border);

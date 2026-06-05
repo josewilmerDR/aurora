@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiCpu, FiImage, FiList, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiCpu, FiImage, FiList, FiAlertTriangle, FiDroplet } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useToast } from '../../../contexts/ToastContext';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
@@ -527,9 +527,15 @@ function Recepcion() {
           </button>
         )}
         <Link
-          to="/bodega/agroquimicos/movimientos?tab=ingresos"
+          to="/bodega/agroquimicos/existencias"
           className="aur-chip"
           style={{ marginLeft: 'auto' }}
+        >
+          <FiDroplet size={14} /> Existencias
+        </Link>
+        <Link
+          to="/bodega/agroquimicos/movimientos?tab=ingresos"
+          className="aur-chip"
         >
           <FiList size={14} /> Historial
         </Link>
@@ -558,6 +564,15 @@ function Recepcion() {
       {/* ── Vista lista ── */}
       {step === 'list' && ocVisibles.length > 0 && (
           <div className="ingreso-oc-list-view">
+            <p className="ingreso-oc-list-legend">
+              Estas son las órdenes de compra abiertas (generadas desde las solicitudes
+              de compra). Elegí una para conciliar lo recibido contra lo ordenado, o
+              registrá una entrada manual.
+              {' '}
+              <Link to="/procurement/ordenes/historial" className="ingreso-oc-legend-link">
+                Ver órdenes en Compras
+              </Link>
+            </p>
             {ocVisibles.map(orden => {
               const isParcial = orden.estado === 'recibida_parcialmente';
               return (

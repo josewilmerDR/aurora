@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   FiSearch, FiPlus, FiTrash2, FiX, FiCheck,
-  FiAlertTriangle, FiShoppingCart, FiUser
+  FiAlertTriangle, FiShoppingCart, FiUser, FiDroplet, FiFileText
 } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useToast } from '../../../contexts/ToastContext';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { translateApiError } from '../../../lib/errorMessages';
+import { isStockBajo } from '../lib/agroquimicos';
 import '../styles/solicitud-de-compra.css';
 
 const DEPT_PROVEEDURIA = 'proveeduria';
@@ -23,7 +25,7 @@ const qtyIsInvalid = (v) => {
   return !(n > 0 && n < MAX_QTY + 1);
 };
 
-const SolicitudDeCompra = ({ onClose } = {}) => {
+const SolicitudDeCompra = () => {
   const apiFetch = useApiFetch();
   const toast = useToast();
 
@@ -184,7 +186,6 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
       setNotas('');
       setResponsableId(DEPT_PROVEEDURIA);
       setShowPreview(false);
-      onClose?.();
     } catch (err) {
       toast.error(err?.message || 'No se pudo enviar la solicitud.');
     } finally {
@@ -193,7 +194,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
   };
 
   if (loading) {
-    return <div className="pr-loading">Cargando productos…</div>;
+    return <div className="pg-page-loading" />;
   }
 
   if (loadError) {
@@ -210,7 +211,22 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
   const hasFilter = Boolean(searchTerm || filterBajoStock);
 
   return (
-    <div className="pr-layout">
+    <div className="lote-management-layout">
+      <div className="ingreso-title-row">
+        <h2 className="ingreso-page-title">Solicitud de Compra</h2>
+        <Link
+          to="/procurement/ordenes/historial"
+          className="aur-chip"
+          style={{ marginLeft: 'auto' }}
+        >
+          <FiFileText size={14} /> Ver solicitudes
+        </Link>
+        <Link to="/bodega/agroquimicos/existencias" className="aur-chip">
+          <FiDroplet size={14} /> Existencias
+        </Link>
+      </div>
+
+      <div className="pr-layout">
       {/* ══ PANEL IZQUIERDO: catálogo ══ */}
       <div className="pr-catalog">
         <h2 id="pr-catalog-title">Seleccionar Productos</h2>
@@ -257,7 +273,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
           )}
           {filteredProducts.map(p => {
             const id = keyOf(p);
-            const isLow = p.stockActual <= p.stockMinimo;
+            const isLow = isStockBajo(p);
             const added = isInOrder(id);
             return (
               <div
@@ -293,7 +309,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
       <div className="pr-order">
         <h2>
           <FiShoppingCart size={18} />
-          Solicitud de Compra
+          Tu solicitud
           {orderItems.length > 0 && (
             <span className="pr-order-count">{orderItems.length}</span>
           )}
@@ -335,7 +351,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
                 </tr>
               ) : (
                 orderItems.map(item => {
-                  const isLow = item.stockActual <= item.stockMinimo;
+                  const isLow = isStockBajo(item);
                   const invalid = qtyIsInvalid(item.cantidadSolicitada);
                   return (
                     <tr key={item.productoId}>
@@ -476,7 +492,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
                   {validItems.map(item => (
                     <tr key={item.productoId}>
                       <td>
-                        {item.stockActual <= item.stockMinimo && (
+                        {isStockBajo(item) && (
                           <FiAlertTriangle size={13} className="pr-warn-icon" />
                         )}
                         {item.nombreComercial}
@@ -552,6 +568,7 @@ const SolicitudDeCompra = ({ onClose } = {}) => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
