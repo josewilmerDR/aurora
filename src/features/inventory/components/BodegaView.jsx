@@ -32,7 +32,7 @@ const BodegaIcon = ({ iconKey, size = 20 }) => {
 // navegar entre bodegas. Se etiquetan con la finca dueña: al cambiar de finca
 // o iniciar sesión otro usuario (sin recarga dura de la SPA) el caché se
 // invalida, para no filtrar catálogos de una finca/usuario a otro.
-let catalogCache = null; // null | { key: fincaId, data: {...} }
+let catalogCache = null; // null | { key: `${fincaId}:${uid}`, data: {...} }
 
 /**
  * Vista compartida de bodega (combustibles + genérica). Las páginas wrapper
@@ -109,7 +109,8 @@ export default function BodegaView({
   const fetchAll = useCallback((initial = false) => {
     if (initial) setLoading(true);
     setLoadError(false);
-    const catalogsP = (catalogCache && catalogCache.key === activeFincaId)
+    const cacheKey = `${activeFincaId}:${currentUser?.uid || ''}`;
+    const catalogsP = (catalogCache && catalogCache.key === cacheKey)
       ? Promise.resolve(catalogCache.data)
       : Promise.all([
           apiFetch('/api/lotes').then(r => r.json()),
@@ -121,7 +122,7 @@ export default function BodegaView({
           apiFetch('/api/labores').then(r => r.json()),
         ]).then(([lotesData, usuariosData, fichasData, maquinariaData, laboresData]) => {
           catalogCache = {
-            key: activeFincaId,
+            key: cacheKey,
             data: {
               lotes:      Array.isArray(lotesData) ? lotesData : [],
               usuarios:   Array.isArray(usuariosData) ? usuariosData : [],

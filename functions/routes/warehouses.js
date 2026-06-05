@@ -19,6 +19,29 @@ const requireRole = (minRole) => (req, res, next) =>
     ? next()
     : sendApiError(res, ERROR_CODES.FORBIDDEN, `Requires ${minRole} role or higher.`, 403);
 
+// Valida que los primeros bytes del adjunto decodificado coincidan con el
+// mediaType declarado (anti content-type confusion). El schema ya whitelist-ea
+// el mediaType, pero un atacante podría declarar image/png y enviar HTML/SVG/JS
+// que, servido vía signed URL, derive en stored-XSS por content-sniffing.
+// Devuelve true sólo cuando los magic bytes son consistentes con el tipo.
+function bufferMatchesMediaType(buf, mediaType) {
+  if (!buf || buf.length < 4) return false;
+  const b = buf;
+  switch (mediaType) {
+    case 'image/jpeg':
+      return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+    case 'image/png':
+      return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+    case 'image/webp':
+      return b.length >= 12 &&
+        b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP';
+    case 'application/pdf':
+      return b.toString('ascii', 0, 5) === '%PDF-';
+    default:
+      return false;
+  }
+}
+
 // --- API ENDPOINTS: BODEGAS ---
 // A "bodega" is a typed warehouse. The `tipo` field determines which frontend
 // component is rendered (agroquimicos, combustibles, herramientas, generica…).
@@ -234,7 +257,13 @@ router.delete('/api/bodegas/:id/items/:itemId', authenticate, requireRole('super
       actor: req,
       action: ACTIONS.BODEGA_ITEM_DELETE,
       target: { type: 'bodega_item', id: req.params.itemId },
-      metadata: { nombre: prev.nombre || null, unidad: prev.unidad || null, bodegaId: req.params.id },
+      metadata: {
+        nombre: prev.nombre || null,
+        unidad: prev.unidad || null,
+        bodegaId: req.params.id,
+        stockActual: prev.stockActual ?? null,
+        total: prev.total ?? null,
+      },
       severity: SEVERITY.WARNING,
     });
     return res.json({ ok: true });
@@ -359,11 +388,20 @@ router.post('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado
       const { randomUUID } = require('crypto');
       const bucket = admin.storage().bucket();
       const safeMime = mediaType; // already whitelisted by the schema
+      const buffer = Buffer.from(imageBase64, 'base64');
+      // El contenido real debe coincidir con el mediaType declarado: un PNG/JPG
+      // que en verdad es HTML/SVG/JS sería un vector de stored-XSS al servirse.
+      if (!bufferMatchesMediaType(buffer, safeMime)) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Attachment content does not match its declared type.', 400);
+      }
       const ext = safeMime.includes('png') ? 'png' : safeMime.includes('pdf') ? 'pdf' : safeMime.includes('webp') ? 'webp' : 'jpg';
       const fileName = `bodega_movimientos/${req.params.id}_${Date.now()}_${randomUUID()}.${ext}`;
       const file = bucket.file(fileName);
-      await file.save(Buffer.from(imageBase64, 'base64'), {
+      await file.save(buffer, {
         contentType: safeMime,
+        // contentDisposition: attachment fuerza descarga en vez de render inline,
+        // anulando el content-sniffing del navegador como capa extra anti-XSS.
+        contentDisposition: 'attachment',
         // Token de descarga para el fallback del emulador (getSignedUrl no
         // funciona sin credenciales de service account en local).
         metadata: { metadata: { firebaseStorageDownloadTokens: randomUUID() } },

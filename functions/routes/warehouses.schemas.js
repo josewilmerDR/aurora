@@ -22,7 +22,16 @@ const MAX_UNIT = 50;
 const MAX_DOC = 100;   // factura / oc
 const MAX_ID = 128;
 const MAX_AMOUNT = 1e12;
-const MAX_BASE64 = 7 * 1024 * 1024; // ~5 MB binario
+const MAX_BINARY = 5 * 1024 * 1024;          // 5 MB de adjunto decodificado
+const MAX_BASE64 = Math.ceil(MAX_BINARY / 3) * 4; // su equivalente en caracteres base64
+
+// Largo en bytes del binario que representa una cadena base64 (descontando
+// padding). Sirve para limitar por tamaño real, no por largo del string.
+const base64ByteLength = (s) => {
+  const len = s.length;
+  const padding = s.endsWith('==') ? 2 : s.endsWith('=') ? 1 : 0;
+  return (len * 3) / 4 - padding;
+};
 
 // ─── Fragmentos reutilizables ──────────────────────────────────────────────
 
@@ -105,8 +114,11 @@ const movementCreateSchema = z.object({
     z.string().regex(/^[A-Za-z0-9_-]*$/, { message: 'clientMovId has invalid characters.' }),
   ),
   imageBase64: z.preprocess(
-    (v) => (typeof v === 'string' ? v : ''),
-    z.string().max(MAX_BASE64, { message: 'Attachment too large (max 5 MB).' }),
+    (v) => (typeof v === 'string' ? v.trim() : ''),
+    z.string()
+      .max(MAX_BASE64, { message: 'Attachment too large (max 5 MB).' })
+      .refine((s) => s === '' || /^[A-Za-z0-9+/]+={0,2}$/.test(s), { message: 'Attachment is not valid base64.' })
+      .refine((s) => s === '' || base64ByteLength(s) <= MAX_BINARY, { message: 'Attachment too large (max 5 MB).' }),
   ),
   mediaType: z.unknown().transform((v) => (VALID_MEDIA.has(v) ? v : 'image/jpeg')),
 }).strip();
