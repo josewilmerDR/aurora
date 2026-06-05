@@ -6,7 +6,7 @@
    los pedazos únicos de la página:
      · ancho/min-width de la tabla (13 columnas)
      · helpers de celda (consecutivo monoespaciado, total destacado)
-     · transformación tabla → tarjetas en móvil (≤ 720px)
+     · transformación tabla → tarjetas en móvil/tablet (≤ 920px)
 
    Mobile cards: cada <tr> se renderiza como un bloque vertical donde cada
    <td> usa su `data-label="…"` como etiqueta. Esto evita scroll horizontal
@@ -29,14 +29,45 @@
   text-decoration: underline;
 }
 
-/* Contador "Mostrando X de Y filas" debajo del section-header. */
-.uph-count {
+/* ── Estado de error ──────────────────────────────────────────────────────── */
+.uph-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border: 1px solid var(--aur-danger);
+  border-radius: var(--aur-r-card);
+  background: var(--aur-danger-tint);
+  color: var(--aur-text);
+}
+.uph-error svg { color: var(--aur-danger); flex-shrink: 0; }
+.uph-error .aur-btn-pill { margin-left: auto; }
+
+/* ── Resumen (total devengado de la vista actual) ─────────────────────────── */
+.uph-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: var(--aur-bg-input);
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+}
+.uph-summary-label {
   font-size: var(--aur-fs-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--aur-text-3);
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+.uph-summary-value {
+  font-size: var(--aur-fs-callout);
+  font-weight: 700;
+  color: var(--aur-accent);
   font-variant-numeric: tabular-nums;
-  margin: 0 0 10px 4px;
 }
 
 /* ── Tabla ────────────────────────────────────────────────────────────────
@@ -70,12 +101,13 @@
   white-space: nowrap;
 }
 
-/* ── Mobile (≤ 720px): tabla → tarjetas ───────────────────────────────────
+/* ── Mobile / tablet (≤ 920px): tabla → tarjetas ──────────────────────────
    Cada fila se vuelve un bloque vertical. Los <td> apilan label (data-label)
    y valor en dos columnas internas. Permite leer todos los campos sin scroll
-   horizontal y conserva la jerarquía de la fila vía un encabezado destacado
-   (consecutivo + total). */
-@media (max-width: 720px) {
+   horizontal (la tabla de 13 columnas con min-width 1400 obligaba a scroll
+   lateral mudo en tablet) y conserva la jerarquía de la fila vía un encabezado
+   destacado (consecutivo + total). */
+@media (max-width: 920px) {
   .uph-table-wrap {
     background: transparent;
     border: none;
@@ -191,9 +223,9 @@
     font-size: var(--aur-fs-body);
   }
 
-  /* Compactamos el contador para que respire mejor en pantallas chicas. */
-  .uph-count {
-    margin-left: 0;
+  /* El resumen ocupa todo el ancho sobre las tarjetas en pantallas chicas. */
+  .uph-summary {
+    justify-content: space-between;
   }
 }
 
