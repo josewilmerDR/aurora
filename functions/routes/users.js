@@ -95,6 +95,35 @@ router.get('/api/users/lite', authenticate, rateLimit('users_read', 'public_read
   }
 });
 
+// GET /api/users/roster — directorio con rol, SIN el resto de PII.
+//
+// Surge de la auditoría de FixedPayrollHistory: esa pantalla solo necesita
+// `id, nombre, rol, empleadoPlanilla` para listar empleados y mostrar su rol,
+// pero estaba jalando el GET /api/users completo, que arrastra email, teléfono,
+// restrictedTo y los campos de salida de RR.HH. de TODA la finca → over-fetch de
+// PII en el cliente.
+//
+// `rol` es metadata de autorización (no email/teléfono), pero igual la dejamos
+// detrás del mismo piso que el directorio completo (`encargado+`): no es algo
+// que deba ver cualquier trabajador autenticado, así que NO va en /lite (abierto).
+router.get('/api/users/roster', authenticate, requireEncargado, rateLimit('users_read', 'public_read'), async (req, res) => {
+  try {
+    const snapshot = await db.collection('users').where('fincaId', '==', req.fincaId).get();
+    const roster = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        nombre: d.nombre || '',
+        rol: d.rol || 'trabajador',
+        empleadoPlanilla: d.empleadoPlanilla === true,
+      };
+    });
+    res.status(200).json(roster);
+  } catch (error) {
+    sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch user roster.', 500);
+  }
+});
+
 router.post('/api/users', authenticate, requireAdmin, rateLimit('users_write', 'write'), async (req, res) => {
   try {
     const { errs, clean } = validateUserPayload(req.body, { mode: 'create' });

@@ -42,12 +42,12 @@ export default function FixedPayrollReport() {
   const isBorrador = reportNumber === 'BORRADOR';
 
   useEffect(() => {
+    let alive = true;
     const origin = sessionStorage.getItem('aurora_planilla_reporte_origin') || '/hr/planilla/fijo';
     setBackRoute(origin);
-    try {
-      const raw = sessionStorage.getItem('aurora_planilla_reporte');
-      if (!raw) { navigate(origin); return; }
-      const data = JSON.parse(raw);
+
+    // Vuelca un objeto de datos completo (con filas) al estado del componente.
+    const applyData = (data) => {
       setFilas(Array.isArray(data.filas) ? data.filas : []);
       setPeriodoLabel(data.periodoLabel || '');
       setPeriodoInicio(data.periodoInicio || '');
@@ -58,16 +58,50 @@ export default function FixedPayrollReport() {
       // Para planillas guardadas la emisión es su fecha de creación, NO hoy.
       if (data.fechaEmision) setFechaEmisionIso(data.fechaEmision);
       setHydrated(true);
-      // PII de nómina (salarios + cédulas) ya está en el estado del componente;
-      // no debe quedar legible en sessionStorage tras renderizar — la borramos
-      // para que un equipo compartido no la exponga vía DevTools mientras viva
-      // la pestaña. El borrador del editor (aurora_planilla_fijo_state) se
-      // gestiona aparte en FixedPayroll.
+    };
+
+    let ref;
+    try {
+      const raw = sessionStorage.getItem('aurora_planilla_reporte');
+      if (!raw) { navigate(origin); return; }
+      ref = JSON.parse(raw);
+      // PII de nómina (salarios + cédulas) no debe quedar legible en
+      // sessionStorage. En el flujo del historial (source:'fetch') ya NO viaja
+      // ahí — solo una referencia (planillaId + empleadoId); rehidratamos la
+      // fila desde el backend con su gate de rol (auditoría F3). El borrador del
+      // editor sí trae filas inline (no hay nada que pedir) y las purgamos tras
+      // leerlas.
       sessionStorage.removeItem('aurora_planilla_reporte');
     } catch {
       navigate(origin);
+      return;
     }
-  }, [navigate]);
+
+    if (ref?.source === 'fetch' && ref.planillaId && ref.empleadoId) {
+      apiFetch(`/api/hr/planilla-fijo?empleadoId=${encodeURIComponent(ref.empleadoId)}`)
+        .then(r => r.json())
+        .then(list => {
+          if (!alive) return;
+          const p = Array.isArray(list) ? list.find(x => x?.id === ref.planillaId) : null;
+          if (!p || !p.fila) { navigate(origin); return; }
+          applyData({
+            periodoInicio:     p.periodoInicio,
+            periodoFin:        p.periodoFin,
+            periodoLabel:      p.periodoLabel,
+            totalGeneral:      Number(p.fila.totalNeto) || 0,
+            filas:             [p.fila],
+            numeroConsecutivo: p.numeroConsecutivo || null,
+            fechaEmision:      p.createdAt || null,
+            modo:              ref.modo === 'planilla' ? 'planilla' : 'comprobante',
+          });
+        })
+        .catch(() => { if (alive) navigate(origin); });
+    } else {
+      // Flujo del editor: filas inline en el propio payload.
+      applyData(ref);
+    }
+    return () => { alive = false; };
+  }, [navigate, apiFetch]);
 
   useEffect(() => {
     let alive = true;

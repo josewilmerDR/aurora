@@ -22,7 +22,14 @@ function FixedPayrollHistory() {
   const [searchParams] = useSearchParams();
   const { activeEmployeeId, setActiveEmployee } = useHrActiveEmployee();
   const [users, setUsers]         = useState([]);
+  // `planillas` es el ÍNDICE: metadata + trabajadorIds (membresía), sin salarios
+  // ni cédulas. Las filas con dinero del empleado seleccionado se cargan aparte
+  // en `empleadoFilas` (minimización de PII — auditoría F1).
   const [planillas, setPlanillas] = useState([]);
+  const [empleadoFilas, setEmpleadoFilas] = useState(() => new Map());
+  const [filasLoading, setFilasLoading]   = useState(false);
+  const [filasError, setFilasError]       = useState(false);
+  const [filasNonce, setFilasNonce]       = useState(0); // bump → reintenta el fetch de filas
   const [loading, setLoading]     = useState(true);
   const [usersError, setUsersError]         = useState(false);
   const [planillasError, setPlanillasError] = useState(false);
@@ -55,11 +62,15 @@ function FixedPayrollHistory() {
     setUsersError(false);
     setPlanillasError(false);
     Promise.allSettled([
-      // /api/users (no lite): esta vista muestra el rol del empleado, que lite
-      // omite a propósito por minimización de PII. Se carga solo al abrir el tab
-      // (lazy-mount en PayrollHub), así que ya no es un fetch eager por visita.
-      apiFetch('/api/users').then(r => r.json()),
-      apiFetch('/api/hr/planilla-fijo').then(r => r.json()),
+      // /api/users/roster: solo id, nombre, rol y empleadoPlanilla — lo único que
+      // esta vista usa. Evita arrastrar email/teléfono/restrictedTo de toda la
+      // finca al cliente, que es lo que devuelve el GET /api/users completo
+      // (over-fetch de PII — auditoría F2). /lite no sirve aquí porque omite rol.
+      apiFetch('/api/users/roster').then(r => r.json()),
+      // view=index: solo metadata + membresía (trabajadorIds), sin salarios ni
+      // cédulas de nadie. El detalle con dinero del empleado seleccionado se
+      // pide aparte por ?empleadoId (auditoría F1).
+      apiFetch('/api/hr/planilla-fijo?view=index').then(r => r.json()),
     ]).then(([uRes, pRes]) => {
       if (uRes.status === 'fulfilled' && Array.isArray(uRes.value)) {
         setUsers(uRes.value.slice().sort((a, b) =>
@@ -100,16 +111,48 @@ function FixedPayrollHistory() {
     const map = new Map();
     for (const p of planillas) {
       const seen = new Set();
-      for (const f of (p.filas || [])) {
-        if (f?.trabajadorId && !seen.has(f.trabajadorId)) {
-          seen.add(f.trabajadorId);
-          if (!map.has(f.trabajadorId)) map.set(f.trabajadorId, []);
-          map.get(f.trabajadorId).push(p);
+      for (const tid of (p.trabajadorIds || [])) {
+        if (tid && !seen.has(tid)) {
+          seen.add(tid);
+          if (!map.has(tid)) map.set(tid, []);
+          map.get(tid).push(p);
         }
       }
     }
     return map;
   }, [planillas]);
+
+  // Filas con dinero (salario/cédula/deducciones) del empleado seleccionado.
+  // Se piden bajo demanda y solo de esa persona, así el navegador nunca tiene
+  // la nómina completa de la finca en memoria (auditoría F1).
+  useEffect(() => {
+    if (!selectedId) {
+      setEmpleadoFilas(new Map());
+      setFilasError(false);
+      return;
+    }
+    let alive = true;
+    setFilasLoading(true);
+    setFilasError(false);
+    apiFetch(`/api/hr/planilla-fijo?empleadoId=${encodeURIComponent(selectedId)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!alive) return;
+        const m = new Map();
+        if (Array.isArray(data)) {
+          for (const p of data) { if (p?.id && p.fila) m.set(p.id, p.fila); }
+        }
+        setEmpleadoFilas(m);
+        setFilasLoading(false);
+      })
+      .catch(err => {
+        if (!alive) return;
+        console.error('Error cargando filas del empleado:', err?.message);
+        setFilasError(true);
+        setFilasLoading(false);
+      });
+    return () => { alive = false; };
+  }, [selectedId, apiFetch, filasNonce]);
 
   // Solo empleados de planilla (o quien tenga planillas históricas aunque hoy
   // ya no lleve el flag). Evita listar usuarios solo-acceso bajo "Empleados".
@@ -140,11 +183,9 @@ function FixedPayrollHistory() {
   }, [selectedId, planillasByUser]);
 
   const acumuladoNeto = useMemo(
-    () => empleadoPlanillas.reduce((s, p) => {
-      const fila = p.filas?.find(f => f.trabajadorId === selectedId);
-      return s + (Number(fila?.totalNeto) || 0);
-    }, 0),
-    [empleadoPlanillas, selectedId]
+    () => empleadoPlanillas.reduce(
+      (s, p) => s + (Number(empleadoFilas.get(p.id)?.totalNeto) || 0), 0),
+    [empleadoPlanillas, empleadoFilas]
   );
 
   const handleSelect = (id) => {
@@ -160,15 +201,15 @@ function FixedPayrollHistory() {
   };
 
   const handleVerPlanilla = (p) => {
-    const filaEmpleado = (p.filas || []).filter(f => f.trabajadorId === selectedId);
+    if (!empleadoFilas.has(p.id)) return; // sin datos del empleado aún
+    // F3: no pasamos salarios/cédulas por sessionStorage. Solo una referencia
+    // (planillaId + empleadoId, no sensible); el reporte rehidrata la fila desde
+    // el backend con el mismo gate de rol. Así la PII nunca queda legible en el
+    // storage de un equipo compartido.
     const data = {
-      periodoInicio:     p.periodoInicio,
-      periodoFin:        p.periodoFin,
-      periodoLabel:      p.periodoLabel,
-      totalGeneral:      filaEmpleado.reduce((s, f) => s + (Number(f.totalNeto) || 0), 0),
-      filas:             filaEmpleado,
-      numeroConsecutivo: p.numeroConsecutivo || null,
-      fechaEmision:      p.createdAt || null, // emisión = creación de la planilla, no "hoy"
+      source:            'fetch',
+      planillaId:        p.id,
+      empleadoId:        selectedId,
       // Intención explícita: comprobante individual (no depende de que `dias` exista).
       modo:              'comprobante',
     };
@@ -221,7 +262,7 @@ function FixedPayrollHistory() {
             <h2 style={{ marginTop: 0, marginBottom: 4 }}>Planillas del empleado</h2>
             <p className="fph-detail-sub">
               {empleadoPlanillas.length > 0
-                ? <>{empleadoPlanillas.length} planilla{empleadoPlanillas.length !== 1 ? 's' : ''} · acumulado neto <strong>{fmtSigned(acumuladoNeto)}</strong>. Para aprobar, pagar o eliminar, usá el tab <strong>Editor</strong>.</>
+                ? <>{empleadoPlanillas.length} planilla{empleadoPlanillas.length !== 1 ? 's' : ''}{!filasLoading && !filasError && <> · acumulado neto <strong>{fmtSigned(acumuladoNeto)}</strong></>}. Para aprobar, pagar o eliminar, usá el tab <strong>Editor</strong>.</>
                 : <>Para aprobar, pagar o eliminar planillas, usá el tab <strong>Editor</strong>.</>}
             </p>
 
@@ -231,6 +272,13 @@ function FixedPayrollHistory() {
                 title="No se pudo cargar el historial"
                 subtitle="Revisá tu conexión e intentá de nuevo."
                 action={<button className="aur-btn-pill aur-btn-pill--sm" onClick={loadData}><FiRefreshCw size={14} /> Reintentar</button>}
+              />
+            ) : filasError ? (
+              <EmptyState
+                icon={FiAlertTriangle}
+                title="No se pudieron cargar los montos"
+                subtitle="Revisá tu conexión e intentá de nuevo."
+                action={<button className="aur-btn-pill aur-btn-pill--sm" onClick={() => setFilasNonce(n => n + 1)}><FiRefreshCw size={14} /> Reintentar</button>}
               />
             ) : empleadoPlanillas.length === 0 ? (
               <EmptyState
@@ -247,7 +295,7 @@ function FixedPayrollHistory() {
                   <div></div>
                 </div>
                 {empleadoPlanillas.map(p => {
-                  const fila = p.filas?.find(f => f.trabajadorId === selectedId);
+                  const fila = empleadoFilas.get(p.id);
                   return (
                     <div
                       key={p.id}
@@ -258,13 +306,14 @@ function FixedPayrollHistory() {
                         {p.numeroConsecutivo && <span className="fph-hist-num">N° {p.numeroConsecutivo}</span>}
                       </div>
                       <div className="fph-hist-total">
-                        {fila ? fmtSigned(fila.totalNeto) : '—'}
+                        {filasLoading ? '…' : fila ? fmtSigned(fila.totalNeto) : '—'}
                       </div>
                       <div>{estadoBadge(p.estado)}</div>
                       <div className="fph-hist-actions">
                         <button
                           className="aur-btn-text"
                           onClick={() => handleVerPlanilla(p)}
+                          disabled={filasLoading || !fila}
                           aria-label={`Ver planilla ${p.periodoLabel}`}
                         >
                           <FiEye size={14} /> Ver planilla
