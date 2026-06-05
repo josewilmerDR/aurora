@@ -6,6 +6,7 @@ import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { translateApiError } from '../../../lib/errorMessages';
 import { useUser } from '../../../contexts/UserContext';
 import PayrollStepIndicator from '../components/PayrollStepIndicator';
 import RegisterPermisoModal from '../components/RegisterPermisoModal';
@@ -40,6 +41,14 @@ function FixedPayroll() {
   const [toast, setToast]           = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
+  // Traduce el código de error del backend (FORBIDDEN, CONFLICT/429, etc.) a un
+  // mensaje en español; cae al texto genérico si el body no es legible o el
+  // código es desconocido. Sin esto, un 403/429 se veía como "Error al ...".
+  const errMsg = async (res, fallback) => {
+    try { return translateApiError(await res.json(), fallback); }
+    catch { return fallback; }
+  };
+
   // Crear/editar/eliminar planillas exige supervisor+ (el backend rechaza a
   // encargado con 403). La página es accesible a encargado para lectura del
   // historial, así que gateamos las acciones de escritura en UI — defensa
@@ -69,6 +78,7 @@ function FixedPayroll() {
   const [actionLoading, setActionLoading]           = useState(false); // aprobar/pagar/eliminar en vuelo
   const [planillasError, setPlanillasError]         = useState(false);
   const [solapamientos, setSolapamientos]           = useState(null); // null=ok, array=show warning modal
+  const [solapConfirmado, setSolapConfirmado]       = useState(false); // override de solapamiento confirmado por correo → flag al backend
   const [pendingFilas, setPendingFilas]             = useState(null);
   const [confirmEmailSolap, setConfirmEmailSolap]   = useState('');
   const [editarFechas, setEditarFechas]             = useState(false);
@@ -80,9 +90,15 @@ function FixedPayroll() {
   const autoDateDone = useRef(false);
   const detalleHeadingRef = useRef(null);
 
+  // Las filas completas (salario + cédula + history con emails de TODA la finca)
+  // solo las necesitan los roles de escritura: para detectar solapamientos al
+  // previsualizar y para editar una planilla existente. El encargado read-only
+  // recibe el índice minimizado (período/total/estado/membresía, sin dinero por
+  // empleado) — el backend rechaza el dump completo a quien no puede escribir.
   const fetchPlanillas = () => {
     setPlanillasError(false);
-    return apiFetch('/api/hr/planilla-fijo').then(r => r.json()).then(data => {
+    const url = canEditar ? '/api/hr/planilla-fijo' : '/api/hr/planilla-fijo?view=index';
+    return apiFetch(url).then(r => r.json()).then(data => {
       setPlanillas(Array.isArray(data) ? data : []);
       setPlanillasLoaded(true);
     }).catch(err => {
@@ -91,6 +107,10 @@ function FixedPayroll() {
       setPlanillasLoaded(true);
     });
   };
+
+  // Conteo de empleados tolerante a ambas formas: filas completas (write roles)
+  // o trabajadorIds (índice minimizado, read-only).
+  const empCount = (p) => p?.filas?.length ?? p?.trabajadorIds?.length ?? null;
 
   useEffect(() => {
     Promise.all([
@@ -105,6 +125,10 @@ function FixedPayroll() {
     try {
       const saved = sessionStorage.getItem('aurora_planilla_fijo_state');
       if (!saved) return;
+      // El borrador lleva salarios + cédulas inline. Lo consumimos una sola vez
+      // (al volver del reporte) y lo purgamos de inmediato para no dejar la
+      // nómina legible en el storage de un equipo compartido (auditoría H3).
+      sessionStorage.removeItem('aurora_planilla_fijo_state');
       const { fechaInicio: fi, fechaFin: ff, filas: savedFilas } = JSON.parse(saved);
       const restored = savedFilas.map(f => ({
         ...f,
@@ -223,6 +247,7 @@ function FixedPayroll() {
         setFilas(nuevasFilas);
         setLoaded(true);
         setDetalleId(null);
+        setSolapConfirmado(false); // sin conflicto → sin override pendiente
       }
     } catch {
       showToast('Error al cargar datos de empleados.', 'error');
@@ -385,6 +410,9 @@ function FixedPayroll() {
     setSolapamientos(null);
     setPendingFilas(null);
     setConfirmEmailSolap('');
+    // El usuario aceptó el solapamiento (con su correo): el backend re-valida y
+    // solo deja pasar la planilla traslapada con este override explícito.
+    setSolapConfirmado(true);
   };
 
   const handleGuardar = async () => {
@@ -409,9 +437,10 @@ function FixedPayroll() {
             periodoInicio: periodoInicio.toISOString(),
             periodoFin:    periodoFin.toISOString(),
             periodoLabel,
+            confirmarSolapamiento: solapConfirmado,
           }),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) { showToast(await errMsg(res, 'Error al guardar la planilla.'), 'error'); return; }
         setLoaded(false);
         setFilas([]);
         setDetalleId(null);
@@ -426,9 +455,10 @@ function FixedPayroll() {
             periodoLabel,
             filas: filasPayload,
             totalGeneral,
+            confirmarSolapamiento: solapConfirmado,
           }),
         });
-        if (!res.ok) throw new Error();
+        if (!res.ok) { showToast(await errMsg(res, 'Error al guardar la planilla.'), 'error'); return; }
         // Clear the preview area and show success modal
         setLoaded(false);
         setFilas([]);
@@ -437,6 +467,7 @@ function FixedPayroll() {
       }
       fetchPlanillas();
       setEditingId(null);
+      setSolapConfirmado(false);
     } catch {
       showToast('Error al guardar la planilla.', 'error');
     } finally {
@@ -451,7 +482,7 @@ function FixedPayroll() {
     setActionLoading(true);
     try {
       const res = await apiFetch(`/api/hr/planilla-fijo/${deleteConfirm.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { showToast(await errMsg(res, 'Error al eliminar la planilla.'), 'error'); return; }
       showToast('Planilla eliminada.');
       setDeleteConfirm(null);
       fetchPlanillas();
@@ -470,7 +501,7 @@ function FixedPayroll() {
         method: 'PUT',
         body: JSON.stringify({ estado: 'aprobada' }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { showToast(await errMsg(res, 'Error al aprobar la planilla.'), 'error'); return; }
       showToast('Planilla aprobada.');
       setAprobarConfirm(null);
       fetchPlanillas();
@@ -489,7 +520,7 @@ function FixedPayroll() {
         method: 'PUT',
         body: JSON.stringify({ estado: 'pagada' }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { showToast(await errMsg(res, 'Error al actualizar el estado.'), 'error'); return; }
       showToast('Planilla marcada como pagada.');
       setPagarConfirm(null);
       fetchPlanillas();
@@ -604,6 +635,7 @@ function FixedPayroll() {
     setFilas([]);
     setDetalleId(null);
     setEditingId(null);
+    setSolapConfirmado(false);
     sessionStorage.removeItem('aurora_planilla_fijo_state');
     setDiscardConfirm(false);
   };
@@ -1172,15 +1204,20 @@ function FixedPayroll() {
                 <div key={p.id} className={`planilla-hist-row${highlightId === p.id ? ' planilla-hist-row--highlight' : ''}`}>
                   <div className="planilla-hist-periodo">
                     {p.periodoLabel}
-                    <span className="planilla-hist-emp-inline">{p.filas?.length ?? '—'} empl.</span>
+                    <span className="planilla-hist-emp-inline">{empCount(p) ?? '—'} empl.</span>
                   </div>
-                  <div>{p.filas?.length ?? '—'}</div>
+                  <div>{empCount(p) ?? '—'}</div>
                   <div className="planilla-hist-total">{fmt(p.totalGeneral)}</div>
                   <div>{estadoBadge(p.estado)}</div>
                   <div className="planilla-hist-actions">
-                    <button className="aur-icon-btn" title="Ver planilla" aria-label={`Ver planilla ${p.periodoLabel}`} onClick={() => handleVerPlanilla(p)}>
-                      <FiEye size={16} />
-                    </button>
+                    {/* El reporte completo expone salarios+cédulas de todos: solo
+                        roles de escritura (que ya cargan filas). El read-only ve
+                        comprobantes individuales en el tab «Por empleado». */}
+                    {canEditar && (
+                      <button className="aur-icon-btn" title="Ver planilla" aria-label={`Ver planilla ${p.periodoLabel}`} onClick={() => handleVerPlanilla(p)}>
+                        <FiEye size={16} />
+                      </button>
+                    )}
                     {isPendiente && (
                       <>
                         {canEditar && (

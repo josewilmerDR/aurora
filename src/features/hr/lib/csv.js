@@ -8,8 +8,13 @@
 export const CSV_BOM = '﻿';
 
 // Cita campos con coma, comilla o salto de línea; escapa comillas duplicándolas.
+// Anti formula-injection: una celda que empieza con = + - @ (o tab/CR) es
+// interpretada como fórmula por Excel/Sheets. Como los nombres/cédulas/puestos
+// provienen de datos editables por el usuario, prefijamos un apóstrofo para que
+// la hoja la trate como texto literal (no ejecutable).
 export function csvEscape(val) {
-  const s = String(val ?? '');
+  let s = String(val ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
