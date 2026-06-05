@@ -28,6 +28,7 @@ const UserManagement = lazy(() => import('./features/admin/pages/UserManagement'
 const PackageManagement = lazy(() => import('./features/applications/pages/PackageManagement'));
 const ProductosCatalogo = lazy(() => import('./features/inventory/pages/ProductosCatalogo'));
 const Recepcion = lazy(() => import('./features/inventory/pages/Recepcion'));
+const SolicitudDeCompra = lazy(() => import('./features/inventory/pages/SolicitudDeCompra'));
 const MovimientosHistorial = lazy(() => import('./features/inventory/pages/MovimientosHistorial'));
 const RecepcionViewer = lazy(() => import('./features/inventory/pages/RecepcionViewer'));
 const OCDesdeSolicitud = lazy(() => import('./features/procurement/pages/OCDesdeSolicitud'));
@@ -370,6 +371,7 @@ function App() {
             {/* Canonical bodega routes — pattern /bodega/:bodegaId/:submodule */}
             <Route path="/bodega/agroquimicos/existencias" element={<RoleRoute path="/bodega/agroquimicos/existencias"><Existencias /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/recepcion" element={<RoleRoute path="/bodega/agroquimicos/recepcion"><Recepcion /></RoleRoute>} />
+            <Route path="/bodega/agroquimicos/solicitud" element={<RoleRoute path="/bodega/agroquimicos/solicitud"><SolicitudDeCompra /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/movimientos" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><MovimientosHistorial /></RoleRoute>} />
             <Route path="/bodega/agroquimicos/recepciones/:id" element={<RoleRoute path="/bodega/agroquimicos/movimientos"><RecepcionViewer /></RoleRoute>} />
             <Route path="/bodega/combustibles" element={<RoleRoute path="/bodega/combustibles"><BodegaCombustibles /></RoleRoute>} />

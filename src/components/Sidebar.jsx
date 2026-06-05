@@ -69,6 +69,7 @@ const ALL_MODULES = [
         children: [
           { label: 'Existencias', to: '/bodega/agroquimicos/existencias', icon: FiDroplet, minRole: 'encargado', draftKey: ['inv-productos', 'nuevo-producto'] },
           { label: 'Recepción de Mercancía', to: '/bodega/agroquimicos/recepcion', icon: FiPlusCircle, minRole: 'encargado' },
+          { label: 'Solicitud de Compra', to: '/bodega/agroquimicos/solicitud', icon: FiShoppingCart, minRole: 'encargado' },
           { label: 'Historial de Movimientos', to: '/bodega/agroquimicos/movimientos', icon: FiList, minRole: 'encargado' },
         ],
       },

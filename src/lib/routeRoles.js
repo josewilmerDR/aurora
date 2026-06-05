@@ -20,6 +20,7 @@ export const ROUTE_MIN_ROLE = {
   '/productos/todos': 'encargado',
   '/bodega/agroquimicos/existencias': 'encargado',
   '/bodega/agroquimicos/recepcion': 'encargado',
+  '/bodega/agroquimicos/solicitud': 'encargado',
   '/bodega/agroquimicos/movimientos': 'encargado',
   '/bodega/combustibles': 'encargado',
   '/admin/bodegas': 'administrador',

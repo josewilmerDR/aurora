@@ -177,7 +177,7 @@ function BodegasAdmin() {
         <EmptyState
           icon={FiBox}
           title="No hay bodegas adicionales configuradas."
-          subtitle="Creá almacenes secundarios de la finca u organización."
+          subtitle="Creá bodegas secundarias de la finca u organización."
           action={
             <button className="aur-btn-pill" onClick={openCreate}>
               <FiPlus size={14} /> Crear bodega adicional
@@ -190,7 +190,7 @@ function BodegasAdmin() {
             <div className="lm-header-left">
               <h2 className="lm-title">Bodegas Adicionales</h2>
               <p className="lm-subtitle">
-                Crea y gestiona almacenes secundarios de la finca u organización
+                Crea y gestiona bodegas secundarias de la finca u organización
               </p>
             </div>
             <button className="aur-btn-pill" onClick={openCreate}>
