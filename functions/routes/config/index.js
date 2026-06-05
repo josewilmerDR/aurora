@@ -16,7 +16,7 @@ const router = Router();
 // Cédulas, Siembra, Cosecha, Planilla, Compras) y la página de ajustes de
 // cuenta es administrador. Sin gate, un trabajador podía leer todo eso vía
 // API directa.
-router.get('/api/config', authenticate, async (req, res) => {
+router.get('/api/config', authenticate, rateLimit('config_read', 'costly_read'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read finca config.', 403);

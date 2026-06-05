@@ -93,10 +93,16 @@ function sanitizeFijoFilas(filas, usersMap, fichasMap) {
     const efectivoDesdeRaw = typeof f?.efectivoDesde === 'string' ? f.efectivoDesde.slice(0, 10) : '';
     const efectivoDesde = FECHA_RE.test(efectivoDesdeRaw) ? efectivoDesdeRaw : '';
 
-    // Totales: confiar en el cómputo del cliente pero clampear.
+    // Totales: confiar en los componentes del cliente (clampeados) pero NO en
+    // el bruto. salarioBruto se DERIVA server-side de ordinario+extraordinario
+    // (paridad con la tabla de resumen del comprobante), no se acepta como
+    // valor independiente: si no, un rol de escritura podía emitir un bruto que
+    // no cuadra con su propio desglose y, como CCSS/neto cuelgan del bruto,
+    // desincronizar toda la obligación de pago. Cualquier `f.salarioBruto`
+    // entrante se ignora.
     const salarioOrdinario      = clampNumber(f?.salarioOrdinario, PLANILLA_LIMITS.numeric);
     const salarioExtraordinario = clampNumber(f?.salarioExtraordinario, PLANILLA_LIMITS.numeric);
-    const salarioBruto          = clampNumber(f?.salarioBruto, PLANILLA_LIMITS.numeric);
+    const salarioBruto          = clampNumber(salarioOrdinario + salarioExtraordinario, PLANILLA_LIMITS.numeric);
     // CCSS debe ser consistente con salarioBruto; recalcular server-side.
     const deduccionCCSS         = Math.round(salarioBruto * FIJO_CCSS_RATE);
     const otrasDeduccionesTotal = deduccionesExtra.reduce((s, d) => s + d.monto, 0);

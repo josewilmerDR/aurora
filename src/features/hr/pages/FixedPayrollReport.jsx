@@ -320,7 +320,7 @@ export default function FixedPayrollReport() {
                   : 'AU'}
               </div>
               <div className="pr-doc-brand-info">
-                <div className="pr-doc-brand-name">{config.nombreEmpresa.toUpperCase()}</div>
+                <div className="pr-doc-brand-name">{String(config.nombreEmpresa || 'Finca Aurora').toUpperCase()}</div>
                 {config.identificacion && <div className="pr-doc-brand-sub">Céd. {config.identificacion}</div>}
                 {config.direccion && <div className="pr-doc-brand-sub">{config.direccion}{config.whatsapp ? ` · Tel: ${config.whatsapp}` : ''}</div>}
               </div>
