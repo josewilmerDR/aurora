@@ -163,12 +163,15 @@
   opacity: 0.85;
 }
 
-/* Color por tipo (background tinto, texto claro) */
-.leave-band--vacaciones       { background: rgba(243, 156, 18, 0.18);  border-color: #f39c12; }
-.leave-band--enfermedad       { background: rgba(155, 89, 182, 0.18);  border-color: #9b59b6; }
-.leave-band--permiso_con_goce { background: rgba(52, 152, 219, 0.18);  border-color: #3498db; }
-.leave-band--permiso_sin_goce { background: rgba(192, 57, 43, 0.18);   border-color: #c0392b; }
-.leave-band--licencia         { background: rgba(39, 174, 96, 0.18);   border-color: #27ae60; }
+/* Color por tipo (background tinto + borde) — mismas claves de dominio (--hr-*)
+   que Asistencia/Planilla, para que "vacaciones", "permiso", "enfermedad", etc.
+   tengan el mismo color en todas las pantallas (antes el azul de permiso era
+   #3498db acá y #5599ff en las otras hojas). */
+.leave-band--vacaciones       { background: var(--aur-badge-yellow-bg);  border-color: var(--hr-warn); }
+.leave-band--enfermedad       { background: var(--aur-badge-magenta-bg); border-color: var(--hr-incapacidad); }
+.leave-band--permiso_con_goce { background: var(--aur-badge-blue-bg);    border-color: var(--hr-info); }
+.leave-band--permiso_sin_goce { background: var(--aur-egreso-tint);      border-color: var(--hr-negative); }
+.leave-band--licencia         { background: var(--aur-badge-green-bg);   border-color: var(--hr-present); }
 
 /* Estilo por estado */
 .leave-band--pendiente { border-style: dashed; opacity: 0.85; }

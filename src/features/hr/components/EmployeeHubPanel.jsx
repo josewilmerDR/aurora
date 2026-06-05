@@ -1,6 +1,16 @@
-import { FiArrowLeft, FiEdit, FiUserX, FiMail, FiPhone, FiKey, FiClock } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit, FiUserX, FiMail, FiPhone, FiKey, FiClock, FiCalendar, FiUmbrella, FiDollarSign, FiChevronRight } from 'react-icons/fi';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import { DIAS_SEMANA, calcHorasSemanales, getInitials, formatFechaSalida } from '../lib/employeeProfileShared';
+
+// Enlaces cross-módulo: desde la ficha, el encargado salta a los demás
+// submódulos HR ya filtrados por este empleado (ver onNavigateModule en
+// EmployeeProfile, que propaga el empleadoId por query param). Sin esto, la
+// ficha era una isla y había que re-buscar a la persona en cada pantalla.
+const HR_MODULES = [
+  { path: '/hr/asistencia',                label: 'Asistencia',  icon: FiCalendar },
+  { path: '/hr/permisos',                  label: 'Permisos y vacaciones', icon: FiUmbrella },
+  { path: '/hr/planilla/fijo?tab=historial', label: 'Historial de planilla', icon: FiDollarSign },
+];
 
 // Panel de detalle (solo lectura) del empleado seleccionado. Renderiza
 // secciones condicionalmente según los datos disponibles en la ficha.
@@ -11,6 +21,7 @@ export default function EmployeeHubPanel({
   onBack,
   onEdit,
   onRequestTerminate,
+  onNavigateModule,
 }) {
   if (!selectedUser) return null;
 
@@ -87,6 +98,26 @@ export default function EmployeeHubPanel({
         {selectedUser.telefono && <span className="hub-pill"><FiPhone size={13} />{selectedUser.telefono}</span>}
         {fichaForm.cedula      && <span className="hub-pill hub-pill-muted">CI: {fichaForm.cedula}</span>}
       </div>
+
+      {onNavigateModule && (
+        <div className="ficha-hub-section">
+          <p className="ficha-hub-section-title">Ver en otros módulos</p>
+          <div className="ficha-hub-links">
+            {HR_MODULES.map(({ path, label, icon: Icon }) => (
+              <button
+                key={path}
+                type="button"
+                className="ficha-hub-link"
+                onClick={() => onNavigateModule(path)}
+              >
+                <Icon size={15} aria-hidden="true" />
+                <span>{label}</span>
+                <FiChevronRight size={14} className="ficha-hub-link-chevron" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tieneLaboral && (
         <div className="ficha-hub-section">

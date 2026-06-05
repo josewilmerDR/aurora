@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import '../styles/hr.css';
 import '../styles/leave-calendar.css';
 import { FiPlus, FiTrash2, FiCheck, FiX, FiClock, FiList, FiCalendar, FiRotateCcw } from 'react-icons/fi';
 import EmptyState from '../../../components/ui/EmptyState';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useHrActiveEmployee } from '../../../contexts/HrContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import LeaveCalendar from '../components/LeaveCalendar';
@@ -40,12 +42,33 @@ function LeaveRequests() {
   const canApprove = hasMinRole(userRole, 'supervisor');
   const canDelete  = hasMinRole(userRole, 'encargado');
 
+  // Pre-filtra esta vista por el empleado del deep-link (?empleadoId) o, en su
+  // defecto, por el "empleado activo" heredado de otra página HR. Así no hay que
+  // re-buscar a la misma persona al cruzar de módulo.
+  const [searchParams] = useSearchParams();
+  const { activeEmployeeId, setActiveEmployee } = useHrActiveEmployee();
   const today = todayLocal();
   const [permisos, setPermisos] = useState([]);
   const [users, setUsers] = useState([]);
   const [mes, setMes] = useState(today.slice(5, 7));
   const [anio, setAnio] = useState(today.slice(0, 4));
-  const [filtroTrabajador, setFiltroTrabajador] = useState('');
+  const [filtroTrabajador, setFiltroTrabajador] = useState(
+    () => searchParams.get('empleadoId') || activeEmployeeId || ''
+  );
+
+  // Cambiar el filtro a una persona concreta la fija como empleado activo del
+  // dominio (se propaga a las demás páginas). Limpiar el filtro NO borra el
+  // contexto: "ver todos acá" no significa "terminé con esta persona".
+  const handleFiltroTrabajador = (id) => {
+    setFiltroTrabajador(id);
+    if (id) setActiveEmployee(id);
+  };
+
+  // Un deep-link explícito pasa a ser el empleado activo del dominio.
+  useEffect(() => {
+    const p = searchParams.get('empleadoId');
+    if (p) setActiveEmployee(p);
+  }, [searchParams, setActiveEmployee]);
   const [view, setView] = useState('lista'); // 'lista' | 'calendario'
   const [initialLoading, setInitialLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -407,7 +430,7 @@ function LeaveRequests() {
           <select className="aur-select" value={anio} onChange={e => setAnio(e.target.value)} aria-label="Año">
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <select className="aur-select" value={filtroTrabajador} onChange={e => setFiltroTrabajador(e.target.value)} aria-label="Trabajador">
+          <select className="aur-select" value={filtroTrabajador} onChange={e => handleFiltroTrabajador(e.target.value)} aria-label="Trabajador">
             <option value="">Todos los trabajadores</option>
             {users.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
           </select>

@@ -1,13 +1,31 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { FiCheck, FiX, FiCalendar, FiSave, FiUsers } from 'react-icons/fi';
+import { useSearchParams } from 'react-router-dom';
+import { FiCheck, FiX, FiCalendar, FiSave, FiUsers, FiUmbrella, FiAlertTriangle } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import EmptyState from '../../../components/ui/EmptyState';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import RegisterPermisoModal from '../components/RegisterPermisoModal';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useHrActiveEmployee } from '../../../contexts/HrContext';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import { tipoLabel } from '../lib/leaveHelpers';
 import { todayLocal, dateNDaysAgo } from '../lib/dateHelpers';
 import '../styles/hr.css';
 import '../styles/asistencia.css';
+
+// Estados de Asistencia que representan una ausencia. Sin un permiso aprobado en
+// hr_permisos, NO descuentan en planilla (la nómina deriva del módulo de
+// permisos, no de asistencia) — de ahí el aviso "puente" en la fila.
+const ABSENCE_ESTADOS = ['vacaciones', 'incapacidad', 'permiso'];
+
+// Estado de asistencia → tipo de permiso, para pre-seleccionar el modal con la
+// intención que el usuario ya expresó en la grilla.
+const ESTADO_A_TIPO = {
+  vacaciones:  'vacaciones',
+  incapacidad: 'enfermedad',
+  permiso:     'permiso_con_goce',
+};
 
 // Estados deben coincidir con la enum del backend (functions/routes/hr/fichas.js).
 const ESTADOS = [
@@ -38,6 +56,20 @@ const signature = (estados, horas, notas) => {
 
 export default function Asistencia() {
   const apiFetch = useApiFetch();
+  // Empleado a enfocar: el del deep-link (?empleadoId) gana; si no, el "empleado
+  // activo" heredado de otra página HR. Resaltamos y hacemos scroll a esa fila
+  // para ubicar a la persona dentro de la cuadrilla completa.
+  const [searchParams] = useSearchParams();
+  const { activeEmployeeId, setActiveEmployee } = useHrActiveEmployee();
+  const { currentUser } = useUser();
+  const canAprobar = hasMinRole(currentUser?.rol || 'trabajador', 'supervisor');
+  const paramEmpleadoId = searchParams.get('empleadoId');
+  const focusEmpleadoId = paramEmpleadoId || activeEmployeeId;
+
+  // Un deep-link explícito pasa a ser el empleado activo del dominio.
+  useEffect(() => {
+    if (paramEmpleadoId) setActiveEmployee(paramEmpleadoId);
+  }, [paramEmpleadoId, setActiveEmployee]);
 
   const [fecha, setFecha] = useState(todayLocal());
   const [users, setUsers] = useState([]);
@@ -53,6 +85,10 @@ export default function Asistencia() {
   const [toast, setToast] = useState(null);
   const [pendingDate, setPendingDate] = useState(null); // confirmación de cambio de fecha
   const [confirmSave, setConfirmSave] = useState(null);  // { nuevos, actualizados, sinMarcar }
+  // Permisos del finca (hr_permisos): los cruzamos contra la fecha para reflejar
+  // ausencias ya formalizadas y evitar la doble entrada / la trampa silenciosa.
+  const [permisos, setPermisos] = useState([]);
+  const [permisoModalFor, setPermisoModalFor] = useState(null); // { id, nombre } | null
 
   // Snapshot de lo hidratado desde el backend para esta fecha: sirve para
   // detectar "sucio", contar lo ya registrado y distinguir nuevos vs updates.
@@ -83,6 +119,39 @@ export default function Asistencia() {
         showToast('Error al cargar trabajadores.', 'error');
       });
   }, [apiFetch]);
+
+  // ── Carga de permisos (para cruzar contra la fecha) ───────────────────────
+  const fetchPermisos = useCallback(() => {
+    apiFetch('/api/hr/permisos')
+      .then(r => (r.ok ? r.json() : []))
+      .then(data => setPermisos(Array.isArray(data) ? data : []))
+      .catch(() => setPermisos([])); // sin permisos: degradamos a la vista clásica
+  }, [apiFetch]);
+
+  useEffect(() => { fetchPermisos(); }, [fetchPermisos]);
+
+  // trabajadorId → permiso vigente en `fecha` (aprobado o pendiente; los
+  // rechazados se ignoran). Si hay varios, gana el primero por fechaInicio desc.
+  const permisosDelDia = useMemo(() => {
+    const map = {};
+    for (const p of permisos) {
+      if (p.estado === 'rechazado' || !p.trabajadorId) continue;
+      const ini = (p.fechaInicio || '').slice(0, 10);
+      const fin = (p.fechaFin || p.fechaInicio || '').slice(0, 10);
+      if (ini && fecha >= ini && fecha <= fin && !map[p.trabajadorId]) {
+        map[p.trabajadorId] = p;
+      }
+    }
+    return map;
+  }, [permisos, fecha]);
+
+  const handlePermisoSuccess = async ({ autoApproved }) => {
+    setPermisoModalFor(null);
+    showToast(autoApproved
+      ? 'Permiso registrado y aprobado. Ya impacta la planilla.'
+      : 'Permiso registrado (pendiente de aprobación).');
+    fetchPermisos();
+  };
 
   // ── Hidratación de asistencia por fecha ───────────────────────────────────
   // La query mensual del backend (mes/anio) trae más de lo necesario, así que
@@ -180,6 +249,18 @@ export default function Asistencia() {
 
   // Limpia el badge al desmontar.
   useEffect(() => () => clearDraftActive(DRAFT_FORM_KEY), []);
+
+  // Scroll + resaltado temporal de la fila del empleado del deep-link, una vez
+  // que la cuadrilla está renderizada.
+  useEffect(() => {
+    if (!focusEmpleadoId || initialLoading || !users.length) return;
+    const el = document.querySelector(`.asist-row[data-uid="${focusEmpleadoId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('asist-row--focus');
+    const t = setTimeout(() => el.classList.remove('asist-row--focus'), 2600);
+    return () => clearTimeout(t);
+  }, [focusEmpleadoId, initialLoading, users.length]);
 
   // ── Cambio de fecha con guarda de cambios sin guardar (#1) ────────────────
   const requestDateChange = (nuevaFecha) => {
@@ -334,7 +415,7 @@ export default function Asistencia() {
           {users.map(u => {
             const estado = estados[u.id] || '';
             return (
-              <div key={u.id} className={`asist-row asist-row--${estado || 'empty'}`}>
+              <div key={u.id} data-uid={u.id} className={`asist-row asist-row--${estado || 'empty'}`}>
                 <div className="asist-name" title={u.nombre || u.id}>{u.nombre || u.id}</div>
                 <div className="asist-estados" role="radiogroup" aria-label={`Estado de ${u.nombre || u.id}`}>
                   {ESTADOS.map((e, idx) => {
@@ -379,6 +460,41 @@ export default function Asistencia() {
                   className="asist-notas-input"
                   aria-label={`Notas de ${u.nombre || u.id}`}
                 />
+                {(() => {
+                  // Puente Asistencia ↔ Permisos: si la persona ya tiene un
+                  // permiso vigente este día, lo reflejamos (sin pedir doble
+                  // entrada). Si marcaron una ausencia SIN permiso, avisamos que
+                  // no descuenta y ofrecemos registrarlo en hr_permisos.
+                  const permisoDia = permisosDelDia[u.id];
+                  if (permisoDia) {
+                    const aprob = permisoDia.estado === 'aprobado';
+                    return (
+                      <div className={`asist-permiso-note asist-permiso-note--${aprob ? 'ok' : 'pending'}`}>
+                        <FiUmbrella size={12} aria-hidden="true" />
+                        <span>
+                          {aprob ? 'Permiso aprobado' : 'Permiso pendiente'}: {tipoLabel(permisoDia.tipo)}
+                          {' · '}{permisoDia.conGoce === false ? 'sin goce (descuenta)' : 'con goce'}
+                        </span>
+                      </div>
+                    );
+                  }
+                  if (ABSENCE_ESTADOS.includes(estado)) {
+                    return (
+                      <div className="asist-permiso-note asist-permiso-note--warn">
+                        <FiAlertTriangle size={12} aria-hidden="true" />
+                        <span>Este estado no descuenta en planilla por sí solo.</span>
+                        <button
+                          type="button"
+                          className="asist-permiso-link"
+                          onClick={() => setPermisoModalFor({ id: u.id, nombre: u.nombre || u.id, estado })}
+                        >
+                          Registrar permiso
+                        </button>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             );
           })}
@@ -409,6 +525,20 @@ export default function Asistencia() {
           danger
           onConfirm={confirmDateChange}
           onCancel={() => setPendingDate(null)}
+        />
+      )}
+
+      {permisoModalFor && (
+        <RegisterPermisoModal
+          trabajador={permisoModalFor}
+          defaultFecha={fecha}
+          defaultTipo={ESTADO_A_TIPO[permisoModalFor.estado]}
+          periodoInicio={fecha}
+          periodoFin={fecha}
+          autoApprove={canAprobar}
+          showToast={showToast}
+          onSuccess={handlePermisoSuccess}
+          onCancel={() => setPermisoModalFor(null)}
         />
       )}
 

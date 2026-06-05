@@ -69,7 +69,7 @@
 .role-badge--encargado    { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
 .role-badge--supervisor   { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
 .role-badge--rrhh         { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
-.role-badge--administrador{ background: rgba(51,153,255,0.2);   color: #5599ff; }
+.role-badge--administrador{ background: rgba(51,153,255,0.2);   color: var(--hr-info); }
 
 /* ── Hub identity block (avatar + name in hub header) ────────────────────── */
 .ficha-hub-identity {
@@ -91,6 +91,36 @@
   color: var(--aurora-light);
   opacity: 0.4;
   margin: 0 0 10px;
+}
+
+/* Enlaces cross-módulo del hub de ficha (Asistencia / Permisos / Planilla). */
+.ficha-hub-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ficha-hub-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--aurora-dark-blue);
+  border: 1px solid var(--aurora-border);
+  border-radius: 999px;
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.ficha-hub-link:hover {
+  border-color: var(--aurora-green);
+  color: var(--aurora-green);
+}
+
+.ficha-hub-link-chevron {
+  opacity: 0.5;
 }
 
 .ficha-hub-grid {
@@ -235,7 +265,7 @@
   color: var(--aurora-light);
   border: 1px solid var(--aurora-border);
   padding: 8px 12px;
-  border-radius: 5px;
+  border-radius: var(--aur-r-input);
   font-size: 0.9rem;
   min-width: 150px;
 }
@@ -255,11 +285,11 @@
 .status-badge--pendiente   { background: rgba(255,200,0,0.15);   color: #ffc800; }
 .status-badge--aprobado    { background: rgba(51,255,153,0.15);  color: var(--aurora-green); }
 .status-badge--rechazado   { background: rgba(255,91,91,0.15);   color: var(--hr-negative); }
-.status-badge--contratado  { background: rgba(51,153,255,0.15);  color: #5599ff; }
+.status-badge--contratado  { background: rgba(51,153,255,0.15);  color: var(--hr-info); }
 .status-badge--presente    { background: rgba(51,255,153,0.12);  color: var(--aurora-green); }
-.status-badge--ausente     { background: rgba(255,80,80,0.12);   color: #ff5050; }
+.status-badge--ausente     { background: rgba(255,80,80,0.12);   color: var(--hr-negative); }
 .status-badge--tardanza    { background: rgba(255,150,0,0.12);   color: #ff9600; }
-.status-badge--permiso     { background: rgba(51,153,255,0.12);  color: #5599ff; }
+.status-badge--permiso     { background: rgba(51,153,255,0.12);  color: var(--hr-info); }
 .status-badge--amonestacion { background: rgba(255,100,50,0.15); color: #ff6432; }
 .status-badge--memorandum  { background: rgba(204,51,255,0.15);  color: var(--aurora-magenta); }
 
@@ -269,7 +299,7 @@
   color: var(--aurora-light);
   border: 1px solid var(--aurora-border);
   padding: 12px;
-  border-radius: 5px;
+  border-radius: var(--aur-r-input);
   font-size: 1rem;
   resize: vertical;
   min-height: 80px;
@@ -404,10 +434,27 @@ button.collapsible-section-header:hover { opacity: 1; }
   align-items: center;
 }
 
-/* Token único para "negativo / sin goce / rechazado" (antes #ff5050, #ff6b6b
-   sueltos). Es semántica financiera-negativa, distinta del --aur-danger
-   (magenta destructivo). */
-:root { --hr-negative: #ff5b5b; }
+/* ── Paleta de estado del dominio HR ───────────────────────────────────────
+   Fuente única para los colores de estado que comparten Asistencia, Permisos,
+   Planilla y el calendario. Antes cada hoja redefinía el mismo concepto con
+   hex ligeramente distintos (#ff5050 / #ff5b5b / #ff4d4d para "negativo";
+   #5599ff / #3498db para "permiso") → el dominio se veía como páginas pegadas.
+   Cada token apunta al token canónico del design system (--aur-*) para no
+   inventar una paleta paralela. hr.css lo importan todas las páginas HR, así
+   que estos tokens están disponibles en todo el dominio. */
+:root {
+  /* negativo / sin goce / ausente / rechazado — semántica financiera-negativa,
+     distinta del --aur-danger (magenta destructivo). */
+  --hr-negative:    var(--aur-egreso);          /* #ff6680 */
+  /* permiso / contratado / informativo */
+  --hr-info:        var(--aur-badge-blue-fg);   /* #64b5f6 */
+  /* vacaciones / pendiente / aviso */
+  --hr-warn:        var(--aur-badge-yellow-fg); /* #ffb84d */
+  /* presente / aprobado / positivo */
+  --hr-present:     var(--aurora-green);
+  /* incapacidad / enfermedad */
+  --hr-incapacidad: var(--aurora-magenta);
+}
 
 /* Badge de "goce de salario": color NEUTRO, no reusa verde/rojo de estado
    (un permiso aprobado sin goce no es un rechazo). */
@@ -583,7 +630,7 @@ button.collapsible-section-header:hover { opacity: 1; }
 }
 
 .planilla-monto-neg {
-  color: #ff5050;
+  color: var(--hr-negative);
   font-weight: 600;
   text-align: right;
 }
@@ -642,7 +689,7 @@ button.collapsible-section-header:hover { opacity: 1; }
   font-size: 1.05rem;
 }
 
-.planilla-total--negativo { color: #ff5050; }
+.planilla-total--negativo { color: var(--hr-negative); }
 
 .planilla-grand-total {
   display: flex;
@@ -800,7 +847,7 @@ button.collapsible-section-header:hover { opacity: 1; }
 .planilla-sum-ded     { color: #ff8080; }
 .planilla-sum-neto    { color: var(--aurora-green); font-weight: 700; }
 /* Neto negativo (deducciones > bruto): se muestra el valor real en rojo, no ₡0. */
-.planilla-sum-neto--neg { color: #ff5050; }
+.planilla-sum-neto--neg { color: var(--hr-negative); }
 
 /* Hint del lock de fechas + aviso de neto negativo en el detalle. */
 .planilla-config-hint {
@@ -818,8 +865,8 @@ button.collapsible-section-header:hover { opacity: 1; }
   color: #ff8080;
 }
 .planilla-det-neto-warning > svg { flex-shrink: 0; }
-.planilla-det-sum-row--neto-neg { color: #ff5050; }
-.planilla-det-sum-row--neto-neg span { color: #ff5050; }
+.planilla-det-sum-row--neto-neg { color: var(--hr-negative); }
+.planilla-det-sum-row--neto-neg span { color: var(--hr-negative); }
 
 /* Spinner de carga del historial. */
 .planilla-hist-loading {
@@ -953,7 +1000,7 @@ button.collapsible-section-header:hover { opacity: 1; }
 .planilla-permiso-form .form-control select {
   background: var(--aurora-dark-blue);
   border: 1px solid var(--aurora-border);
-  border-radius: 6px;
+  border-radius: var(--aur-r-input);
   color: var(--aurora-light);
   font-size: 0.9rem;
   padding: 7px 10px;

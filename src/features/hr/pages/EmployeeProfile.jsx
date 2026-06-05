@@ -6,6 +6,7 @@ import { FiUserPlus, FiUsers } from 'react-icons/fi';
 import Toast from '../../../components/Toast';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useUser } from '../../../contexts/UserContext';
+import { useHrActiveEmployee } from '../../../contexts/HrContext';
 import { translateApiError } from '../../../lib/errorMessages';
 import EmployeeForm from '../components/EmployeeForm';
 import EmployeeHubPanel from '../components/EmployeeHubPanel';
@@ -28,6 +29,7 @@ function EmployeeProfile() {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, refreshCurrentUser } = useUser();
+  const { activeEmployeeId, setActiveEmployee, clearActiveEmployee } = useHrActiveEmployee();
   const [allUsers, setAllUsers] = useState([]);
   const [planillaUsers, setPlanillaUsers] = useState([]);
   const [fichasMap, setFichasMap] = useState({});
@@ -52,6 +54,9 @@ function EmployeeProfile() {
   // Secuencia de carga de ficha: descarta respuestas obsoletas cuando el
   // usuario cambia rápido de empleado (la última selección gana).
   const fichaReqRef = useRef(0);
+  // Una sola vez por montaje: evita que la auto-selección del empleado activo
+  // (contexto de dominio) vuelva a dispararse si el usuario deselecciona a mano.
+  const autoSelectedRef = useRef(false);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
   // Auto-scroll del bubble activo en mobile
@@ -123,6 +128,20 @@ function EmployeeProfile() {
     navigate(location.pathname, { replace: true, state: null });
   }, [loading, allUsers, location.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Continuidad de dominio: al entrar a la ficha sin una selección explícita,
+  // pre-seleccionamos el empleado activo heredado de otra página HR. Sólo una
+  // vez por montaje (autoSelectedRef) para no re-seleccionar tras un "volver".
+  useEffect(() => {
+    if (autoSelectedRef.current) return;
+    if (loading || !allUsers.length) return;
+    if (location.state?.selectUserId) return; // el flujo de router-state manda
+    if (selectedId || view !== 'hub') return; // ya hay selección o estamos en form/draft
+    autoSelectedRef.current = true;
+    if (!activeEmployeeId) return;
+    const target = allUsers.find(u => u.id === activeEmployeeId);
+    if (target) handleSelectEmployee(target);
+  }, [loading, allUsers, activeEmployeeId, location.state, selectedId, view]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Guardar borrador solo al crear (no al editar)
   useEffect(() => {
     if (view !== 'form' || isEditing) return;
@@ -153,6 +172,9 @@ function EmployeeProfile() {
 
   const handleSelectEmployee = async (user) => {
     setSelectedId(user.id);
+    // Propaga al contexto de dominio: las demás páginas HR (asistencia, permisos,
+    // planilla) heredan esta persona como "empleado activo" sin re-buscarla.
+    setActiveEmployee(user.id);
     setUserForm(userToForm(user));
     setFichaForm(EMPTY_FICHA);
     setView('hub');
@@ -178,6 +200,16 @@ function EmployeeProfile() {
     setIsEditing(true);
     setView('form');
     window.scrollTo(0, 0);
+  };
+
+  // Navega a otro submódulo HR propagando el empleado seleccionado por query
+  // param (?empleadoId=). Cada destino lo consume para pre-filtrar/pre-seleccionar
+  // a esta persona, evitando re-buscarla en cada pantalla. `path` puede traer su
+  // propio query (ej: ?tab=historial), así que elegimos el separador correcto.
+  const handleNavigateModule = (path) => {
+    if (!selectedId) return;
+    const sep = path.includes('?') ? '&' : '?';
+    navigate(`${path}${sep}empleadoId=${encodeURIComponent(selectedId)}`);
   };
 
   // Terminate the employment relationship. Never hard-deletes the doc — the
@@ -207,6 +239,8 @@ function EmployeeProfile() {
       }
 
       setSelectedId(null);
+      // Rescindido: deja de ser el "empleado activo" del dominio.
+      if (activeEmployeeId === userId) clearActiveEmployee();
       setUserForm(EMPTY_USER);
       setFichaForm(EMPTY_FICHA);
       setConfirmTerminate(null);
@@ -510,6 +544,7 @@ function EmployeeProfile() {
             onBack={() => setSelectedId(null)}
             onEdit={handleEdit}
             onRequestTerminate={setConfirmTerminate}
+            onNavigateModule={handleNavigateModule}
           />
         )}
 
