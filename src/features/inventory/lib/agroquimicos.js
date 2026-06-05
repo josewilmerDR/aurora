@@ -49,6 +49,16 @@ export const NUM_LIMITS = {
   stockMinimo: 32768, precioUnitario: 2097152, iva: 100,
 };
 
+// Formatea un monto con 2 decimales y la moneda. Defiende contra valores no
+// numéricos (undefined/null/string sucio) para no pintar "NaN" en la card.
+// Vive acá (no en la página) porque tanto el catálogo como otras vistas de
+// costo lo necesitan.
+export function formatCurrency(value, moneda) {
+  const n = Number(value);
+  const safe = Number.isFinite(n) ? n : 0;
+  return `${safe.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda || ''}`.trim();
+}
+
 // Comparación canónica "valor editado ≠ valor persistido". String-compare para
 // no marcar dirty un 5 vs "5". Una sola fuente para dirtyProducts, isDirtyRow,
 // changeSummary y el armado del payload.
