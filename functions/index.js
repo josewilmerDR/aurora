@@ -28,6 +28,7 @@ app.use(require('./routes/field-records'));
 app.use(require('./routes/templates'));
 app.use(require('./routes/users'));
 app.use(require('./routes/users-facets'));
+app.use(require('./routes/warehouses-bodegas'));
 app.use(require('./routes/warehouses'));
 app.use(require('./routes/products'));
 app.use(require('./routes/packages'));
