@@ -84,13 +84,17 @@ const SegmentCombobox = forwardRef(function SegmentCombobox({
     }
   };
 
+  // El listener global de click-outside sólo se registra mientras el dropdown
+  // está abierto: con N segmentos × 3 comboboxes había N×3 listeners corriendo
+  // `contains` en cada click de la página aunque estuvieran todos cerrados.
   useEffect(() => {
+    if (!open) return;
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
 
   const shown = displayValue ? displayValue(value) : value;
   const activeId = open && filtered[highlighted] ? `${listId}-opt-${highlighted}` : undefined;
@@ -110,7 +114,10 @@ const SegmentCombobox = forwardRef(function SegmentCombobox({
         aria-activedescendant={activeId}
         aria-label={ariaLabel}
         onChange={e => { onChange(e.target.value, null); setOpen(true); setHighlighted(0); }}
-        onFocus={() => setOpen(true)}
+        // Reabrir al enfocar sólo si el campo está vacío: si ya hay un valor
+        // elegido, recibir el foco (p. ej. Shift+Tab) no debe re-desplegar la
+        // lista completa y tapar la celda.
+        onFocus={() => { if (!value) { setOpen(true); setHighlighted(0); } }}
         onKeyDown={handleKeyDown}
       />
       {open && filtered.length > 0 && (

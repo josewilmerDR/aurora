@@ -9,7 +9,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraModal from '../../../components/AuroraModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import SegmentCombobox from '../components/SegmentCombobox';
-import { todayStr, fmtMoney, newSegId, newSegmento, isHoraUnit, safeImageUrl, ESTADO_LABEL, ESTADO_CLASS } from '../lib/unit-payroll-shared';
+import { todayStr, fmtMoney, fmtDate, newSegId, newSegmento, isHoraUnit, safeImageUrl, ESTADO_LABEL, ESTADO_CLASS, parseLaborString, countTrabajadoresConCantidad } from '../lib/unit-payroll-shared';
 import '../styles/hr.css';
 import '../styles/unit-payroll.css';
 
@@ -130,11 +130,13 @@ function UnitPayroll() {
   const [confirmDelPlanilla, setConfirmDelPlanilla] = useState(null);
   const [confirmDelPlantilla, setConfirmDelPlantilla] = useState(null);
   const [confirmDelSegmento, setConfirmDelSegmento] = useState(null); // { id, idx, count }
+  const [confirmLoadPlanilla, setConfirmLoadPlanilla] = useState(null); // planilla pendiente de cargar (pisaría un borrador sin guardar)
   const [planillaId, setPlanillaId] = useDraft('hr-planilla-id', null);
   const [planillaEstado, setPlanillaEstado] = useDraft('hr-planilla-estado', null);
   const [consecutivo, setConsecutivo] = useDraft('hr-planilla-consecutivo', null);
   const [historial, setHistorial] = useState([]);
   const [historialLoading, setHistorialLoading] = useState(true);
+  const [historialError, setHistorialError] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
   // dirty = true only when the user modifies the form. Prevents async loads
   // (workers, drafts, reloads) from triggering an auto-save.
@@ -183,10 +185,14 @@ function UnitPayroll() {
 
   const fetchHistorial = useCallback(() => {
     setHistorialLoading(true);
+    setHistorialError(false);
     apiFetch('/api/hr/planilla-unidad')
-      .then(r => r.json())
-      .then(data => setHistorial(data.filter(p => ['borrador', 'pendiente'].includes(p.estado))))
-      .catch(console.error)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      // Se incluyen las aprobadas para que el botón "Pagar" tenga dónde vivir
+      // (las pagadas/anuladas viven en el tab Historial). Sin aprobadas, la
+      // transición a "pagada" quedaba inalcanzable desde este panel.
+      .then(data => setHistorial(data.filter(p => ['borrador', 'pendiente', 'aprobada'].includes(p.estado))))
+      .catch(() => setHistorialError(true))
       .finally(() => setHistorialLoading(false));
   }, []);
 
@@ -279,12 +285,21 @@ function UnitPayroll() {
   useEffect(() => {
     // Si un catálogo falla, además de loguear avisamos: un dropdown vacío sin
     // explicación deja al encargado trabado sin saber si es red o falta de datos.
-    const catalogError = (nombre) => () => showToast(`No se pudieron cargar ${nombre}.`, 'error');
-    apiFetch('/api/lotes').then(r => r.json()).then(setLotes).catch(catalogError('los lotes'));
-    apiFetch('/api/siembras').then(r => r.json()).then(data => setSiembras(Array.isArray(data) ? data : [])).catch(catalogError('las siembras'));
-    apiFetch('/api/grupos').then(r => r.json()).then(setGruposCat).catch(catalogError('los grupos'));
-    apiFetch('/api/labores').then(r => r.json()).then(setLaboresCat).catch(catalogError('las labores'));
-    apiFetch('/api/unidades-medida').then(r => r.json()).then(data => setUnidadesCat(Array.isArray(data) ? data : [])).catch(catalogError('las unidades'));
+    // Agregamos los fallos en un solo toast: con un Toast único, disparar varios
+    // en el mismo tick deja ver sólo el último y oculta los otros catálogos rotos.
+    const cargar = (url, nombre, apply) =>
+      apiFetch(url).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(apply)
+        .then(() => null).catch(() => nombre);
+    Promise.all([
+      cargar('/api/lotes', 'lotes', setLotes),
+      cargar('/api/siembras', 'siembras', data => setSiembras(Array.isArray(data) ? data : [])),
+      cargar('/api/grupos', 'grupos', setGruposCat),
+      cargar('/api/labores', 'labores', setLaboresCat),
+      cargar('/api/unidades-medida', 'unidades', data => setUnidadesCat(Array.isArray(data) ? data : [])),
+    ]).then(results => {
+      const fallidos = results.filter(Boolean);
+      if (fallidos.length) showToast(`No se pudieron cargar algunos catálogos: ${fallidos.join(', ')}.`, 'error');
+    });
     apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
     fetchHistorial();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -375,6 +390,10 @@ function UnitPayroll() {
     setSegmentos(prev => [...prev, seg]);
     setCantidades(prev => {
       const next = { ...prev };
+      // Pre-sembrar la clave para TODOS los trabajadores (no sólo los visibles):
+      // así un trabajador oculto que luego se restaura ya tiene la celda del
+      // segmento nuevo. getCant tolera claves faltantes, pero esto mantiene los
+      // inputs controlados desde el inicio.
       trabajadores.forEach(t => { next[t.id] = { ...(next[t.id] || {}), [seg.id]: '' }; });
       return next;
     });
@@ -479,6 +498,28 @@ function UnitPayroll() {
 
   const totalGeneral = () => visibleWorkers.reduce((sum, t) => sum + workerTotal(t.id), 0);
 
+  // Totales memoizados para el render: sin esto, cada tecla en una celda
+  // recomputa O(trabajadores × segmentos) totales (y segCantTotal se llamaba dos
+  // veces por columna). Se recalculan sólo cuando cambian las dependencias reales.
+  const workerTotals = useMemo(() => {
+    const m = new Map();
+    visibleWorkers.forEach(t => m.set(t.id, workerTotal(t.id)));
+    return m;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleWorkers, segmentos, cantidades, trabajadorMap]);
+
+  const segTotals = useMemo(() => {
+    const m = new Map();
+    segmentos.forEach(seg => m.set(seg.id, segCantTotal(seg.id)));
+    return m;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segmentos, cantidades, visibleWorkers]);
+
+  const grandTotalMemo = useMemo(
+    () => visibleWorkers.reduce((sum, t) => sum + (workerTotals.get(t.id) || 0), 0),
+    [workerTotals, visibleWorkers],
+  );
+
   // Builds the common POST/PUT body — shared by auto-save, manual save and approval.
   const buildPlanillaBody = (estado, encId) => ({
     fecha,
@@ -497,25 +538,26 @@ function UnitPayroll() {
     observaciones,
   });
 
-  // Valida la planilla antes de enviarla a aprobación. Devuelve un mensaje de
-  // error (con el # de segmento concreto) o null si está OK.
+  // Valida la planilla antes de enviarla a aprobación. Devuelve { msg, segId, refs }
+  // (refs = el ref del campo a enfocar) o null si está OK. El segId/refs deja
+  // llevar el foco al primer campo inválido en vez de obligar a contar columnas.
   const validarParaEnviar = () => {
-    if (!fecha || fecha < FECHA_MIN || fecha > FECHA_MAX) return 'La fecha está fuera del rango permitido.';
+    if (!fecha || fecha < FECHA_MIN || fecha > FECHA_MAX) return { msg: 'La fecha está fuera del rango permitido.' };
     if (!Array.isArray(segmentos) || segmentos.length === 0 || segmentos.length > MAX_SEGMENTOS) {
-      return `La planilla debe tener entre 1 y ${MAX_SEGMENTOS} segmentos.`;
+      return { msg: `La planilla debe tener entre 1 y ${MAX_SEGMENTOS} segmentos.` };
     }
     if ((observaciones || '').length > MAX_OBSERVACIONES_LEN) {
-      return `Las observaciones no pueden exceder ${MAX_OBSERVACIONES_LEN} caracteres.`;
+      return { msg: `Las observaciones no pueden exceder ${MAX_OBSERVACIONES_LEN} caracteres.` };
     }
     for (let i = 0; i < segmentos.length; i++) {
       const seg = segmentos[i];
       const n = i + 1;
-      if (!seg.labor?.trim()) return `El segmento #${n} no tiene labor.`;
-      if (!seg.unidad || seg.unidad === '-') return `El segmento #${n} no tiene unidad.`;
+      if (!seg.labor?.trim()) return { msg: `El segmento #${n} no tiene labor.`, segId: seg.id, refs: laborRefs };
+      if (!seg.unidad || seg.unidad === '-') return { msg: `El segmento #${n} no tiene unidad.`, segId: seg.id, refs: unidadRefs };
       const usaHora = isHoraUnit(seg.unidad) || (isHoraUnit(seg.unidadBase) && seg.factorConversion != null);
-      if (!usaHora && !(Number(seg.costoUnitario) > 0)) return `El segmento #${n} no tiene costo unitario.`;
+      if (!usaHora && !(Number(seg.costoUnitario) > 0)) return { msg: `El segmento #${n} no tiene costo unitario.`, segId: seg.id, refs: costoRefs };
       const algunaCant = visibleWorkers.some(t => getCant(t.id, seg.id) > 0);
-      if (!algunaCant) return `El segmento #${n} no tiene cantidades cargadas.`;
+      if (!algunaCant) return { msg: `El segmento #${n} no tiene cantidades cargadas.`, segId: seg.id, refs: laborRefs };
     }
     return null;
   };
@@ -528,7 +570,16 @@ function UnitPayroll() {
     }
     const errorValidacion = validarParaEnviar();
     if (errorValidacion) {
-      showToast(errorValidacion, 'error');
+      showToast(errorValidacion.msg, 'error');
+      // Lleva el foco al primer campo inválido (scroll + focus) para no obligar
+      // al usuario a buscar el segmento entre columnas con scroll horizontal.
+      if (errorValidacion.segId && errorValidacion.refs) {
+        const el = errorValidacion.refs.current[errorValidacion.segId];
+        if (el) {
+          if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'center', inline: 'center' });
+          el.focus?.();
+        }
+      }
       return;
     }
     // Espera a que termine un autosave en vuelo: si dispara un POST sin id en
@@ -539,6 +590,7 @@ function UnitPayroll() {
     saveInProgressRef.current = true;
     setGuardando(true);
     const body = buildPlanillaBody(estado, encId);
+    let savedConsecutivo = consecutivo;
     try {
       let res;
       const currentId = planillaIdRef.current;
@@ -548,7 +600,7 @@ function UnitPayroll() {
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.consecutivo) setConsecutivo(data.consecutivo);
+          if (data.consecutivo) { setConsecutivo(data.consecutivo); savedConsecutivo = data.consecutivo; }
         }
       } else {
         res = await apiFetch('/api/hr/planilla-unidad', {
@@ -558,7 +610,7 @@ function UnitPayroll() {
           const data = await res.json();
           planillaIdRef.current = data.id;
           setPlanillaId(data.id);
-          if (data.consecutivo) setConsecutivo(data.consecutivo);
+          if (data.consecutivo) { setConsecutivo(data.consecutivo); savedConsecutivo = data.consecutivo; }
         }
       }
       if (!res.ok) throw new Error();
@@ -574,7 +626,10 @@ function UnitPayroll() {
       setFillAll({});
       setRemovedWorkerIds([]);
       dirtyRef.current = false;
-      showToast(estado === 'borrador' ? 'Borrador guardado.' : 'Planilla guardada correctamente.');
+      const consecLabel = savedConsecutivo ? ` ${savedConsecutivo}` : '';
+      showToast(estado === 'borrador'
+        ? `Borrador${consecLabel} guardado.`
+        : `Planilla${consecLabel} guardada correctamente.`);
       setShowForm(false);
       fetchHistorial();
     } catch {
@@ -587,6 +642,17 @@ function UnitPayroll() {
 
   const generatePlanillaPdf = async (action) => {
     if (!previewRef.current || !previewPlanilla) return;
+    // Para imprimir: abrir la ventana SINCRÓNICAMENTE con el gesto del usuario.
+    // Si la abrimos después del `await import(...)`, iOS Safari ya perdió el
+    // "user gesture" y la bloquea aunque los popups estén habilitados.
+    let printWindow = null;
+    if (action === 'print') {
+      printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        showToast('Habilitá las ventanas emergentes para imprimir.', 'error');
+        return;
+      }
+    }
     setPdfLoading(true);
     try {
       const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
@@ -638,11 +704,13 @@ function UnitPayroll() {
       }
       const filename = `Planilla-${previewPlanilla.consecutivo || 'sin-numero'}.pdf`;
       if (action === 'print') {
-        // Abre el diálogo de impresión del navegador sobre el PDF generado.
+        // Abre el diálogo de impresión del navegador sobre el PDF generado,
+        // reusando la ventana ya abierta con el gesto del usuario.
         pdf.autoPrint();
         const url = pdf.output('bloburl');
-        const w = window.open(url, '_blank');
-        if (!w) showToast('Habilitá las ventanas emergentes para imprimir.', 'error');
+        printWindow.location = url;
+        // Revoca el bloburl tras dar tiempo a que la ventana lo cargue.
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       } else if (action === 'save') {
         pdf.save(filename);
       } else {
@@ -664,6 +732,8 @@ function UnitPayroll() {
         }
       }
     } catch {
+      // Si falló la generación, cerramos la ventana de impresión en blanco.
+      if (printWindow) printWindow.close();
       showToast('No se pudo generar el PDF.', 'error');
     } finally {
       setPdfLoading(false);
@@ -828,6 +898,9 @@ function UnitPayroll() {
     markDraftActive(DRAFT_FORM_KEY);
     dirtyRef.current = true;
     setShowForm(true);
+    // Reanclar el panel a Pendientes: acabás de armar una planilla nueva, el
+    // contexto de "Plantillas" ya no es el relevante.
+    setHistorialTab('pendientes');
     showToast(`Plantilla "${p.nombre}" cargada.`);
   };
 
@@ -853,6 +926,22 @@ function UnitPayroll() {
     dirtyRef.current = false;
     setAutoSaveStatus(null);
     setShowForm(true);
+  };
+
+  // ¿El formulario actual es un borrador NUEVO con cambios sin persistir? (sin id
+  // todavía y con contenido). Cargar otra planilla encima lo perdería.
+  const isUnsavedNewDraft = () =>
+    dirtyRef.current && !planillaIdRef.current && (
+      observaciones.trim() !== '' ||
+      segmentos.some(s => s.loteId || s.labor || s.grupo || s.avanceHa !== '' || s.costoUnitario !== '') ||
+      Object.values(cantidades).some(segMap => Object.values(segMap || {}).some(v => v !== ''))
+    );
+
+  // Carga con guard: si pisaría un borrador nuevo sin guardar, pide confirmación.
+  const requestLoadPlanilla = (p) => {
+    if (p.id === planillaId) { loadPlanilla(p); return; }
+    if (isUnsavedNewDraft()) setConfirmLoadPlanilla(p);
+    else loadPlanilla(p);
   };
 
   return (
@@ -885,7 +974,7 @@ function UnitPayroll() {
             <li><strong>Total:</strong> {fmtMoney(confirmDelPlanilla.totalGeneral)}</li>
             <li><strong>Trabajadores:</strong> {confirmDelPlanilla.trabajadores?.length || 0}</li>
             <li><strong>Segmentos:</strong> {confirmDelPlanilla.segmentos?.length || 0}</li>
-            <li><strong>Fecha:</strong> {confirmDelPlanilla.fecha ? new Date(confirmDelPlanilla.fecha).toLocaleDateString('es-CR') : '—'}</li>
+            <li><strong>Fecha:</strong> {fmtDate(confirmDelPlanilla.fecha)}</li>
           </ul>
         </AuroraConfirmModal>
       )}
@@ -913,6 +1002,17 @@ function UnitPayroll() {
           confirmLabel="Eliminar"
           onConfirm={() => { removeSegmento(confirmDelSegmento.id); setConfirmDelSegmento(null); }}
           onCancel={() => setConfirmDelSegmento(null)}
+        />
+      )}
+
+      {confirmLoadPlanilla && (
+        <AuroraConfirmModal
+          title="Cargar otra planilla"
+          body="El borrador actual tiene cambios sin guardar que se perderán al cargar esta planilla. ¿Continuar?"
+          confirmLabel="Cargar y descartar"
+          iconVariant="warn"
+          onConfirm={() => { loadPlanilla(confirmLoadPlanilla); setConfirmLoadPlanilla(null); }}
+          onCancel={() => setConfirmLoadPlanilla(null)}
         />
       )}
 
@@ -948,6 +1048,12 @@ function UnitPayroll() {
           }
         >
           <div className="pu-preview-wrap">
+              {pdfLoading && (
+                <div className="pu-preview-overlay" role="status" aria-live="polite">
+                  <div className="pu-spinner" />
+                  <p>Generando PDF…</p>
+                </div>
+              )}
               <div className="pu-preview-document" ref={previewRef}>
                 {/* Encabezado */}
                 <div className="pu-pdoc-header">
@@ -975,7 +1081,7 @@ function UnitPayroll() {
                         <tr><td>N°:</td><td><strong>{previewPlanilla.consecutivo || '—'}</strong></td></tr>
                         <tr>
                           <td>Fecha:</td>
-                          <td><strong>{previewPlanilla.fecha ? new Date(previewPlanilla.fecha).toLocaleDateString('es-CR') : '—'}</strong></td>
+                          <td><strong>{fmtDate(previewPlanilla.fecha)}</strong></td>
                         </tr>
                         <tr>
                           <td>Encargado:</td>
@@ -1000,14 +1106,7 @@ function UnitPayroll() {
                   const workers = (previewPlanilla.trabajadores || [])
                     .filter(t => Object.values(t.cantidades || {}).some(v => v && Number(v) !== 0));
                   const compactLabor = segs.length > 4;
-                  // Parse "220 - GUARDA DE SEGURIDAD" → { codigo: '220', descripcion: 'GUARDA DE SEGURIDAD' }
-                  const parsedLabores = segs.map(seg => {
-                    const raw = seg.labor || '';
-                    const dash = raw.indexOf(' - ');
-                    return dash !== -1
-                      ? { codigo: raw.slice(0, dash).trim(), descripcion: raw.slice(dash + 3).trim() }
-                      : { codigo: raw, descripcion: '' };
-                  });
+                  const parsedLabores = segs.map(seg => parseLaborString(seg.labor));
                   // Unique labores for the legend (deduplicated by codigo)
                   const laborLegend = compactLabor
                     ? [...new Map(parsedLabores.filter(l => l.codigo).map(l => [l.codigo, l])).values()]
@@ -1156,6 +1255,7 @@ function UnitPayroll() {
       {!showForm && historialLoading && (
         <div className="pu-full-empty-state">
           <div className="pu-spinner" />
+          <p>Cargando planillas…</p>
         </div>
       )}
 
@@ -1497,7 +1597,7 @@ function UnitPayroll() {
                         />
                       </td>
                     ))}
-                    <td className="ut-worker-total">{fmtMoney(workerTotal(t.id))}</td>
+                    <td className="ut-worker-total">{fmtMoney(workerTotals.get(t.id))}</td>
                   </tr>
                 ))
               )}
@@ -1506,14 +1606,17 @@ function UnitPayroll() {
               {visibleWorkers.length > 0 && (
                 <tr className="ut-row-totals">
                   <td className="ut-label-cell">TOTALES</td>
-                  {segmentos.map((seg) => (
-                    <td key={seg.id} className="ut-cant-cell ut-total-cant">
-                      {segCantTotal(seg.id) > 0
-                        ? segCantTotal(seg.id).toLocaleString('es-CR', { maximumFractionDigits: 2 })
-                        : '—'}
-                    </td>
-                  ))}
-                  <td className="ut-worker-total ut-grand-total">{fmtMoney(totalGeneral())}</td>
+                  {segmentos.map((seg) => {
+                    const total = segTotals.get(seg.id) || 0;
+                    return (
+                      <td key={seg.id} className="ut-cant-cell ut-total-cant">
+                        {total > 0
+                          ? total.toLocaleString('es-CR', { maximumFractionDigits: 2 })
+                          : '—'}
+                      </td>
+                    );
+                  })}
+                  <td className="ut-worker-total ut-grand-total">{fmtMoney(grandTotalMemo)}</td>
                 </tr>
               )}
 
@@ -1524,9 +1627,9 @@ function UnitPayroll() {
         {removedWorkerIds.length > 0 && (
           <div className="ut-hidden-workers-bar">
             <span>
-              {removedWorkerIds.length} trabajador{removedWorkerIds.length !== 1 ? 'es' : ''} oculto{removedWorkerIds.length !== 1 ? 's' : ''}
+              {removedWorkerIds.length} trabajador{removedWorkerIds.length !== 1 ? 'es' : ''} oculto{removedWorkerIds.length !== 1 ? 's' : ''} · sus cantidades se conservan
             </span>
-            <button className="ut-restore-btn" onClick={() => { dirtyRef.current = true; setRemovedWorkerIds([]); }}>
+            <button className="ut-restore-btn" title="Vuelve a mostrar los trabajadores con sus cantidades intactas" onClick={() => { dirtyRef.current = true; setRemovedWorkerIds([]); }}>
               Restaurar todos
             </button>
           </div>
@@ -1553,7 +1656,7 @@ function UnitPayroll() {
               Aprobar
             </button>
           ) : (
-            <button className="aur-btn-pill" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0}>
+            <button className="aur-btn-pill" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0 || (!currentUser?.userId && currentUser?.rol !== 'administrador')}>
               <FiSave size={15} />
               {guardando ? 'Guardando…' : 'Guardar planilla'}
             </button>
@@ -1593,19 +1696,26 @@ function UnitPayroll() {
         <div className="form-card pu-history-card">
 
           {/* Tabs */}
-          <div className="pu-panel-tabs">
-            <button
-              className={`pu-panel-tab${historialTab === 'pendientes' ? ' pu-panel-tab--active' : ''}`}
-              onClick={() => setHistorialTab('pendientes')}
-            >
-              Pendientes
-            </button>
-            <button
-              className={`pu-panel-tab${historialTab === 'plantillas' ? ' pu-panel-tab--active' : ''}`}
-              onClick={() => setHistorialTab('plantillas')}
-            >
-              Plantillas
-            </button>
+          <div className="pu-panel-tabs" role="tablist" aria-label="Vista del panel lateral">
+            {[{ key: 'pendientes', label: 'Pendientes' }, { key: 'plantillas', label: 'Plantillas' }].map((t, idx, arr) => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={historialTab === t.key}
+                tabIndex={historialTab === t.key ? 0 : -1}
+                className={`pu-panel-tab${historialTab === t.key ? ' pu-panel-tab--active' : ''}`}
+                onClick={() => setHistorialTab(t.key)}
+                onKeyDown={e => {
+                  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    const next = arr[(idx + (e.key === 'ArrowRight' ? 1 : arr.length - 1)) % arr.length];
+                    setHistorialTab(next.key);
+                  }
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
             {historialTab === 'pendientes' && (
               <button className="aur-icon-btn aur-icon-btn--sm" onClick={fetchHistorial} title="Actualizar" aria-label="Actualizar lista de planillas" style={{ marginLeft: 'auto' }}>
                 <FiRefreshCw size={14} />
@@ -1615,11 +1725,19 @@ function UnitPayroll() {
 
           {/* ── Tab Planillas ── */}
           {historialTab === 'pendientes' && (
-            historial.length === 0 ? (
+            historialError ? (
               <EmptyState
                 variant="compact"
                 icon={FiFileText}
-                title="No hay planillas"
+                title="No se pudieron cargar las planillas"
+                subtitle="Revisá tu conexión e intentá de nuevo."
+                action={<button className="aur-btn-text" onClick={fetchHistorial}>Reintentar</button>}
+              />
+            ) : historial.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                icon={FiFileText}
+                title="No hay planillas pendientes"
                 subtitle="Completá el formulario de la izquierda y guardá para crear la primera."
               />
             ) : (
@@ -1627,14 +1745,23 @@ function UnitPayroll() {
                 {historial.map(p => {
                   const editable = EDITABLE_STATES.includes(p.estado);
                   const handleRowClick = () => {
-                    if (editable) loadPlanilla(p);
+                    if (editable) requestLoadPlanilla(p);
                     else setPreviewPlanilla(p);
                   };
                   return (
                   <li
                     key={p.id}
                     className={`pu-history-item pu-history-item--editable${planillaId === p.id ? ' pu-history-item--active' : ''}${recentlyTouchedId === p.id ? ' pu-history-item--touched' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${editable ? 'Cargar y editar' : 'Ver'} planilla ${p.consecutivo || ''} · ${ESTADO_LABEL[p.estado] || p.estado}`}
                     onClick={handleRowClick}
+                    onKeyDown={e => {
+                      if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        handleRowClick();
+                      }
+                    }}
                     title={editable ? 'Clic para cargar y editar' : 'Clic para ver'}
                   >
                     <div className="pu-history-top">
@@ -1646,11 +1773,11 @@ function UnitPayroll() {
                     </div>
                     <div className="pu-history-encargado">{p.encargadoNombre || '—'}</div>
                     <div className="pu-history-meta">
-                      {p.fecha ? new Date(p.fecha).toLocaleDateString('es-CR') : '—'}
+                      {fmtDate(p.fecha)}
                       {' · '}
                       {p.segmentos?.length || 0} segmento{p.segmentos?.length !== 1 ? 's' : ''}
                       {' · '}
-                      {p.trabajadores?.length || 0} trab.
+                      {countTrabajadoresConCantidad(p.trabajadores)} trab.
                     </div>
                     <div className="pu-history-bottom">
                       <span className="pu-history-total">
@@ -1663,7 +1790,7 @@ function UnitPayroll() {
                             onClick={e => { e.stopPropagation(); setConfirmDelPlanilla(p); }}
                             title="Eliminar planilla"
                             aria-label={`Eliminar planilla ${p.consecutivo || ''}`}
-                            disabled={actionLoadingId === p.id}
+                            disabled={actionLoadingId != null}
                           >
                             <FiTrash2 size={13} />
                           </button>
@@ -1673,7 +1800,7 @@ function UnitPayroll() {
                             className="pu-history-preview-btn pu-history-preview-btn--approve"
                             onClick={e => handleAprobar(p, e)}
                             title="Aprobar planilla"
-                            disabled={actionLoadingId === p.id}
+                            disabled={actionLoadingId != null}
                           >
                             <FiThumbsUp size={13} /> {actionLoadingId === p.id ? 'Aprobando…' : 'Aprobar'}
                           </button>
@@ -1683,7 +1810,7 @@ function UnitPayroll() {
                             className="pu-history-preview-btn pu-history-preview-btn--pay"
                             onClick={e => handlePagar(p, e)}
                             title="Pagar planilla"
-                            disabled={actionLoadingId === p.id}
+                            disabled={actionLoadingId != null}
                           >
                             <FiCheckCircle size={13} /> {actionLoadingId === p.id ? 'Pagando…' : 'Pagar'}
                           </button>
