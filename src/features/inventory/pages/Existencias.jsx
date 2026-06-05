@@ -38,7 +38,10 @@ function Existencias() {
   const [filterTipo, setFilterTipo] = useState('');
   const [showTomaFisica, setShowTomaFisica] = useState(false);
   const [kebabOpen, setKebabOpen] = useState(false);
-  const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {}, { storage: 'local' });
+  // sessionStorage (no 'local'): el borrador incluye precioUnitario y proveedor;
+  // en un equipo compartido no debe sobrevivir al cierre de pestaña. Igual
+  // persiste ante refresh accidental dentro de la misma sesión.
+  const [edits, setEdits, clearEditsStorage] = useDraft('inv-productos-edits', {});
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [colMenu, setColMenu] = useState(null);

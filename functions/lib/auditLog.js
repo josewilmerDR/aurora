@@ -75,6 +75,13 @@ const ACTIONS = Object.freeze({
   // forensic or recovery value. Routine creates/updates are intentionally
   // not audited to keep the stream focused on security + money + loss.
   PRODUCTO_DELETE: 'producto.delete',
+  // Inactivar/activar oculta o restaura un producto del catálogo y de las
+  // alertas de stock (reversible, pero condiciona qué ve el módulo de inventario
+  // — mismo criterio que PACKAGE_ARCHIVE/UNARCHIVE). El cambio de precio tiene
+  // valor "money": rastro de quién reajustó precioUnitario y desde qué valor.
+  PRODUCTO_DEACTIVATE: 'producto.deactivate',
+  PRODUCTO_ACTIVATE: 'producto.activate',
+  PRODUCTO_PRICE_CHANGE: 'producto.price.change',
   // Unidades de medida. Solo DELETE: es irreversible y rompe referencias por
   // nombre (productos con la unidad asignada + otras unidades que la usan como
   // unidadBase, sin cascada). Forensic: quién la borró y qué nombre tenía. Los

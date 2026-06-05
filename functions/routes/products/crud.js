@@ -133,8 +133,28 @@ router.put('/api/productos/:id', authenticate, rateLimit('productos_write', 'wri
     const { id } = req.params;
     const ownership = await verifyOwnership('productos', id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
+    const prevData = ownership.doc.data();
     const productoData = pick(req.body, PRODUCT_FIELDS);
     await db.collection('productos').doc(id).update(productoData);
+
+    // Forensic de "money": registrar reajustes de precioUnitario (quién, desde/hasta).
+    if (productoData.precioUnitario !== undefined
+        && Number(productoData.precioUnitario) !== Number(prevData.precioUnitario ?? 0)) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PRODUCTO_PRICE_CHANGE,
+        target: { type: 'producto', id },
+        metadata: {
+          nombreComercial: prevData.nombreComercial || null,
+          precioAnterior: prevData.precioUnitario ?? null,
+          precioNuevo: Number(productoData.precioUnitario),
+          moneda: productoData.moneda ?? prevData.moneda ?? null,
+        },
+        severity: SEVERITY.INFO,
+      });
+    }
+
     res.status(200).json({ id, ...productoData });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update producto.', 500);
@@ -190,6 +210,19 @@ router.put('/api/productos/:id/inactivar', authenticate, rateLimit('productos_wr
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Only products with zero stock can be deactivated.', 409);
     }
     await db.collection('productos').doc(req.params.id).update({ activo: false });
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PRODUCTO_DEACTIVATE,
+      target: { type: 'producto', id: req.params.id },
+      metadata: {
+        idProducto: ownership.doc.data().idProducto || null,
+        nombreComercial: ownership.doc.data().nombreComercial || null,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to deactivate producto.', 500);
@@ -204,6 +237,19 @@ router.put('/api/productos/:id/activar', authenticate, rateLimit('productos_writ
     const ownership = await verifyOwnership('productos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
     await db.collection('productos').doc(req.params.id).update({ activo: true });
+
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PRODUCTO_ACTIVATE,
+      target: { type: 'producto', id: req.params.id },
+      metadata: {
+        idProducto: ownership.doc.data().idProducto || null,
+        nombreComercial: ownership.doc.data().nombreComercial || null,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(200).json({ ok: true });
   } catch (error) {
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to activate producto.', 500);

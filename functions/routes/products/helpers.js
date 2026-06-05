@@ -5,10 +5,14 @@
 // (ai, adjustment, intake) tienen sus propios límites locales y no
 // dependen de este validator.
 
+// `activo` deliberadamente NO está en la whitelist: el borrado lógico solo se
+// gestiona por los endpoints dedicados (/inactivar, /activar), que exigen
+// stockActual === 0. Dejarlo aquí permitía evadir ese guard vía PUT genérico
+// (mass-assignment) e inactivar un producto con stock > 0.
 const PRODUCT_FIELDS = ['idProducto', 'nombreComercial', 'ingredienteActivo', 'tipo',
   'plagaQueControla', 'periodoReingreso', 'periodoACosecha', 'cantidadPorHa',
   'unidad', 'stockActual', 'stockMinimo', 'moneda', 'tipoCambio', 'precioUnitario',
-  'iva', 'proveedor', 'registroFitosanitario', 'observacion', 'activo'];
+  'iva', 'proveedor', 'registroFitosanitario', 'observacion'];
 
 const VALID_TYPES = ['Herbicida', 'Fungicida', 'Insecticida', 'Fertilizante', 'Regulador de crecimiento', 'Otro', ''];
 const VALID_CURRENCIES = ['USD', 'CRC', 'EUR'];
