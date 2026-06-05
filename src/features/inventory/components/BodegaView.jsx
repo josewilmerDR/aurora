@@ -29,8 +29,10 @@ const BodegaIcon = ({ iconKey, size = 20 }) => {
 
 // Catálogos finca-globales (lotes, usuarios, fichas, maquinaria, labores) no
 // dependen de la bodega: se cachean a nivel de módulo para no re-pedirlos al
-// navegar entre bodegas. Viven la sesión; se repueblan al recargar la página.
-let catalogCache = null;
+// navegar entre bodegas. Se etiquetan con la finca dueña: al cambiar de finca
+// o iniciar sesión otro usuario (sin recarga dura de la SPA) el caché se
+// invalida, para no filtrar catálogos de una finca/usuario a otro.
+let catalogCache = null; // null | { key: fincaId, data: {...} }
 
 /**
  * Vista compartida de bodega (combustibles + genérica). Las páginas wrapper
@@ -50,7 +52,7 @@ export default function BodegaView({
   const apiFetch = useApiFetch();
   const toast = useToast();
   const navigate = useNavigate();
-  const { currentUser } = useUser();
+  const { currentUser, activeFincaId } = useUser();
   // Eliminar ítem requiere supervisor (gating secundario; el backend manda).
   const canDelete = hasMinRole(currentUser?.rol, 'supervisor');
 
@@ -107,23 +109,28 @@ export default function BodegaView({
   const fetchAll = useCallback((initial = false) => {
     if (initial) setLoading(true);
     setLoadError(false);
-    const catalogsP = catalogCache
-      ? Promise.resolve(catalogCache)
+    const catalogsP = (catalogCache && catalogCache.key === activeFincaId)
+      ? Promise.resolve(catalogCache.data)
       : Promise.all([
           apiFetch('/api/lotes').then(r => r.json()),
           apiFetch('/api/users/lite').then(r => r.json()),
-          apiFetch('/api/hr/fichas').then(r => r.json()),
+          // Solo los userId con ficha (sin PII): el form de movimientos únicamente
+          // necesita saber quién es operario, no su salario/cédula/contactos.
+          apiFetch('/api/hr/fichas/ids').then(r => r.json()),
           apiFetch('/api/maquinaria').then(r => r.json()),
           apiFetch('/api/labores').then(r => r.json()),
         ]).then(([lotesData, usuariosData, fichasData, maquinariaData, laboresData]) => {
           catalogCache = {
-            lotes:      Array.isArray(lotesData) ? lotesData : [],
-            usuarios:   Array.isArray(usuariosData) ? usuariosData : [],
-            fichas:     Array.isArray(fichasData) ? fichasData : [],
-            maquinaria: Array.isArray(maquinariaData) ? maquinariaData : [],
-            labores:    Array.isArray(laboresData) ? laboresData : [],
+            key: activeFincaId,
+            data: {
+              lotes:      Array.isArray(lotesData) ? lotesData : [],
+              usuarios:   Array.isArray(usuariosData) ? usuariosData : [],
+              fichas:     Array.isArray(fichasData) ? fichasData : [],
+              maquinaria: Array.isArray(maquinariaData) ? maquinariaData : [],
+              labores:    Array.isArray(laboresData) ? laboresData : [],
+            },
           };
-          return catalogCache;
+          return catalogCache.data;
         });
 
     return Promise.all([apiFetch('/api/bodegas').then(r => r.json()), catalogsP])
@@ -141,7 +148,7 @@ export default function BodegaView({
       })
       .catch(() => { setLoadError(true); toast.error('Error al cargar datos.'); })
       .finally(() => { if (initial) setLoading(false); });
-  }, [apiFetch, resolveBodega, toast, navigate]);
+  }, [apiFetch, resolveBodega, toast, navigate, activeFincaId]);
 
   // Refetch silencioso de SOLO los items (tras save/delete/movimiento).
   const refreshItems = useCallback(() => {
