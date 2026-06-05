@@ -145,6 +145,34 @@ function parsePeriodoISO(periodoInicio, periodoFin) {
   return { ok: true, ini, fin };
 }
 
+// Detección de solapamiento server-side. Dos planillas fijas activas no deberían
+// cubrir períodos traslapados para el mismo trabajador (doble pago de los mismos
+// días). El cliente ya avisa al previsualizar, pero esa guarda es solo UX: por
+// API directa se podía crear una planilla duplicada. Esta función es pura (no
+// toca db); el route le pasa las planillas existentes ya mapeadas y decide si
+// bloquea (409) o permite con override explícito (confirmarSolapamiento).
+//
+//   trabajadorIds — ids de la planilla nueva/editada
+//   ini, fin      — Date del período nuevo
+//   existing      — [{ id, estado, periodoInicio:Date, periodoFin:Date, trabajadorIds[] }]
+//   excludeId     — id de la planilla que se está editando (no choca consigo misma)
+// Devuelve el array de trabajadorIds en conflicto (vacío si no hay).
+function detectOverlaps({ trabajadorIds, ini, fin, existing, excludeId = null }) {
+  const ACTIVE = new Set(['pendiente', 'aprobada', 'pagada']);
+  const nuevos = new Set(trabajadorIds);
+  const conflict = new Set();
+  for (const p of (existing || [])) {
+    if (p.id === excludeId) continue;
+    if (!ACTIVE.has(p.estado)) continue;
+    if (!(p.periodoInicio instanceof Date) || !(p.periodoFin instanceof Date)) continue;
+    if (p.periodoInicio > fin || p.periodoFin < ini) continue; // sin traslape de período
+    for (const tid of (p.trabajadorIds || [])) {
+      if (nuevos.has(tid)) conflict.add(tid);
+    }
+  }
+  return [...conflict];
+}
+
 module.exports = {
   FIJO_CCSS_RATE,
   FIJO_JORNADA_HORAS_DEFAULT,
@@ -153,4 +181,5 @@ module.exports = {
   sanitizeFijoFilas,
   sumTotalGeneral,
   parsePeriodoISO,
+  detectOverlaps,
 };

@@ -32,9 +32,26 @@ const {
   sanitizeFijoFilas,
   sumTotalGeneral,
   parsePeriodoISO,
+  detectOverlaps,
 } = require('./payroll-fixed.sanitize');
 
 const router = Router();
+
+// Carga las planillas de la finca mapeadas para detección de solapamiento
+// (período + membresía, sin arrastrar el resto). Lectura por finca.
+async function loadPlanillasForOverlap(fincaId) {
+  const snap = await db.collection('hr_planilla_fijo').where('fincaId', '==', fincaId).get();
+  return snap.docs.map(d => {
+    const v = d.data();
+    return {
+      id: d.id,
+      estado: v.estado,
+      periodoInicio: v.periodoInicio?.toDate ? v.periodoInicio.toDate() : null,
+      periodoFin: v.periodoFin?.toDate ? v.periodoFin.toDate() : null,
+      trabajadorIds: (Array.isArray(v.filas) ? v.filas : []).map(f => f.trabajadorId).filter(Boolean),
+    };
+  });
+}
 
 // ─── Planilla salario fijo (período custom, audit trail) ────────────────
 
@@ -62,6 +79,14 @@ router.get('/api/hr/planilla-fijo', authenticate, rateLimit('hr_planilla_read', 
     const indexOnly = req.query.view === 'index';
     const minimized = indexOnly || !!empleadoId;
 
+    // El dump no minimizado entrega salario + cédula + history (con emails de
+    // auditoría) de TODA la finca en una sola respuesta. Solo lo necesita el
+    // editor para modificar una planilla, así que lo limitamos a roles de
+    // escritura. encargado read-only usa view=index / empleadoId (minimizado).
+    if (!minimized && !canEditarFijo(req)) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Insufficient role to read full planilla rows; use view=index.', 403);
+    }
+
     const snap = await db.collection('hr_planilla_fijo')
       .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc').get();
@@ -81,6 +106,9 @@ router.get('/api/hr/planilla-fijo', authenticate, rateLimit('hr_planilla_read', 
         estado: v.estado,
         numeroConsecutivo: v.numeroConsecutivo || null,
         periodoInicio, periodoFin, createdAt,
+        // totalGeneral es un agregado (no PII por empleado): la lista del editor
+        // y del historial lo muestran sin necesidad de las filas completas.
+        totalGeneral: v.totalGeneral ?? null,
         // Membresía sin dinero: id de cada empleado presente en la planilla.
         trabajadorIds: filas.map(f => f.trabajadorId).filter(Boolean),
       };
@@ -114,6 +142,19 @@ router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (r
     if (!san.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, san.msg, 400);
     if (san.value.length === 0)
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Planilla must contain at least one valid employee.', 400);
+
+    // Guarda anti doble-pago: si algún empleado ya está en una planilla activa
+    // de período traslapado, se bloquea salvo override explícito (el cliente
+    // pide confirmación con el correo del usuario antes de reintentar con flag).
+    if (req.body.confirmarSolapamiento !== true) {
+      const existing = await loadPlanillasForOverlap(req.fincaId);
+      const conflicts = detectOverlaps({
+        trabajadorIds: san.value.map(f => f.trabajadorId),
+        ini: periodo.ini, fin: periodo.fin, existing,
+      });
+      if (conflicts.length > 0)
+        return sendApiError(res, ERROR_CODES.CONFLICT, `Overlap with an active planilla for ${conflicts.length} employee(s).`, 409);
+    }
 
     const totalGeneral = sumTotalGeneral(san.value);
     const labelClean = trimStr(periodoLabel, PLANILLA_LIMITS.string);
@@ -245,6 +286,22 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
       if (!san.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, san.msg, 400);
       if (san.value.length === 0)
         return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Planilla must contain at least one valid employee.', 400);
+
+      // Mismo guarda anti doble-pago que en POST, excluyéndose a sí misma.
+      if (req.body.confirmarSolapamiento !== true) {
+        const effIni = (update.periodoInicio || currentDoc.periodoInicio)?.toDate?.() || null;
+        const effFin = (update.periodoFin || currentDoc.periodoFin)?.toDate?.() || null;
+        if (effIni && effFin) {
+          const existing = await loadPlanillasForOverlap(req.fincaId);
+          const conflicts = detectOverlaps({
+            trabajadorIds: san.value.map(f => f.trabajadorId),
+            ini: effIni, fin: effFin, existing, excludeId: req.params.id,
+          });
+          if (conflicts.length > 0)
+            return sendApiError(res, ERROR_CODES.CONFLICT, `Overlap with an active planilla for ${conflicts.length} employee(s).`, 409);
+        }
+      }
+
       update.filas = san.value;
       update.totalGeneral = sumTotalGeneral(san.value);
     }
@@ -291,6 +348,28 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
           empleadosCount: (update.filas || currentDoc.filas || []).length,
         },
         severity: SEVERITY.WARNING,
+      });
+    }
+
+    // Edición de montos: alterar `filas`/`totalGeneral` de una planilla
+    // existente cambia la obligación de dinero antes de aprobarla. El array
+    // `history` del doc se va si la planilla se borra, así que dejamos rastro
+    // forense independiente del total anterior→nuevo. INFO (no es pago aún).
+    if (filas !== undefined) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_EDIT,
+        target: { type: 'planilla_fijo', id: req.params.id },
+        metadata: {
+          tipo: 'fijo',
+          estado: currentEstado,
+          periodoLabel: currentDoc.periodoLabel || update.periodoLabel || null,
+          totalGeneralPrevio: currentDoc.totalGeneral ?? null,
+          totalGeneralNuevo: update.totalGeneral ?? null,
+          empleadosCount: (update.filas || []).length,
+        },
+        severity: SEVERITY.INFO,
       });
     }
 

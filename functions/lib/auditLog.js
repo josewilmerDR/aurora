@@ -125,6 +125,10 @@ const ACTIONS = Object.freeze({
   // alineado con la política del archivo.
   PAYROLL_APPROVE: 'payroll.approve',
   PAYROLL_DELETE: 'payroll.delete',
+  // EDIT registra alteraciones de filas/totalGeneral de una planilla existente
+  // (cambia la obligación de dinero antes de aprobarla). INFO: el history[] del
+  // doc también lo refleja, pero éste sobrevive a un borrado posterior.
+  PAYROLL_EDIT: 'payroll.edit',
   // Ficha laboral. Solo el cambio de salario/precio-hora queda auditado: es la
   // base monetaria de la nómina (forensic: quién lo cambió, sobre qué trabajador
   // y de cuánto a cuánto). El resto de la ficha (puesto, horario, contacto,
