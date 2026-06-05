@@ -276,6 +276,20 @@
     min-width: 0;
     position: static;
   }
+
+  /* Hit-area táctil ≥40px desde que el layout colapsa (cubre tablets ~768px,
+     que antes quedaban con hit-areas de escritorio entre 641 y 900). */
+  .ut-remove-worker-btn,
+  .ut-fill-btn,
+  .ut-del-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .pu-history-preview-btn,
+  .pu-history-delete-btn {
+    min-height: 40px;
+    padding: 6px 12px;
+  }
 }
 
 
@@ -367,21 +381,8 @@
     min-height: 34px;
   }
 
-  /* Hit-area táctil ≥40px en los botones de acción dentro de la tabla
-     (quitar trabajador, aplicar a todos, eliminar segmento). */
-  .ut-remove-worker-btn,
-  .ut-fill-btn,
-  .ut-del-btn {
-    min-width: 40px;
-    min-height: 40px;
-  }
-
-  /* Botones del panel lateral (aprobar/pagar/ver/eliminar) cómodos al tacto. */
-  .pu-history-preview-btn,
-  .pu-history-delete-btn {
-    min-height: 40px;
-    padding: 6px 12px;
-  }
+  /* (Las hit-areas táctiles ≥40px se definen en el breakpoint de 900px para
+     cubrir también tablets; acá no se repiten.) */
 
   /* Botones de acción del formulario: apilar en móvil */
   .form-actions {
@@ -684,13 +685,18 @@ select.ut-ctrl {
   border-color: var(--aurora-border);
 }
 
+/* Rojo destructivo unificado (#ff4d4d) — mismo tono que .pu-history-delete-btn.
+   Semántica aparte de --aur-danger (magenta): este es el rojo de "quitar/borrar"
+   de la grilla. */
 .ut-remove-worker-btn:hover {
-  color: #ff5555 !important;
-  border-color: rgba(255, 85, 85, 0.5) !important;
-  background: rgba(255, 85, 85, 0.08) !important;
+  color: #ff4d4d !important;
+  border-color: rgba(255, 77, 77, 0.5) !important;
+  background: rgba(255, 77, 77, 0.08) !important;
 }
 
 /* ── Barra de trabajadores ocultos ───────────────────────────────────────── */
+/* Sticky al fondo del card: en planillas largas el undo queda siempre a la vista
+   sin tener que scrollear hasta el final de la tabla. */
 .ut-hidden-workers-bar {
   display: flex;
   align-items: center;
@@ -703,6 +709,10 @@ select.ut-ctrl {
   border-radius: 6px;
   font-size: 0.78rem;
   color: #ffcc44;
+  position: sticky;
+  bottom: 8px;
+  z-index: 3;
+  backdrop-filter: blur(2px);
 }
 
 .ut-restore-btn {
@@ -977,13 +987,28 @@ select.ut-ctrl {
 /* Wrapper del documento de preview dentro de AuroraModal (scroll horizontal del doc). */
 .pu-preview-wrap {
   overflow-x: auto;
+  position: relative;
 }
+
+/* Overlay mientras se genera el PDF: explica por qué el modal no responde a ESC
+   ni al backdrop (preventClose={pdfLoading}). */
+.pu-preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(13, 26, 38, 0.78);
+  backdrop-filter: blur(2px);
+  color: var(--aurora-light);
+  font-size: 0.85rem;
+}
+.pu-preview-overlay p { margin: 0; }
 
 /* ── Modal de vista previa (extiende aur-modal--xl) ──────────────────────── */
-.pu-preview-modal-header {
-  flex-wrap: wrap;
-}
-
 .pu-preview-modal-title {
   display: flex;
   align-items: center;

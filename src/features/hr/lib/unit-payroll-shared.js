@@ -64,3 +64,23 @@ export function safeImageUrl(url) {
 // Etiquetas y clases de estado de planilla (compartidas form/historial/PDF).
 export const ESTADO_LABEL = { borrador: 'Borrador', pendiente: 'Pendiente', aprobada: 'Aprobada', pagada: 'Pagada' };
 export const ESTADO_CLASS = { borrador: 'otro', pendiente: 'pendiente', aprobada: 'aprobado', pagada: 'active' };
+
+// Parsea "220 - GUARDA DE SEGURIDAD" → { codigo: '220', descripcion: 'GUARDA DE SEGURIDAD' }.
+// El formato persistido de labor es el string "codigo - descripcion"; este helper
+// lo descompone para el preview/PDF (legend y celdas compactas).
+export function parseLaborString(raw) {
+  const s = raw || '';
+  const dash = s.indexOf(' - ');
+  return dash !== -1
+    ? { codigo: s.slice(0, dash).trim(), descripcion: s.slice(dash + 3).trim() }
+    : { codigo: s, descripcion: '' };
+}
+
+// Cuenta los trabajadores de una planilla guardada con al menos una cantidad > 0.
+// El array `trabajadores` puede incluir gente sin cantidades; este conteo refleja
+// lo que realmente aparece en el documento (coincide con el preview).
+export function countTrabajadoresConCantidad(trabajadores) {
+  return (trabajadores || []).filter(
+    t => Object.values(t.cantidades || {}).some(v => v && Number(v) !== 0),
+  ).length;
+}
