@@ -110,6 +110,19 @@ const ACTIONS = Object.freeze({
   MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',
   PAYROLL_PAY: 'payroll.pay',
+  // Asistencia diaria. Solo DELETE queda auditado: borrar un registro de
+  // asistencia es irreversible y altera la base de cálculo de nómina del
+  // trabajador (días/horas extra). Forensic: quién lo borró y de qué doc
+  // determinista (`${trabajadorId}_${fecha}`). El batch upsert es reversible
+  // por sobre-escritura y queda fuera, alineado con la política del archivo.
+  ASISTENCIA_DELETE: 'asistencia.delete',
+  // Permisos / vacaciones. DECISION (aprobar/rechazar) y DELETE quedan
+  // auditados: aprobar un permiso lo vuelve efectivo y descuenta/justifica
+  // nómina; rechazar o borrar revierte ese efecto. Forensic: quién decidió/
+  // borró, sobre qué trabajador y a qué estado. El create (pendiente) es
+  // reversible y queda fuera, alineado con la política del archivo.
+  PERMISO_DECISION: 'permiso.decision',
+  PERMISO_DELETE: 'permiso.delete',
   PURCHASE_ORDER_CREATE: 'purchase_order.create',
   PURCHASE_RECEIPT: 'purchase.receipt',
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',

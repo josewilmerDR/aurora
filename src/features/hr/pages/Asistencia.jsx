@@ -9,6 +9,7 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useHrActiveEmployee } from '../../../contexts/HrContext';
 import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
+import { translateApiError } from '../../../lib/errorMessages';
 import { tipoLabel } from '../lib/leaveHelpers';
 import { todayLocal, dateNDaysAgo } from '../lib/dateHelpers';
 import '../styles/hr.css';
@@ -254,7 +255,10 @@ export default function Asistencia() {
   // que la cuadrilla está renderizada.
   useEffect(() => {
     if (!focusEmpleadoId || initialLoading || !users.length) return;
-    const el = document.querySelector(`.asist-row[data-uid="${focusEmpleadoId}"]`);
+    // focusEmpleadoId viene de ?empleadoId (input de URL): escapamos antes de
+    // interpolarlo en el selector para que un valor con comillas/corchetes no
+    // rompa el querySelector (SyntaxError) ni altere la búsqueda.
+    const el = document.querySelector(`.asist-row[data-uid="${CSS.escape(focusEmpleadoId)}"]`);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('asist-row--focus');
@@ -320,7 +324,9 @@ export default function Asistencia() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || 'Error al guardar.');
+        // Mapeamos por código a español (errorMessages) en vez de mostrar el
+        // devMessage crudo del backend (inglés / JSON de validación) al usuario.
+        throw new Error(translateApiError(data, 'Error al guardar.'));
       }
       const data = await res.json();
       // El form guardado pasa a ser el nuevo baseline (#1: ya no está sucio).

@@ -14,6 +14,8 @@
 const { Router } = require('express');
 
 const fichasRouter       = require('./fichas');
+const asistenciaRouter   = require('./asistencia');
+const permisosRouter     = require('./permisos');
 const payrollFixedRouter = require('./payroll-fixed');
 const payrollUnitRouter  = require('./payroll-unit');
 const miscRouter         = require('./misc');
@@ -21,6 +23,8 @@ const miscRouter         = require('./misc');
 const router = Router();
 
 router.use(fichasRouter);
+router.use(asistenciaRouter);
+router.use(permisosRouter);
 router.use(payrollFixedRouter);
 router.use(payrollUnitRouter);
 router.use(miscRouter);
