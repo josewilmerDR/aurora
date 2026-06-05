@@ -1,16 +1,29 @@
 const { Router } = require('express');
 const { db, admin, Timestamp, FieldValue } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
-const { pick, verifyOwnership } = require('../lib/helpers');
-const { sendApiError, ERROR_CODES } = require('../lib/errors');
+const { verifyOwnership, hasMinRoleBE, writeFeedEvent } = require('../lib/helpers');
+const { sendApiError, ERROR_CODES, ApiError, handleApiError } = require('../lib/errors');
+const { rateLimit } = require('../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
+const { buildItemCreate, buildItemUpdate, buildMovementCreate } = require('./warehouses.schemas');
 
 const router = Router();
+
+// Role gate: warehouse data is operational inventory. Item/movement reads and
+// writes require `encargado` (matches the frontend route gate); item deletes
+// require `supervisor`. Managing the bodegas themselves (create/edit/delete) is
+// an admin operation (`administrador`), matching the /admin/bodegas route gate.
+// Backend is the source of truth — UI gating is secondary.
+const requireRole = (minRole) => (req, res, next) =>
+  hasMinRoleBE(req.userRole, minRole)
+    ? next()
+    : sendApiError(res, ERROR_CODES.FORBIDDEN, `Requires ${minRole} role or higher.`, 403);
 
 // --- API ENDPOINTS: BODEGAS ---
 // A "bodega" is a typed warehouse. The `tipo` field determines which frontend
 // component is rendered (agroquimicos, combustibles, herramientas, generica…).
 // If the finca has no bodegas, the agroquímicos one is auto-seeded.
-router.get('/api/bodegas', authenticate, async (req, res) => {
+router.get('/api/bodegas', authenticate, requireRole('encargado'), async (req, res) => {
   try {
     const snap = await db.collection('bodegas')
       .where('fincaId', '==', req.fincaId)
@@ -39,7 +52,7 @@ router.get('/api/bodegas', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/bodegas', authenticate, async (req, res) => {
+router.post('/api/bodegas', authenticate, requireRole('administrador'), async (req, res) => {
   try {
     const { nombre, icono } = req.body;
     if (!nombre?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Name is required.', 400);
@@ -63,7 +76,7 @@ router.post('/api/bodegas', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/bodegas/:id', authenticate, async (req, res) => {
+router.put('/api/bodegas/:id', authenticate, requireRole('administrador'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -82,7 +95,7 @@ router.put('/api/bodegas/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/bodegas/:id', authenticate, async (req, res) => {
+router.delete('/api/bodegas/:id', authenticate, requireRole('administrador'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -95,7 +108,16 @@ router.delete('/api/bodegas/:id', authenticate, async (req, res) => {
     if (!itemsSnap.empty) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot delete a bodega that still has items. Remove all items first.', 400);
     }
+    const prev = check.doc.data();
     await check.doc.ref.delete();
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.BODEGA_DELETE,
+      target: { type: 'bodega', id: req.params.id },
+      metadata: { nombre: prev.nombre || null, tipo: prev.tipo || null },
+      severity: SEVERITY.WARNING,
+    });
     return res.json({ ok: true });
   } catch (err) {
     console.error('[bodegas DELETE]', err);
@@ -105,7 +127,7 @@ router.delete('/api/bodegas/:id', authenticate, async (req, res) => {
 
 // --- API ENDPOINTS: BODEGA ITEMS (inventario de bodegas genéricas) ---
 
-router.get('/api/bodegas/:id/items', authenticate, async (req, res) => {
+router.get('/api/bodegas/:id/items', authenticate, requireRole('encargado'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -120,31 +142,16 @@ router.get('/api/bodegas/:id/items', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
+router.post('/api/bodegas/:id/items', authenticate, requireRole('encargado'), rateLimit('bodega-write', 'write'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
-    const { nombre, unidad, stockActual, stockMinimo, descripcion, total, moneda } = req.body;
-    if (!nombre?.trim()) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Item name is required.', 400);
-    if (nombre.trim().length > 200) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name too long (max 200).', 400);
-    if (descripcion && String(descripcion).length > 500) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Description too long (max 500).', 400);
-    if (unidad && String(unidad).trim().length > 50) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Unit too long (max 50).', 400);
-    const safeFloat = (v) => { const n = parseFloat(v); return (isNaN(n) || !isFinite(n) || n < 0) ? 0 : n; };
-    const parsedTotal = total !== undefined && total !== '' ? parseFloat(total) : null;
-    if (parsedTotal !== null && (isNaN(parsedTotal) || !isFinite(parsedTotal) || parsedTotal < 0)) {
-      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Total must be a valid number >= 0.', 400);
-    }
-    const MONEDAS_VALIDAS = ['USD', 'CRC', 'EUR'];
+    const { data, error } = buildItemCreate(req.body);
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     const item = {
       bodegaId: req.params.id,
       fincaId: req.fincaId,
-      nombre: nombre.trim().slice(0, 200),
-      unidad: (unidad?.trim() || 'unidad').slice(0, 50),
-      stockActual: safeFloat(stockActual),
-      stockMinimo: safeFloat(stockMinimo),
-      descripcion: (descripcion?.trim() || '').slice(0, 500),
-      total: parsedTotal,
-      moneda: MONEDAS_VALIDAS.includes(moneda?.trim()) ? moneda.trim() : 'CRC',
+      ...data,
       activo: true,
       creadoEn: Timestamp.now(),
     };
@@ -156,38 +163,16 @@ router.post('/api/bodegas/:id/items', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
+router.put('/api/bodegas/:id/items/:itemId', authenticate, requireRole('encargado'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const itemDoc = await db.collection('bodega_items').doc(req.params.itemId).get();
-    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
+    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id || itemDoc.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Item not found.', 404);
     }
-    const allowed = ['nombre', 'unidad', 'stockMinimo', 'descripcion', 'activo', 'total', 'moneda'];
-    const updates = pick(req.body, allowed);
-    if (updates.nombre !== undefined) {
-      updates.nombre = String(updates.nombre).trim().slice(0, 200);
-      if (!updates.nombre) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Name cannot be empty.', 400);
-    }
-    if (updates.unidad !== undefined) updates.unidad = String(updates.unidad).trim().slice(0, 50);
-    if (updates.descripcion !== undefined) updates.descripcion = String(updates.descripcion).trim().slice(0, 500);
-    if (updates.stockMinimo !== undefined) {
-      const v = parseFloat(updates.stockMinimo);
-      updates.stockMinimo = (isNaN(v) || !isFinite(v) || v < 0) ? 0 : v;
-    }
-    if (updates.total !== undefined) {
-      if (updates.total === '' || updates.total === null) { updates.total = null; }
-      else {
-        const v = parseFloat(updates.total);
-        if (isNaN(v) || !isFinite(v) || v < 0) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Total must be a valid number >= 0.', 400);
-        updates.total = v;
-      }
-    }
-    if (updates.moneda !== undefined) {
-      const MONEDAS_VALIDAS = ['USD', 'CRC', 'EUR'];
-      if (!MONEDAS_VALIDAS.includes(updates.moneda)) updates.moneda = 'CRC';
-    }
+    const { data: updates, error } = buildItemUpdate(req.body);
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
     await itemDoc.ref.update(updates);
     return res.json({ id: req.params.itemId, ...itemDoc.data(), ...updates });
   } catch (err) {
@@ -196,12 +181,12 @@ router.put('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) => {
+router.delete('/api/bodegas/:id/items/:itemId', authenticate, requireRole('supervisor'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
     const itemDoc = await db.collection('bodega_items').doc(req.params.itemId).get();
-    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
+    if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id || itemDoc.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Item not found.', 404);
     }
     // Only delete if it has no movements
@@ -210,7 +195,16 @@ router.delete('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) =
     if (!movsSnap.empty) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Cannot delete an item with registered movements.', 400);
     }
+    const prev = itemDoc.data();
     await itemDoc.ref.delete();
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.BODEGA_ITEM_DELETE,
+      target: { type: 'bodega_item', id: req.params.itemId },
+      metadata: { nombre: prev.nombre || null, unidad: prev.unidad || null, bodegaId: req.params.id },
+      severity: SEVERITY.WARNING,
+    });
     return res.json({ ok: true });
   } catch (err) {
     console.error('[bodega_items DELETE]', err);
@@ -220,7 +214,7 @@ router.delete('/api/bodegas/:id/items/:itemId', authenticate, async (req, res) =
 
 // --- API ENDPOINTS: BODEGA MOVIMIENTOS ---
 
-router.get('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
+router.get('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -230,83 +224,142 @@ router.get('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
       .orderBy('timestamp', 'desc')
       .limit(500)
       .get();
-    return res.json(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate().toISOString() })));
+    return res.json(snap.docs.map(d => {
+      // No exponer la ruta interna de Storage en el listado; el adjunto se pide
+      // on-demand vía GET .../factura. `tieneFactura` basta para pintar el link.
+      const { facturaPath, ...data } = d.data();
+      return { id: d.id, ...data, timestamp: data.timestamp?.toDate().toISOString() };
+    }));
   } catch (err) {
     console.error('[bodega_movimientos GET]', err);
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch movements.', 500);
   }
 });
 
-router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
+// On-demand signed URL for a movement's attached invoice (H8). Re-verifies
+// role + finca + bodega ownership on every access, so a leaked link cannot
+// outlive the short expiry and authz is enforced per-request (unlike the old
+// permanent download-token URL embedded in the doc).
+router.get('/api/bodegas/:id/movimientos/:movId/factura', authenticate, requireRole('encargado'), async (req, res) => {
+  try {
+    const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
+    if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
+    const movDoc = await db.collection('bodega_movimientos').doc(req.params.movId).get();
+    if (!movDoc.exists) return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Movement not found.', 404);
+    const mov = movDoc.data();
+    if (mov.fincaId !== req.fincaId || mov.bodegaId !== req.params.id) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Movement not found.', 404);
+    }
+    // Legacy docs (pre-H8) carry a permanent token URL instead of a path.
+    if (!mov.facturaPath) {
+      if (mov.facturaUrl) return res.json({ url: mov.facturaUrl });
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'No attachment for this movement.', 404);
+    }
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(mov.facturaPath);
+    const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+    if (isEmulator) {
+      // getSignedUrl no funciona en el emulador (sin service account). Fallback:
+      // construir la URL con el download token guardado en metadata.
+      const [meta] = await file.getMetadata();
+      const token = meta.metadata?.firebaseStorageDownloadTokens;
+      const encodedPath = encodeURIComponent(mov.facturaPath);
+      return res.json({
+        url: `http://${isEmulator}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`,
+      });
+    }
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      version: 'v4',
+      expires: Date.now() + 15 * 60 * 1000, // 15 min
+    });
+    return res.json({ url });
+  } catch (err) {
+    console.error('[bodega_movimientos factura GET]', err);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to resolve attachment.', 500);
+  }
+});
+
+// Resolve a referenced doc's display name server-side, validating tenancy.
+// Returns '' (and the caller clears the id) when the id is empty, the doc does
+// not exist, or it belongs to another finca — so a movement never persists a
+// client-supplied name decoupled from a real, in-finca reference.
+async function resolveRefName(collection, id, fincaId, buildName) {
+  if (!id) return '';
+  const doc = await db.collection(collection).doc(id).get();
+  if (!doc.exists || doc.data().fincaId !== fincaId) return '';
+  return (buildName(doc.data()) || '').slice(0, 200);
+}
+
+router.post('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado'), rateLimit('bodega-mov', 'write'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
 
-    const { itemId, tipo, cantidad, nota,
-            loteId, loteNombre, laborId, laborNombre,
-            activoId, activoNombre, operarioId, operarioNombre,
-            factura, oc, total,
-            imageBase64, mediaType } = req.body;
-    if (!itemId || !tipo || !cantidad) {
-      return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'itemId, tipo and cantidad are required.', 400);
-    }
-    if (!['entrada', 'salida'].includes(tipo)) {
-      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'tipo must be "entrada" or "salida".', 400);
-    }
-    const cantNum = parseFloat(cantidad);
-    if (isNaN(cantNum) || cantNum <= 0 || !isFinite(cantNum)) {
-      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Quantity must be a positive finite number.', 400);
-    }
-    // Validate string lengths
-    if (nota && String(nota).length > 500) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Note too long (max 500).', 400);
-    if (factura && String(factura).length > 100) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invoice too long (max 100).', 400);
-    if (oc && String(oc).length > 100) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'OC too long (max 100).', 400);
-    // Validar total
-    const parsedTotal = total !== undefined && total !== '' ? parseFloat(total) : null;
-    if (parsedTotal !== null && (isNaN(parsedTotal) || !isFinite(parsedTotal) || parsedTotal < 0)) {
-      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Total must be a valid number >= 0.', 400);
-    }
-    // Validate base64 size (~5 MB in base64 ≈ 6.67 MB string)
-    if (imageBase64 && imageBase64.length > 7 * 1024 * 1024) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Attachment too large (max 5 MB).', 400);
-    }
+    const { data, error } = buildMovementCreate(req.body);
+    if (error) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, error, 400);
+    const { itemId, tipo, cantidad: cantNum, nota, factura, oc, total: parsedTotal,
+            loteId, laborId, activoId, operarioId, clientMovId, imageBase64, mediaType } = data;
+
+    // ── Resolve reference names server-side (anti-tampering, H3) ────────────
+    // Cualquier *Nombre enviado por el cliente se descarta; el nombre se deriva
+    // del doc real validando que pertenezca a la finca. Si la referencia es
+    // inválida, se limpia también el id para no dejar un id colgante.
+    const [loteNombre, laborNombre, activoNombre, operarioNombre] = await Promise.all([
+      resolveRefName('lotes', loteId, req.fincaId, (d) => d.nombreLote),
+      resolveRefName('labores', laborId, req.fincaId, (d) => `${d.codigo ? d.codigo + ' - ' : ''}${d.descripcion || ''}`),
+      resolveRefName('maquinaria', activoId, req.fincaId, (d) => d.descripcion),
+      resolveRefName('users', operarioId, req.fincaId, (d) => d.nombre),
+    ]);
+    const refs = {
+      loteId: loteNombre ? loteId : '', loteNombre,
+      laborId: laborNombre ? laborId : '', laborNombre,
+      activoId: activoNombre ? activoId : '', activoNombre,
+      operarioId: operarioNombre ? operarioId : '', operarioNombre,
+    };
 
     // ── Upload attached invoice to Firebase Storage (if provided) ──────────
-    let facturaUrl = null;
+    // Se guarda SOLO el storage path (no una URL pública con token permanente).
+    // La factura se sirve on-demand vía GET .../factura, que emite una signed
+    // URL de corta vida tras re-verificar rol + finca (H8).
+    let facturaPath = null;
     if (imageBase64) {
       const { randomUUID } = require('crypto');
       const bucket = admin.storage().bucket();
-      const ALLOWED_MEDIA = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-      const safeMime = ALLOWED_MEDIA.includes(mediaType) ? mediaType : 'image/jpeg';
+      const safeMime = mediaType; // already whitelisted by the schema
       const ext = safeMime.includes('png') ? 'png' : safeMime.includes('pdf') ? 'pdf' : safeMime.includes('webp') ? 'webp' : 'jpg';
-      const fileName = `bodega_movimientos/${req.params.id}_${Date.now()}.${ext}`;
+      const fileName = `bodega_movimientos/${req.params.id}_${Date.now()}_${randomUUID()}.${ext}`;
       const file = bucket.file(fileName);
-      const token = randomUUID();
       await file.save(Buffer.from(imageBase64, 'base64'), {
         contentType: safeMime,
-        metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+        // Token de descarga para el fallback del emulador (getSignedUrl no
+        // funciona sin credenciales de service account en local).
+        metadata: { metadata: { firebaseStorageDownloadTokens: randomUUID() } },
       });
-      const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
-      const encodedPath = encodeURIComponent(fileName);
-      facturaUrl = isEmulator
-        ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
-        : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+      facturaPath = fileName;
     }
 
     // ── Atomic transaction: verify stock + update + register movement ──────
-    const movRef = db.collection('bodega_movimientos').doc();
+    // Idempotencia (H10): si el cliente envía clientMovId, se usa como doc ID;
+    // un reintento con el mismo id encuentra el doc ya escrito y devuelve el
+    // existente sin volver a mover stock.
+    const movRef = clientMovId
+      ? db.collection('bodega_movimientos').doc(clientMovId)
+      : db.collection('bodega_movimientos').doc();
     const itemRef = db.collection('bodega_items').doc(itemId);
+    let duplicate = false;
     const result = await db.runTransaction(async (t) => {
+      if (clientMovId) {
+        const existing = await t.get(movRef);
+        if (existing.exists) { duplicate = true; return existing.data(); }
+      }
       const itemDoc = await t.get(itemRef);
-      if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id) {
-        throw Object.assign(new Error('Ítem no encontrado.'), { statusCode: 404 });
+      if (!itemDoc.exists || itemDoc.data().bodegaId !== req.params.id || itemDoc.data().fincaId !== req.fincaId) {
+        throw new ApiError(ERROR_CODES.NOT_FOUND, 'Item not found.', 404);
       }
       const stockAntes = itemDoc.data().stockActual || 0;
       if (tipo === 'salida' && stockAntes < cantNum) {
-        throw Object.assign(
-          new Error(`Stock insuficiente. Disponible: ${stockAntes} ${itemDoc.data().unidad}.`),
-          { statusCode: 400 }
-        );
+        throw new ApiError(ERROR_CODES.INSUFFICIENT_STOCK, `Insufficient stock. Available: ${stockAntes}.`, 409);
       }
 
       const delta = tipo === 'entrada' ? cantNum : -cantNum;
@@ -321,19 +374,15 @@ router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
         cantidad: cantNum,
         stockAntes,
         stockDespues,
-        nota: (nota?.trim() || '').slice(0, 500),
-        loteId: loteId || '',
-        loteNombre: (loteNombre || '').slice(0, 200),
-        laborId: laborId || '',
-        laborNombre: (laborNombre || '').slice(0, 200),
-        activoId: activoId || '',
-        activoNombre: (activoNombre || '').slice(0, 200),
-        operarioId: operarioId || '',
-        operarioNombre: (operarioNombre || '').slice(0, 200),
-        factura: (factura?.trim() || '').slice(0, 100),
-        oc: (oc?.trim() || '').slice(0, 100),
+        nota,
+        ...refs,
+        factura,
+        oc,
         total: parsedTotal,
-        facturaUrl,
+        facturaPath,
+        // Flag liviano para que el listado sepa que hay adjunto sin exponer la
+        // ruta de Storage. La URL real se pide on-demand al endpoint /factura.
+        tieneFactura: !!facturaPath,
         usuarioId: req.uid,
         timestamp: Timestamp.now(),
       };
@@ -357,11 +406,23 @@ router.post('/api/bodegas/:id/movimientos', authenticate, async (req, res) => {
       return movData;
     });
 
-    return res.status(201).json({ id: movRef.id, ...result, timestamp: result.timestamp.toDate().toISOString() });
+    // Business trail in the finca feed (H7). Skipped on idempotent replays so a
+    // retry doesn't double-post. Audit log is reserved for irreversible deletes.
+    if (!duplicate) {
+      writeFeedEvent({
+        fincaId: req.fincaId,
+        uid: req.uid,
+        userEmail: req.userEmail,
+        eventType: 'bodega_movimiento',
+        activityType: tipo,
+        title: `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de ${result.cantidad} en ${result.itemNombre}`,
+      });
+    }
+
+    const ts = result.timestamp?.toDate ? result.timestamp.toDate().toISOString() : result.timestamp;
+    return res.status(duplicate ? 200 : 201).json({ id: movRef.id, ...result, timestamp: ts });
   } catch (err) {
-    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message });
-    console.error('[bodega_movimientos POST]', err);
-    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register movement.', 500);
+    return handleApiError(res, err, 'Failed to register movement.');
   }
 });
 

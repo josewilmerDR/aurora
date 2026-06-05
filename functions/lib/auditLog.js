@@ -109,6 +109,13 @@ const ACTIONS = Object.freeze({
   MATERIAL_SIEMBRA_UPDATE: 'material_siembra.update',
   MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',
+  // Bodegas / inventario de bodega. Solo los DELETE quedan auditados: borrar
+  // una bodega genérica o un ítem de bodega es irreversible. Forensic: quién
+  // lo borró y qué nombre/stock tenía. Los creates/updates y los movimientos
+  // (entrada/salida) son operación rutinaria y van al feed, no al audit,
+  // alineado con la política del archivo.
+  BODEGA_DELETE: 'bodega.delete',
+  BODEGA_ITEM_DELETE: 'bodega_item.delete',
   PAYROLL_PAY: 'payroll.pay',
   // Planilla fija. APPROVE deja la planilla lista para pago (decisión
   // privilegiada de supervisor) → INFO. DELETE de una planilla ya aprobada o

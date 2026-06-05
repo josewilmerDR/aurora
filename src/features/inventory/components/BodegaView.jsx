@@ -9,6 +9,8 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useToast } from '../../../contexts/ToastContext';
+import { translateApiError } from '../../../lib/errorMessages';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import UnidadCombobox from './UnidadCombobox';
 import MovimientosTable from './MovimientosTable';
 import {
@@ -48,6 +50,9 @@ export default function BodegaView({
   const apiFetch = useApiFetch();
   const toast = useToast();
   const navigate = useNavigate();
+  const { currentUser } = useUser();
+  // Eliminar ítem requiere supervisor (gating secundario; el backend manda).
+  const canDelete = hasMinRole(currentUser?.rol, 'supervisor');
 
   const [bodega,   setBodega]   = useState(null);
   const [items,    setItems]    = useState([]);
@@ -84,6 +89,9 @@ export default function BodegaView({
   const [entradaForm, setEntradaForm] = useState(EMPTY_ENTRADA);
   const [facturaFile, setFacturaFile] = useState(null);
   const facturaInputRef = useRef(null);
+  // Clave de idempotencia por apertura de modal: el backend la usa como doc ID
+  // para que un reintento de red o un doble submit no registre dos movimientos.
+  const clientMovId = useRef(null);
 
   // Visibilidad de columnas de movimientos (persistida por bodega).
   const [movVisibleCols, setMovVisibleCols] = useState(loadVisibleCols);
@@ -142,6 +150,27 @@ export default function BodegaView({
       .then(r => r.json())
       .then(data => setItems(Array.isArray(data) ? data : []))
       .catch(() => toast.error('Error al actualizar existencias.'));
+  }, [apiFetch, bodegaId, toast]);
+
+  // Abre la factura adjunta de un movimiento pidiendo una signed URL de corta
+  // vida al backend (H8). Abre la pestaña de forma síncrona para no toparse con
+  // el bloqueador de pop-ups, luego le asigna la URL ya resuelta.
+  const openFactura = useCallback(async (movId) => {
+    const win = window.open('', '_blank');
+    try {
+      const res = await apiFetch(`/api/bodegas/${bodegaId}/movimientos/${movId}/factura`);
+      if (!res.ok) {
+        const e = await res.json().catch(() => null);
+        if (win) win.close();
+        toast.error(translateApiError(e));
+        return;
+      }
+      const { url } = await res.json();
+      if (win) win.location = url; else window.open(url, '_blank', 'noopener');
+    } catch {
+      if (win) win.close();
+      toast.error('Error de conexión.');
+    }
   }, [apiFetch, bodegaId, toast]);
 
   const fetchMovs = useCallback(() => {
@@ -222,7 +251,7 @@ export default function BodegaView({
         ? `/api/bodegas/${bodegaId}/items/${data.id}`
         : `/api/bodegas/${bodegaId}/items`;
       const res = await apiFetch(url, { method, body: JSON.stringify(data) });
-      if (!res.ok) { const e = await res.json(); toast.error(e.message); return; }
+      if (!res.ok) { const e = await res.json().catch(() => null); toast.error(translateApiError(e)); return; }
       toast.success(mode === 'edit' ? 'Producto actualizado.' : 'Producto agregado.');
       doClose();
       await refreshItems();
@@ -237,7 +266,7 @@ export default function BodegaView({
   const handleDeleteItem = async (id) => {
     try {
       const res = await apiFetch(`/api/bodegas/${bodegaId}/items/${id}`, { method: 'DELETE' });
-      if (!res.ok) { const e = await res.json(); toast.error(e.message); return false; }
+      if (!res.ok) { const e = await res.json().catch(() => null); toast.error(translateApiError(e)); return false; }
       toast.success('Producto eliminado.');
       await refreshItems();
       return true;
@@ -254,6 +283,7 @@ export default function BodegaView({
     setFacturaFile(null);
     if (facturaInputRef.current) facturaInputRef.current.value = '';
     setFormErr(null);
+    clientMovId.current = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     setMovModal({ itemId, tipo });
   };
 
@@ -279,7 +309,7 @@ export default function BodegaView({
     const itemId = movModal.itemId;
     setSaving(true);
     try {
-      const payload = { ...entradaForm };
+      const payload = { ...entradaForm, clientMovId: clientMovId.current };
       if (facturaFile) {
         const { base64, mediaType } = await readFileAsBase64(facturaFile);
         payload.imageBase64 = base64;
@@ -288,7 +318,7 @@ export default function BodegaView({
       const res = await apiFetch(`/api/bodegas/${bodegaId}/movimientos`, {
         method: 'POST', body: JSON.stringify(payload),
       });
-      if (!res.ok) { const e = await res.json(); toast.error(e.message); return; }
+      if (!res.ok) { const e = await res.json().catch(() => null); toast.error(translateApiError(e)); return; }
       toast.success('Entrada registrada.');
       doClose();
       await afterMovChange(itemId);
@@ -303,25 +333,16 @@ export default function BodegaView({
     const stockActual = itemForMov?.stockActual ?? 0;
     const err = validateSalida(movForm, { stockActual, requireActivo });
     if (err) { setFormErr(err); toast.error(err.message); return; }
-    // Resolver nombres para guardar junto con los IDs
-    const loteSeleccionado     = lotes.find(l => l.id === movForm.loteId);
-    const laborSeleccionada    = labores.find(l => l.id === movForm.laborId);
-    const activoSeleccionado   = maquinaria.find(m => m.id === movForm.activoId);
-    const operarioSeleccionado = usuarios.find(u => u.id === movForm.operarioId);
-    const payload = {
-      ...movForm,
-      loteNombre:     loteSeleccionado?.nombreLote || '',
-      laborNombre:    laborSeleccionada ? `${laborSeleccionada.codigo ? laborSeleccionada.codigo + ' - ' : ''}${laborSeleccionada.descripcion}` : '',
-      activoNombre:   activoSeleccionado?.descripcion || '',
-      operarioNombre: operarioSeleccionado?.nombre || '',
-    };
+    // Los *Nombre los resuelve el backend desde los IDs (anti-tampering); aquí
+    // solo enviamos los IDs + la clave de idempotencia.
+    const payload = { ...movForm, clientMovId: clientMovId.current };
     const itemId = movModal.itemId;
     setSaving(true);
     try {
       const res = await apiFetch(`/api/bodegas/${bodegaId}/movimientos`, {
         method: 'POST', body: JSON.stringify(payload),
       });
-      if (!res.ok) { const e = await res.json(); toast.error(e.message); return; }
+      if (!res.ok) { const e = await res.json().catch(() => null); toast.error(translateApiError(e)); return; }
       toast.success('Salida registrada.');
       doClose();
       await afterMovChange(itemId);
@@ -516,15 +537,17 @@ export default function BodegaView({
                                 <button className="ba-btn-icon" aria-label={`Editar ${item.nombre}`} onClick={() => setItemModal({ mode: 'edit', data: { ...item } })} title="Editar">
                                   <FiEdit2 size={14} />
                                 </button>
-                                <button
-                                  className="ba-btn-icon ba-btn-danger bg-btn-del"
-                                  aria-label={`Eliminar ${item.nombre}`}
-                                  disabled={hasStock}
-                                  onClick={() => setConfirmDel({ id: item.id, label: item.nombre, stock: item.stockActual, unidad: item.unidad })}
-                                  title={hasStock ? 'No se puede eliminar: tiene stock. Registrá una salida primero.' : 'Eliminar'}
-                                >
-                                  <FiTrash2 size={14} />
-                                </button>
+                                {canDelete && (
+                                  <button
+                                    className="ba-btn-icon ba-btn-danger bg-btn-del"
+                                    aria-label={`Eliminar ${item.nombre}`}
+                                    disabled={hasStock}
+                                    onClick={() => setConfirmDel({ id: item.id, label: item.nombre, stock: item.stockActual, unidad: item.unidad })}
+                                    title={hasStock ? 'No se puede eliminar: tiene stock. Registrá una salida primero.' : 'Eliminar'}
+                                  >
+                                    <FiTrash2 size={14} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -549,6 +572,7 @@ export default function BodegaView({
               movs={movs}
               visibleCols={movVisibleCols}
               onToggleCol={toggleMovCol}
+              onOpenFactura={openFactura}
             />
           )}
         </div>

@@ -260,6 +260,14 @@
   font-size: 0.82rem;
 }
 .bg-link:hover { text-decoration: underline; }
+/* Link-styled button (factura on-demand): resetea estilos nativos de <button>. */
+.bgm-factura-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
 
 /* ── Combobox unidad (portal dropdown) ────────────────────────────────────── */
 .bg-unidad-dropdown {

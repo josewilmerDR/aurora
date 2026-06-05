@@ -26,6 +26,7 @@ export const ERROR_MESSAGES = {
   USER_HAS_HR_HISTORY: 'No se puede eliminar: la persona tiene historial laboral. Usa "Rescindir contrato" y/o "Quitar acceso" en su lugar.',
   LOTE_CODIGO_EXISTS: 'Ya existe un lote con ese código en esta finca. Usa un código distinto.',
   MAX_FINCAS_REACHED: 'Alcanzaste el máximo de organizaciones que puedes crear.',
+  INSUFFICIENT_STOCK: 'No hay stock suficiente para registrar esta salida. Actualiza la cantidad e intenta de nuevo.',
   // Grupos: bloqueo de eliminación por cédulas asociadas (ver functions/routes/groups.js).
   // El DELETE estándar puede toparse con estos estados en una race entre el
   // delete-check y el confirm; sin traducción, el toast mostraba el mensaje

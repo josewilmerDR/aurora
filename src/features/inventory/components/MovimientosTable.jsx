@@ -43,7 +43,7 @@ function MovSortTh({ col, sortField, sortDir, colFilters, visibleCols, onSort, o
   );
 }
 
-export default function MovimientosTable({ movs, visibleCols, onToggleCol }) {
+export default function MovimientosTable({ movs, visibleCols, onToggleCol, onOpenFactura }) {
   const [sortField, setSortField] = useState('fecha');
   const [sortDir,   setSortDir]   = useState('desc');
   const [colFilters, setColFilters] = useState({});
@@ -176,8 +176,8 @@ export default function MovimientosTable({ movs, visibleCols, onToggleCol }) {
                 {visibleCols.stockDesp  && <td className="text-right bgm-cell-nowrap">{fmt(m.stockDespues)}</td>}
                 {visibleCols.factura    && (
                   <td className="bgm-cell-nowrap">
-                    {m.facturaUrl
-                      ? <a href={m.facturaUrl} target="_blank" rel="noopener noreferrer" className="bg-link">{m.factura || 'Ver'}</a>
+                    {(m.tieneFactura || m.facturaUrl)
+                      ? <button type="button" className="bg-link bgm-factura-link" onClick={() => onOpenFactura?.(m.id)}>{m.factura || 'Ver'}</button>
                       : (m.factura || '—')}
                   </td>
                 )}
