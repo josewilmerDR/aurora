@@ -2466,6 +2466,10 @@ select.pg-input option {
   .ingreso-table tbody tr:not(.ingreso-add-row-tr) td:nth-child(6)::before { content: 'IVA'; }
   .ingreso-table tbody tr:not(.ingreso-add-row-tr) td:nth-child(7)::before { content: 'Total'; }
 
+  /* El viewer (read-only) tiene 6 columnas: la 6ª es Total, no IVA. Override
+     de la etiqueta card-stack para que no muestre "IVA" en mobile. */
+  .recv-items-table tbody tr:not(.ingreso-add-row-tr) td:nth-child(6)::before { content: 'Total'; }
+
   /* Botón eliminar fila: como X flotante en la esquina superior derecha
      de la card en lugar de su propia línea con label. */
   .ingreso-table tbody tr:not(.ingreso-add-row-tr) td.col-del {
@@ -3090,9 +3094,9 @@ a.btn-historial {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #ff6680;
-  background: rgba(255, 102, 128, 0.12);
-  border: 1px solid rgba(255, 102, 128, 0.4);
+  color: var(--aur-void);
+  background: var(--aur-void-tint);
+  border: 1px solid var(--aur-void-border);
   padding: 3px 9px;
   border-radius: 99px;
 }
@@ -3102,7 +3106,7 @@ a.btn-historial {
   gap: 10px;
   align-items: flex-start;
   background: rgba(255, 102, 128, 0.08);
-  border-left: 3px solid #ff6680;
+  border-left: 3px solid var(--aur-void);
   border-radius: 4px;
   padding: 12px 14px;
   color: var(--aurora-light);
@@ -3110,7 +3114,7 @@ a.btn-historial {
 }
 
 .recv-anulada-banner svg {
-  color: #ff6680;
+  color: var(--aur-void);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -3129,9 +3133,68 @@ a.btn-historial {
 .recv-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
   padding-top: 12px;
   border-top: 1px solid rgba(230, 242, 255, 0.14);
   margin-top: 12px;
+}
+
+/* Empty-state de la tabla de items (reemplaza style inline). */
+.recv-empty-cell {
+  text-align: center;
+  padding: 24px;
+  opacity: 0.55;
+}
+
+/* Botonera del estado de error de carga. */
+.recv-error-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Tabla de impacto en el modal de anular/editar: qué stock se revierte. */
+.recv-impact-table {
+  background: rgba(230, 242, 255, 0.04);
+  border: 1px solid rgba(230, 242, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+
+.recv-impact-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aurora-light);
+  opacity: 0.55;
+  margin-bottom: 8px;
+}
+
+.recv-impact-table ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.recv-impact-table li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: var(--aurora-light);
+}
+
+.recv-impact-table li strong {
+  color: var(--aur-void);
+  white-space: nowrap;
 }
 
 .recv-anular-warn {

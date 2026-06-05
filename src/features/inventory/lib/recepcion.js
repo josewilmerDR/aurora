@@ -37,3 +37,22 @@ export const formatDate = (iso) => {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 };
+
+// Variante con mes largo para vistas de detalle. Mismo criterio UTC (date-only).
+export const formatDateLong = (iso) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
+};
+
+// Fecha + hora para timestamps con hora real (createdAt, anuladaAt). Estos SÍ
+// son instantes, no date-only, así que van en zona local del usuario.
+export const formatDateTime = (iso) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+export const formatMoney = (n) =>
+  Number(n || 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Short id legible de una recepción: REC-XXXXXX.
+export const recepcionShortId = (id) => `REC-${(id || '').slice(-6).toUpperCase()}`;

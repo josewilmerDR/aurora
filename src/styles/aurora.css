@@ -75,6 +75,12 @@
   --aur-danger-tint:   rgba(204, 51, 255, 0.14);
   --aur-danger-tint-2: rgba(204, 51, 255, 0.22);
 
+  /* ── Void/required: rojo coral (anulado, asterisco requerido) — semántica
+     aparte de --aur-danger (que es magenta). NO mapear a magenta. ────────── */
+  --aur-void:          #ff6680;
+  --aur-void-tint:     rgba(255, 102, 128, 0.12);
+  --aur-void-border:   rgba(255, 102, 128, 0.4);
+
   /* ── Warn: amber (avisos no destructivos) ──────────────────────────────── */
   --aur-warn:          #ffb84d;
   --aur-warn-tint:     rgba(255, 184, 77, 0.14);

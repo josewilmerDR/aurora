@@ -172,6 +172,7 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
         cantidadRecibida: stockIngresado,
         unidad: item.unidad || '',
         precioUnitario: parseFloat(item.precioUnitario) || 0,
+        iva: parseFloat(item.iva) || 0,
       });
     }
 
@@ -185,6 +186,8 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       items: recepcionItems,
       imageUrl: facturaImageUrl || null,
       createdAt: Timestamp.now(),
+      createdBy: req.uid || null,
+      createdByEmail: req.userEmail || '',
     });
 
     if (ordenCompraId) {
