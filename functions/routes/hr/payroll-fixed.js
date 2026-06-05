@@ -181,15 +181,51 @@ router.get('/api/hr/planilla-fijo', authenticate, rateLimit('hr_planilla_read', 
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read planillas.', 403);
     }
+
+    // Minimización de PII (auditoría FixedPayrollHistory). El historial solo
+    // muestra a un empleado a la vez, así que ofrecemos dos modos acotados:
+    //   - view=index    → metadata + trabajadorIds (membresía, SIN salarios ni
+    //                     cédulas). Alimenta el panel A-Z y los conteos.
+    //   - empleadoId=X  → metadata + la fila de ESE empleado (full, para el
+    //                     comprobante), filtrada server-side. Nunca devuelve las
+    //                     filas de los demás.
+    // Sin parámetros, devuelve las filas completas (lo usa el editor, que sí
+    // necesita gestionar todas las planillas de la finca).
+    const empleadoId = typeof req.query.empleadoId === 'string'
+      ? req.query.empleadoId.slice(0, 64)
+      : '';
+    const indexOnly = req.query.view === 'index';
+    const minimized = indexOnly || !!empleadoId;
+
     const snap = await db.collection('hr_planilla_fijo')
       .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc').get();
-    const data = snap.docs.map(d => ({
-      id: d.id, ...d.data(),
-      periodoInicio: d.data().periodoInicio?.toDate().toISOString(),
-      periodoFin: d.data().periodoFin?.toDate().toISOString(),
-      createdAt: d.data().createdAt?.toDate().toISOString(),
-    }));
+
+    const data = snap.docs.map(d => {
+      const v = d.data();
+      const periodoInicio = v.periodoInicio?.toDate().toISOString();
+      const periodoFin = v.periodoFin?.toDate().toISOString();
+      const createdAt = v.createdAt?.toDate().toISOString();
+      if (!minimized) {
+        return { id: d.id, ...v, periodoInicio, periodoFin, createdAt };
+      }
+      const filas = Array.isArray(v.filas) ? v.filas : [];
+      const base = {
+        id: d.id,
+        periodoLabel: v.periodoLabel,
+        estado: v.estado,
+        numeroConsecutivo: v.numeroConsecutivo || null,
+        periodoInicio, periodoFin, createdAt,
+        // Membresía sin dinero: id de cada empleado presente en la planilla.
+        trabajadorIds: filas.map(f => f.trabajadorId).filter(Boolean),
+      };
+      if (empleadoId) {
+        // Solo la fila del empleado solicitado (full, para el comprobante).
+        base.fila = filas.find(f => f.trabajadorId === empleadoId) || null;
+      }
+      return base;
+    });
+
     res.status(200).json(data);
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planillas.', 500);
