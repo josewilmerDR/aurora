@@ -17,6 +17,29 @@ export function fmtMoney(n) {
   return '₡' + Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Formato de fecha para display. Recibe ISO completo o 'YYYY-MM-DD' y lo ancla a
+// MEDIODÍA local: `new Date('2026-05-01')` se interpreta como medianoche UTC y en
+// CR (UTC-6) se corre al día anterior. El ancla de mediodía evita ese off-by-one
+// sin depender del huso.
+export function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Cantidad genérica (avance, unidades): hasta 2 decimales, sin forzar mínimos
+// para no inflar enteros ("12" en vez de "12,00").
+export function fmtNum(n) {
+  return n == null ? '—' : Number(n).toLocaleString('es-CR', { maximumFractionDigits: 2 });
+}
+
+// Hectáreas: SIEMPRE 2 decimales para que la columna numérica escanee pareja
+// (todas las filas con la misma cantidad de dígitos fraccionarios).
+export function fmtHa(n) {
+  return n == null ? '—' : Number(n).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function newSegId() {
   return `s${Date.now()}${Math.random().toString(36).slice(2, 5)}`;
 }

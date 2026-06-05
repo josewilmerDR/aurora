@@ -271,15 +271,21 @@ export default function AuroraDataTable({
                           <span className="aur-th-arrow">
                             {isSort ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
                           </span>
-                          <button
-                            type="button"
-                            className={`aur-th-funnel${hasFilt ? ' is-active' : ''}`}
-                            onClick={(e) => openColFilter(e, col.key, col.type)}
-                            title="Filtrar columna"
-                            aria-label={hasFilt ? `Editar filtro de columna ${col.label}` : `Filtrar columna ${col.label}`}
-                          >
-                            <FiFilter size={10} />
-                          </button>
+                          {/* `filterable: false` conserva el sort pero suprime el
+                              funnel — útil cuando el filtrado de esa columna ya lo
+                              cubre un control externo (ej. rango de fecha global)
+                              y un segundo filtro confundiría. */}
+                          {col.filterable !== false && (
+                            <button
+                              type="button"
+                              className={`aur-th-funnel${hasFilt ? ' is-active' : ''}`}
+                              onClick={(e) => openColFilter(e, col.key, col.type)}
+                              title="Filtrar columna"
+                              aria-label={hasFilt ? `Editar filtro de columna ${col.label}` : `Filtrar columna ${col.label}`}
+                            >
+                              <FiFilter size={10} />
+                            </button>
+                          )}
                         </span>
                       </th>
                     );
