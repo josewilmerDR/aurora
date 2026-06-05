@@ -1,333 +1,48 @@
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import '../styles/agroquimicos.css';
-import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiCpu, FiImage, FiList, FiArrowLeft } from 'react-icons/fi';
-import Toast from '../../../components/Toast';
+import { FiPlus, FiCheck, FiX, FiFileText, FiPackage, FiCpu, FiImage, FiList, FiAlertTriangle } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useToast } from '../../../contexts/ToastContext';
+import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
+import EmptyState from '../../../components/ui/EmptyState';
+import PortalCombobox from '../../../components/ui/PortalCombobox';
+import { compressImage, MAX_IMAGE_SIZE } from '../../../lib/image';
+import { newRow, nextRowKey, calcPrecioUnit, calcIvaAmount, formatDate } from '../lib/recepcion';
 
-const MAX_IMAGE_PX = 1600;
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > MAX_IMAGE_PX || height > MAX_IMAGE_PX) {
-          const ratio = Math.min(MAX_IMAGE_PX / width, MAX_IMAGE_PX / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg', previewUrl: dataUrl });
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-let _uid = Date.now();
-const newRow = () => ({
-  _key: ++_uid,
-  idProducto: '',
-  nombreComercial: '',
-  unidad: 'L',
-  cantidad: '',
-  total: '',
-  iva: 0,
-});
-
-function calcPrecioUnit(f) {
-  const cant = parseFloat(f.cantidad) || 0;
-  const tot  = parseFloat(f.total)    || 0;
-  return cant > 0 ? tot / cant : 0;
-}
-
-function calcIvaAmount(f) {
-  const tot = parseFloat(f.total) || 0;
-  return tot * (f.iva / 100);
-}
-
-// ── Autocompletado con Portal (escapa del overflow del contenedor) ─────────
+// ── Autocompletado de productos (id o nombre) ──────────────────────────────
 function AutocompleteInput({ value, onChange, onSelect, suggestions, placeholder, autoFocus }) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi]     = useState(0);
-  const [pos, setPos]   = useState({ top: 0, left: 0, width: 0 });
-  const inputRef = useRef(null);
-  const listRef  = useRef(null);
-
-  const filtered = !value.trim()
+  const items = !value.trim()
     ? []
     : suggestions.filter(p =>
         p.idProducto?.toLowerCase().includes(value.toLowerCase()) ||
         p.nombreComercial?.toLowerCase().includes(value.toLowerCase())
       ).slice(0, 7);
-
-  const calcPos = () => {
-    if (!inputRef.current) return;
-    const r = inputRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + window.scrollY + 3, left: r.left + window.scrollX, width: Math.max(r.width, 280) });
-  };
-
-  // Reset highlight whenever the filtered list changes (e.g., user typed).
-  useEffect(() => { setHi(0); }, [value]);
-
-  // Close on outside click (input or list).
-  useEffect(() => {
-    const handler = (e) => {
-      if (inputRef.current && !inputRef.current.contains(e.target) &&
-          listRef.current  && !listRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { calcPos(); setOpen(true); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { onSelect(filtered[hi]); setOpen(false); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
   return (
     <div className="ac-wrap">
-      <input
-        ref={inputRef}
+      <PortalCombobox
         value={value}
-        autoFocus={autoFocus}
-        autoComplete="off"
-        onChange={e => { onChange(e.target.value); calcPos(); setOpen(true); }}
-        onFocus={() => { calcPos(); setOpen(true); }}
-        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
-        onKeyDown={handleKeyDown}
+        onType={onChange}
+        items={items}
+        onPick={onSelect}
+        getItemKey={p => p.id}
         placeholder={placeholder}
+        autoFocus={autoFocus}
+        openOnFocus={false}
+        minWidth={280}
+        dropdownClassName="ac-dropdown"
+        itemClassName=""
+        itemActiveClassName="ac-dropdown-item--active"
+        renderItem={p => (
+          <>
+            <span className="ac-id">{p.idProducto}</span>
+            <span className="ac-name">{p.nombreComercial}</span>
+            <span className="ac-unit">{p.unidad}</span>
+          </>
+        )}
       />
-      {open && filtered.length > 0 && createPortal(
-        <ul ref={listRef} className="ac-dropdown" style={{ top: pos.top, left: pos.left, width: pos.width }}>
-          {filtered.map((p, i) => (
-            <li
-              key={p.id}
-              className={i === hi ? 'ac-dropdown-item--active' : ''}
-              onMouseDown={() => { onSelect(p); setOpen(false); }}
-              onMouseEnter={() => setHi(i)}
-            >
-              <span className="ac-id">{p.idProducto}</span>
-              <span className="ac-name">{p.nombreComercial}</span>
-              <span className="ac-unit">{p.unidad}</span>
-            </li>
-          ))}
-        </ul>,
-        document.body
-      )}
     </div>
-  );
-}
-
-// ── Combobox proveedor con portal ─────────────────────────────────────────
-function ProveedorCombobox({ value, onChange, proveedores }) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
-  const inputRef = useRef(null);
-  const listRef = useRef(null);
-
-  const filtered = proveedores.filter(p =>
-    !value || p.nombre.toLowerCase().includes(value.toLowerCase())
-  );
-
-  const openDropdown = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width });
-    }
-    setOpen(true);
-    setHi(0);
-  };
-
-  const selectOption = (p) => {
-    onChange(p.nombre);
-    setOpen(false);
-    setHi(0);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (inputRef.current && !inputRef.current.contains(e.target) &&
-          listRef.current  && !listRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        id="proveedorGlobal"
-        className="ingreso-proveedor-input"
-        value={value}
-        autoComplete="off"
-        onChange={e => { onChange(e.target.value); openDropdown(); }}
-        onFocus={openDropdown}
-        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
-        onKeyDown={handleKeyDown}
-        placeholder="Nombre del proveedor"
-      />
-      {open && filtered.length > 0 && createPortal(
-        <ul
-          ref={listRef}
-          className="proveedor-dropdown"
-          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
-        >
-          {filtered.map((p, i) => (
-            <li
-              key={p.id}
-              className={`proveedor-dropdown-item${i === hi ? ' proveedor-dropdown-item--active' : ''}`}
-              onMouseDown={() => selectOption(p)}
-              onMouseEnter={() => setHi(i)}
-            >
-              {p.nombre}
-            </li>
-          ))}
-        </ul>,
-        document.body
-      )}
-    </>
-  );
-}
-
-// ── Combobox unidad de medida con portal ──────────────────────────────────
-function UMCombobox({ value, onChange, unidadesMedida }) {
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
-  const inputRef = useRef(null);
-  const listRef = useRef(null);
-
-  const filtered = unidadesMedida.filter(u =>
-    !value || u.nombre.toLowerCase().includes(value.toLowerCase())
-  );
-
-  const openDropdown = () => {
-    if (inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: Math.max(r.width, 140) });
-    }
-    setOpen(true);
-    setHi(0);
-  };
-
-  const selectOption = (u) => {
-    onChange(u.nombre);
-    setOpen(false);
-    setHi(0);
-  };
-
-  const handleKeyDown = (e) => {
-    if (!open) {
-      if (e.key === 'ArrowDown') { openDropdown(); e.preventDefault(); }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      setHi(h => { const n = Math.min(h + 1, filtered.length - 1); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setHi(h => { const n = Math.max(h - 1, 0); listRef.current?.children[n]?.scrollIntoView({ block: 'nearest' }); return n; });
-      e.preventDefault();
-    } else if (e.key === 'Enter') {
-      if (filtered[hi]) { selectOption(filtered[hi]); e.preventDefault(); }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (inputRef.current && !inputRef.current.contains(e.target) &&
-          listRef.current  && !listRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <>
-      <input
-        ref={inputRef}
-        className="ingreso-um-input"
-        value={value}
-        autoComplete="off"
-        onChange={e => { onChange(e.target.value); openDropdown(); }}
-        onFocus={openDropdown}
-        onBlur={() => setTimeout(() => { if (document.activeElement !== inputRef.current) setOpen(false); }, 150)}
-        onKeyDown={handleKeyDown}
-        placeholder="UM"
-      />
-      {open && filtered.length > 0 && createPortal(
-        <ul
-          ref={listRef}
-          className="proveedor-dropdown"
-          style={{ top: dropPos.top, left: dropPos.left, minWidth: dropPos.width }}
-        >
-          {filtered.map((u, i) => (
-            <li
-              key={u.id}
-              className={`proveedor-dropdown-item${i === hi ? ' proveedor-dropdown-item--active' : ''}`}
-              onMouseDown={() => selectOption(u)}
-              onMouseEnter={() => setHi(i)}
-            >
-              <span className="um-nombre">{u.nombre}</span>
-              {u.descripcion && <span className="um-desc">{u.descripcion}</span>}
-            </li>
-          ))}
-        </ul>,
-        document.body
-      )}
-    </>
   );
 }
 
@@ -336,11 +51,13 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
+  const confirmedRef = useRef(false); // evita doble confirm (Enter + blur)
 
   const handleSelectChange = (e) => {
     if (e.target.value === '__nuevo__') {
       setAdding(true);
       setDraft('');
+      confirmedRef.current = false;
       setTimeout(() => inputRef.current?.focus(), 0);
     } else {
       onChange(e.target.value);
@@ -348,6 +65,8 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
   };
 
   const confirm = () => {
+    if (confirmedRef.current) return;
+    confirmedRef.current = true;
     const trimmed = draft.trim();
     if (trimmed) {
       onAddOption(trimmed);
@@ -359,7 +78,7 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); confirm(); }
-    if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+    if (e.key === 'Escape') { confirmedRef.current = true; setAdding(false); setDraft(''); }
   };
 
   if (adding) {
@@ -387,55 +106,179 @@ function EditableSelect({ value, options, onChange, onAddOption, renderLabel }) 
   );
 }
 
-const formatDate = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
-};
+// ── Card de OC reutilizable (panel lateral + modal) ────────────────────────
+function OcCard({ orden, isLoaded, isParcial, onClick }) {
+  return (
+    <div
+      className={[
+        'ingreso-oc-card',
+        isLoaded ? 'ingreso-oc-card--loaded' : '',
+        isParcial ? 'ingreso-oc-card--parcial' : '',
+      ].filter(Boolean).join(' ')}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter') onClick(); }}
+    >
+      <div className="ingreso-oc-title-row">
+        <span className="ingreso-oc-title">{orden.poNumber || 'OC sin número'}</span>
+        {isParcial && <span className="ingreso-oc-badge-parcial">Parcial</span>}
+        {isLoaded && <span className="ingreso-oc-badge-loaded">Cargada</span>}
+      </div>
+      <div className="ingreso-oc-meta">
+        <span>{orden.proveedor || <em>Sin proveedor</em>}</span>
+        <span><FiPackage size={11} /> {Array.isArray(orden.items) ? orden.items.length : 0} prod.</span>
+      </div>
+      <div className="ingreso-oc-fecha">{formatDate(orden.fecha)}</div>
+    </div>
+  );
+}
 
 // ── Componente principal ───────────────────────────────────────────────────
 function Recepcion() {
   const apiFetch = useApiFetch();
   const location = useLocation();
-  const navigate = useNavigate();
+  const toast = useToast();
+
   const [filas, setFilas] = useState([newRow()]);
   const [factura, setFactura] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().split('T')[0]);
   const [proveedor, setProveedor] = useState('');
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
   const [catalogo, setCatalogo] = useState([]);
   const [proveedores, setProveedores] = useState([]);
-  // Cuando se llega desde RecepcionViewer.handleEditar, este state guarda
-  // el contexto del recepción anulado (id, short id) para mostrar un banner.
   const [editandoRecepcion, setEditandoRecepcion] = useState(null);
   const [unidadesMedida, setUnidadesMedida] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
+  const [ordenesError, setOrdenesError] = useState(false);
   const [loadedOrdenId, setLoadedOrdenId] = useState(null);
   const [loadedOrden, setLoadedOrden] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [ocModalOpen, setOcModalOpen] = useState(false);
   const [step, setStep] = useState('form');
-  const ocVisibles = ordenes.filter(o => o.estado !== 'recibida' && o.estado !== 'completada' && o.estado !== 'cancelada');
-  const [invoiceImage, setInvoiceImage] = useState(null); // { base64, mediaType, previewUrl }
+  const [invoiceImage, setInvoiceImage] = useState(null);
   const [lightboxSrc, setLightboxSrc] = useState(null);
-  const imageFileInputRef = useRef(null);
-  const scanFileInputRef = useRef(null);
-  // Listas de opciones compartidas (persisten durante la sesión)
+  const [confirmLimpiar, setConfirmLimpiar] = useState(false);
+  const [newRowKey, setNewRowKey] = useState(null);
   const [ivaOpciones, setIvaOpciones] = useState([0, 4, 8, 13, 15]);
 
+  const imageFileInputRef = useRef(null);
+  const scanFileInputRef = useRef(null);
+  const lightboxCloseRef = useRef(null);
+  const ocModalCloseRef = useRef(null);
+
+  const showToast = useCallback((msg, type = 'success', opts) => {
+    if (type === 'error') toast.error(msg, opts);
+    else toast.success(msg, opts);
+  }, [toast]);
+
+  // Índice id→producto: evita catalogo.find() O(N) por línea escaneada/OC.
+  const catalogoById = useMemo(() => {
+    const m = new Map();
+    for (const p of catalogo) m.set(p.id, p);
+    return m;
+  }, [catalogo]);
+
+  const ocVisibles = useMemo(
+    () => ordenes.filter(o => o.estado !== 'recibida' && o.estado !== 'completada' && o.estado !== 'cancelada'),
+    [ordenes]
+  );
+
+  // ESC cierra el modal/overlay innermost.
+  useEscapeClose(lightboxSrc ? () => setLightboxSrc(null) : null);
+  useEscapeClose(ocModalOpen ? () => setOcModalOpen(false) : null);
+
+  // Mover el foco al botón cerrar al abrir modal/lightbox (a11y).
+  useEffect(() => { if (lightboxSrc) lightboxCloseRef.current?.focus(); }, [lightboxSrc]);
+  useEffect(() => { if (ocModalOpen) ocModalCloseRef.current?.focus(); }, [ocModalOpen]);
+
+  // Limpia newRowKey tras el autoFocus inicial para que no recapture el foco
+  // si la fila se remonta más tarde.
+  useEffect(() => {
+    if (newRowKey == null) return;
+    const t = setTimeout(() => setNewRowKey(null), 120);
+    return () => clearTimeout(t);
+  }, [newRowKey]);
+
+  // ── Carga de datos (re-disparable; depende de apiFetch → re-fetch al cambiar finca) ──
+  const fetchOrdenes = useCallback(() => {
+    return apiFetch('/api/ordenes-compra')
+      .then(r => { if (!r.ok) throw new Error('ordenes'); return r.json(); })
+      .then(d => { setOrdenes(Array.isArray(d) ? d : []); setOrdenesError(false); })
+      .catch(() => setOrdenesError(true));
+  }, [apiFetch]);
+
+  const fetchData = useCallback(() => {
+    const safe = (url, setter, label) =>
+      apiFetch(url)
+        .then(r => { if (!r.ok) throw new Error(label); return r.json(); })
+        .then(d => setter(Array.isArray(d) ? d : []))
+        .catch(() => showToast(`No se pudo cargar ${label}.`, 'error'));
+    safe('/api/productos', setCatalogo, 'el catálogo de productos');
+    safe('/api/proveedores', setProveedores, 'los proveedores');
+    safe('/api/unidades-medida', setUnidadesMedida, 'las unidades de medida');
+    fetchOrdenes();
+  }, [apiFetch, fetchOrdenes, showToast]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Hidratación desde navegación (editProducto / editandoRecepcion) ──
+  // Separado del fetch: depende de location.key para re-procesar si el usuario
+  // re-entra a la página con otro state sin desmontar.
+  useEffect(() => {
+    if (location.state?.editProducto) {
+      const p = location.state.editProducto;
+      const cant = parseFloat(p.stockActual) || 0;
+      const precio = parseFloat(p.precioUnitario) || 0;
+      setFilas([{
+        ...newRow(),
+        idProducto: p.idProducto || '',
+        nombreComercial: p.nombreComercial || '',
+        unidad: p.unidad || 'L',
+        cantidad: cant > 0 ? String(cant) : '',
+        total: cant > 0 && precio > 0 ? String(cant * precio) : '',
+        iva: 0,
+      }]);
+      setProveedor(p.proveedor || '');
+      window.scrollTo(0, 0);
+    } else if (location.state?.editandoRecepcion) {
+      const ed = location.state.editandoRecepcion;
+      setEditandoRecepcion({ originalShortId: ed.originalShortId });
+      if (ed.fecha) setFecha(ed.fecha);
+      setFactura(ed.factura || '');
+      setProveedor(ed.proveedor || '');
+      const filasCargadas = (ed.items || []).map(it => {
+        const cant = parseFloat(it.cantidad) || 0;
+        const precio = parseFloat(it.precioUnitario) || 0;
+        return {
+          ...newRow(),
+          idProducto: it.idProducto || '',
+          nombreComercial: it.nombreComercial || '',
+          unidad: it.unidad || 'L',
+          cantidad: cant > 0 ? String(cant) : '',
+          total: cant > 0 && precio > 0 ? String(cant * precio) : '',
+          iva: 0,
+        };
+      });
+      if (filasCargadas.length > 0) setFilas(filasCargadas);
+      window.scrollTo(0, 0);
+    }
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleProductsScanned = (lineas, catalogoEscaneado, imgData) => {
+    const escaneadoById = new Map((catalogoEscaneado || []).map(p => [p.id, p]));
     const newFilas = lineas
       .map(linea => {
-        const cat = catalogo.find(p => p.id === linea.productoId)
-                 || catalogoEscaneado.find(p => p.id === linea.productoId);
+        const cat = catalogoById.get(linea.productoId) || escaneadoById.get(linea.productoId);
         return {
-          _key: ++_uid,
-          idProducto:      cat?.idProducto      || linea.idProducto      || '',
-          nombreComercial: cat?.nombreComercial  || linea.nombreComercial || linea.nombreFactura || '',
-          unidad:          cat?.unidad           || linea.unidad          || linea.unidadFactura || 'L',
-          cantidad:        String(linea.cantidadIngresada || linea.cantidadFactura || ''),
-          total:           linea.subtotalLinea != null ? String(linea.subtotalLinea) : '',
-          iva:             cat?.iva != null ? cat.iva : 0,
+          _key: nextRowKey(),
+          idProducto: cat?.idProducto || linea.idProducto || '',
+          nombreComercial: cat?.nombreComercial || linea.nombreComercial || linea.nombreFactura || '',
+          unidad: cat?.unidad || linea.unidad || linea.unidadFactura || 'L',
+          cantidad: String(linea.cantidadIngresada || linea.cantidadFactura || ''),
+          total: linea.subtotalLinea != null ? String(linea.subtotalLinea) : '',
+          iva: cat?.iva != null ? cat.iva : 0,
+          cantidadOC: '',
         };
       })
       .filter(f => f.nombreComercial.trim());
@@ -444,7 +287,7 @@ function Recepcion() {
       showToast('No se encontraron productos en la factura.', 'error');
     } else {
       setFilas(newFilas);
-      showToast(`${newFilas.length} producto(s) cargado(s) desde la factura. Revisa y guarda.`, 'success');
+      showToast(`${newFilas.length} producto(s) cargado(s) desde la factura. Revisa y guarda.`);
     }
     if (imgData) setInvoiceImage(imgData);
   };
@@ -467,16 +310,16 @@ function Recepcion() {
       if (!res.ok) throw new Error(data.message || 'Error del servidor');
 
       const lineasNormalizadas = (data.lineas || []).map(l => ({
-        productoId:        l.productoId || null,
-        nombreFactura:     l.nombreFactura || '',
-        cantidadFactura:   l.cantidadFactura ?? 0,
-        unidadFactura:     l.unidadFactura || '',
-        notas:             l.notas || '',
+        productoId: l.productoId || null,
+        nombreFactura: l.nombreFactura || '',
+        cantidadFactura: l.cantidadFactura ?? 0,
+        unidadFactura: l.unidadFactura || '',
+        notas: l.notas || '',
         cantidadIngresada: l.cantidadCatalogo ?? l.cantidadFactura ?? 0,
-        unidad:            l.unidadCatalogo || l.unidadFactura || 'L',
-        subtotalLinea:     l.subtotalLinea ?? null,
-        idProducto:        '',
-        nombreComercial:   l.nombreFactura || '',
+        unidad: l.unidadCatalogo || l.unidadFactura || 'L',
+        subtotalLinea: l.subtotalLinea ?? null,
+        idProducto: '',
+        nombreComercial: l.nombreFactura || '',
       }));
 
       handleProductsScanned(lineasNormalizadas, data.catalogo || [], imgData);
@@ -503,16 +346,13 @@ function Recepcion() {
       setIvaOpciones(prev => [...prev, num].sort((a, b) => a - b));
   };
 
-  const showToast = (msg, type = 'success') => setToast({ message: msg, type });
-
-
   const handleAutocompleteSelect = (rowKey, producto) => {
     setFilas(prev => prev.map(f => f._key === rowKey ? {
       ...f,
-      idProducto:      producto.idProducto                          || f.idProducto,
-      nombreComercial: producto.nombreComercial                     || f.nombreComercial,
-      unidad:          producto.unidad                              || f.unidad,
-      iva:             producto.iva != null ? producto.iva          : f.iva,
+      idProducto: producto.idProducto || f.idProducto,
+      nombreComercial: producto.nombreComercial || f.nombreComercial,
+      unidad: producto.unidad || f.unidad,
+      iva: producto.iva != null ? producto.iva : f.iva,
     } : f));
   };
 
@@ -520,78 +360,38 @@ function Recepcion() {
     const items = orden.items || [];
     const filasCargadas = items
       .map(item => {
-        const cat       = catalogo.find(c => c.id === item.productoId);
-        const ordered   = parseFloat(item.cantidad)          || 0;
-        const received  = parseFloat(item.cantidadRecibida)  || 0;
+        const cat = catalogoById.get(item.productoId);
+        const ordered = parseFloat(item.cantidad) || 0;
+        const received = parseFloat(item.cantidadRecibida) || 0;
         const remaining = Math.max(0, ordered - received);
-        if (remaining <= 0) return null;            // ya recibido completamente
+        if (remaining <= 0) return null;
         const precio = parseFloat(item.precioUnitario) || 0;
         return {
-          _key:            ++_uid,
-          idProducto:      cat?.idProducto      || '',
-          nombreComercial: item.nombreComercial  || cat?.nombreComercial || '',
-          unidad:          item.unidad           || cat?.unidad || 'L',
-          cantidad:        String(remaining),
-          total:           precio > 0 ? String(remaining * precio) : '',
-          iva:             item.iva ?? cat?.iva ?? 0,
+          _key: nextRowKey(),
+          idProducto: cat?.idProducto || '',
+          nombreComercial: item.nombreComercial || cat?.nombreComercial || '',
+          unidad: item.unidad || cat?.unidad || 'L',
+          cantidad: String(remaining),
+          total: precio > 0 ? String(remaining * precio) : '',
+          iva: item.iva ?? cat?.iva ?? 0,
+          cantidadOC: ordered,   // cantidad ordenada original → conciliación backend
         };
       })
       .filter(Boolean);
-    setFilas(filasCargadas.length > 0 ? filasCargadas : [newRow()]);
+    if (filasCargadas.length === 0) {
+      showToast('Esta OC ya fue recibida por completo.', 'error');
+      return;
+    }
+    setFilas(filasCargadas);
     if (orden.proveedor) setProveedor(orden.proveedor);
     setLoadedOrdenId(orden.id);
     setLoadedOrden(orden);
     setStep('form');
   };
 
-  useEffect(() => {
-    apiFetch('/api/productos').then(r => r.json()).then(setCatalogo).catch(console.error);
-    apiFetch('/api/proveedores').then(r => r.json()).then(setProveedores).catch(console.error);
-    apiFetch('/api/unidades-medida').then(r => r.json()).then(setUnidadesMedida).catch(console.error);
-    apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
-    if (location.state?.editProducto) {
-      const p = location.state.editProducto;
-      const cant  = parseFloat(p.stockActual)    || 0;
-      const precio = parseFloat(p.precioUnitario) || 0;
-      setFilas([{
-        ...newRow(),
-        idProducto:      p.idProducto      || '',
-        nombreComercial: p.nombreComercial  || '',
-        unidad:          p.unidad           || 'L',
-        cantidad:        cant  > 0 ? String(cant)            : '',
-        total:           cant > 0 && precio > 0 ? String(cant * precio) : '',
-        iva:             0,
-      }]);
-      setProveedor(p.proveedor || '');
-      window.scrollTo(0, 0);
-    } else if (location.state?.editandoRecepcion) {
-      const ed = location.state.editandoRecepcion;
-      setEditandoRecepcion({ originalId: ed.originalId, originalShortId: ed.originalShortId });
-      if (ed.fecha) setFecha(ed.fecha);
-      setFactura(ed.factura || '');
-      setProveedor(ed.proveedor || '');
-      const filasCargadas = (ed.items || []).map(it => {
-        const cant   = parseFloat(it.cantidad)       || 0;
-        const precio = parseFloat(it.precioUnitario) || 0;
-        return {
-          ...newRow(),
-          idProducto:      it.idProducto || '',
-          nombreComercial: it.nombreComercial || '',
-          unidad:          it.unidad || 'L',
-          cantidad:        cant > 0 ? String(cant) : '',
-          total:           cant > 0 && precio > 0 ? String(cant * precio) : '',
-          iva:             0,
-        };
-      });
-      if (filasCargadas.length > 0) setFilas(filasCargadas);
-      window.scrollTo(0, 0);
-    }
-  }, []);
-
   const update = (key, field, value) =>
     setFilas(prev => prev.map(f => f._key === key ? { ...f, [field]: value } : f));
 
-  const [newRowKey, setNewRowKey] = useState(null);
   const addFila = () => {
     const row = newRow();
     setFilas(prev => [...prev, row]);
@@ -601,16 +401,39 @@ function Recepcion() {
   const removeFila = (key) =>
     setFilas(prev => prev.length > 1 ? prev.filter(f => f._key !== key) : prev);
 
-  const subtotal     = filas.reduce((sum, f) => sum + (parseFloat(f.total) || 0), 0);
-  const ivaTotal     = filas.reduce((sum, f) => sum + calcIvaAmount(f), 0);
+  const subtotal = filas.reduce((sum, f) => sum + (parseFloat(f.total) || 0), 0);
+  const ivaTotal = filas.reduce((sum, f) => sum + calcIvaAmount(f), 0);
   const totalGeneral = subtotal + ivaTotal;
 
+  // ¿Hay datos que valga la pena confirmar antes de descartar?
+  const hayDatos = filas.some(f => f.nombreComercial.trim() || f.idProducto.trim() || f.total)
+    || !!invoiceImage || !!proveedor || !!factura;
+
+  const doLimpiar = () => {
+    setFilas([newRow()]);
+    setFactura('');
+    setProveedor('');
+    setInvoiceImage(null);
+    if (loadedOrdenId) setStep('list');
+    setLoadedOrdenId(null);
+    setLoadedOrden(null);
+    setEditandoRecepcion(null);
+    setConfirmLimpiar(false);
+  };
+
+  const handleLimpiarClick = () => {
+    if (hayDatos) setConfirmLimpiar(true);
+    else doLimpiar();
+  };
+
   const handleGuardarTodo = async () => {
-    const validas = filas.filter(f => f.nombreComercial.trim());
+    const conNombre = filas.filter(f => f.nombreComercial.trim());
+    const validas = conNombre.filter(f => (parseFloat(f.cantidad) || 0) > 0);
     if (validas.length === 0) {
-      showToast('Completa al menos el Nombre Comercial en una fila.', 'error');
+      showToast('Completa Nombre Comercial y una Cantidad mayor a 0 en al menos una fila.', 'error');
       return;
     }
+    const ignoradas = conNombre.length - validas.length;
     setSaving(true);
 
     try {
@@ -619,28 +442,28 @@ function Recepcion() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: validas.map(f => ({
-            idProducto:      f.idProducto.trim(),
-            nombreComercial: f.nombreComercial,
-            unidad:          f.unidad,
-            cantidad:        parseFloat(f.cantidad) || 0,
-            cantidadOC:      parseFloat(f.cantidadOC) || 0,
-            precioUnitario:  calcPrecioUnit(f),
-            iva:             f.iva ?? 0,
+            idProducto: f.idProducto.trim(),
+            nombreComercial: f.nombreComercial.trim(),
+            unidad: f.unidad,
+            cantidad: parseFloat(f.cantidad) || 0,
+            cantidadOC: parseFloat(f.cantidadOC) || 0,
+            precioUnitario: calcPrecioUnit(f),
+            iva: f.iva ?? 0,
           })),
           proveedor,
           fecha,
           facturaNumero: factura,
-          ordenCompraId: loadedOrdenId  || null,
-          ocPoNumber:    loadedOrden?.poNumber || '',
-          imageBase64:   invoiceImage?.base64    || null,
-          mediaType:     invoiceImage?.mediaType || null,
+          ordenCompraId: loadedOrdenId || null,
+          ocPoNumber: loadedOrden?.poNumber || '',
+          imageBase64: invoiceImage?.base64 || null,
+          mediaType: invoiceImage?.mediaType || null,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error');
 
-      if (loadedOrden) apiFetch('/api/ordenes-compra').then(r => r.json()).then(setOrdenes).catch(console.error);
+      if (loadedOrden) fetchOrdenes();
 
       const backToList = !!loadedOrden;
       const wasEditando = editandoRecepcion;
@@ -653,13 +476,16 @@ function Recepcion() {
       setEditandoRecepcion(null);
       if (backToList) setStep('list');
 
-      const msg = wasEditando
-        ? `Recepción re-registrada. La original (${wasEditando.originalShortId}) queda anulada.`
-        : ([
-            data.creados   > 0 && `${data.creados} creado(s)`,
-            data.mergeados > 0 && `${data.mergeados} stock actualizado`,
-          ].filter(Boolean).join(' · ') || 'Ingreso registrado.');
-      showToast(msg, 'success');
+      if (wasEditando) {
+        // Evento contable importante (la original quedó anulada): toast persistente.
+        showToast(`Recepción re-registrada. La original (${wasEditando.originalShortId}) queda anulada.`, 'success', { duration: 8000 });
+      } else {
+        const detalle = [
+          data.creados > 0 && `${data.creados} creado(s)`,
+          data.mergeados > 0 && `${data.mergeados} stock actualizado`,
+        ].filter(Boolean).join(' · ') || 'Ingreso registrado.';
+        showToast(ignoradas > 0 ? `${detalle}. ${ignoradas} fila(s) sin cantidad fueron ignoradas.` : detalle);
+      }
     } catch (err) {
       showToast(err.message || 'Error al registrar el ingreso.', 'error');
     } finally {
@@ -667,11 +493,23 @@ function Recepcion() {
     }
   };
 
+  // Empty / error del panel de órdenes (compartido panel + modal).
+  const renderOcEmpty = () => (
+    ordenesError ? (
+      <EmptyState
+        variant="compact"
+        icon={FiAlertTriangle}
+        title="No se pudieron cargar las órdenes."
+        action={<button className="aur-btn-pill" onClick={fetchOrdenes}>Reintentar</button>}
+      />
+    ) : (
+      <div className="ingreso-oc-empty"><p>Sin órdenes pendientes.</p></div>
+    )
+  );
+
   return (
     <>
     <div className="lote-management-layout">
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       {(step !== 'list' || ocVisibles.length > 0) && (
       <div className="ingreso-title-row">
         <h2 className="ingreso-page-title">Recepción de Mercancía</h2>
@@ -709,6 +547,7 @@ function Recepcion() {
             type="button"
             className="ingreso-editando-dismiss"
             onClick={() => setEditandoRecepcion(null)}
+            aria-label="Quitar aviso"
             title="Quitar aviso"
           >
             <FiX size={14} />
@@ -794,17 +633,24 @@ function Recepcion() {
             />
             {invoiceImage && (
               <div className="ingreso-image-preview-wrap">
-                <img
-                  src={invoiceImage.previewUrl}
-                  alt="Factura adjunta"
-                  className="ingreso-image-thumb"
+                <button
+                  type="button"
+                  className="ingreso-image-thumb-btn"
                   onClick={() => setLightboxSrc(invoiceImage.previewUrl)}
+                  aria-label="Ver imagen de factura adjunta"
                   title="Ver imagen adjunta"
-                />
+                >
+                  <img
+                    src={invoiceImage.previewUrl}
+                    alt="Factura adjunta"
+                    className="ingreso-image-thumb"
+                  />
+                </button>
                 <button
                   type="button"
                   className="ingreso-image-remove"
                   onClick={() => setInvoiceImage(null)}
+                  aria-label="Quitar imagen adjunta"
                   title="Quitar imagen"
                 >
                   <FiX size={11} />
@@ -838,10 +684,16 @@ function Recepcion() {
             </div>
             <div className="ingreso-proveedor-wrap">
               <label htmlFor="proveedorGlobal">Proveedor</label>
-              <ProveedorCombobox
+              <PortalCombobox
                 value={proveedor}
-                onChange={setProveedor}
-                proveedores={proveedores}
+                onType={setProveedor}
+                items={proveedores.filter(p => !proveedor || p.nombre.toLowerCase().includes(proveedor.toLowerCase()))}
+                onPick={p => setProveedor(p.nombre)}
+                getItemKey={p => p.id}
+                inputId="proveedorGlobal"
+                inputClassName="ingreso-proveedor-input"
+                placeholder="Nombre del proveedor"
+                renderItem={p => p.nombre}
               />
             </div>
           </div>
@@ -887,15 +739,26 @@ function Recepcion() {
                       />
                     </td>
                     <td className="col-narrow">
-                      <UMCombobox
+                      <PortalCombobox
                         value={f.unidad}
-                        onChange={val => update(f._key, 'unidad', val)}
-                        unidadesMedida={unidadesMedida}
+                        onType={val => update(f._key, 'unidad', val)}
+                        items={unidadesMedida.filter(u => !f.unidad || u.nombre.toLowerCase().includes(f.unidad.toLowerCase()))}
+                        onPick={u => update(f._key, 'unidad', u.nombre)}
+                        getItemKey={u => u.id}
+                        inputClassName="ingreso-um-input"
+                        placeholder="UM"
+                        minWidth={140}
+                        renderItem={u => (
+                          <>
+                            <span className="um-nombre">{u.nombre}</span>
+                            {u.descripcion && <span className="um-desc">{u.descripcion}</span>}
+                          </>
+                        )}
                       />
                     </td>
                     <td className="col-number">
                       <input
-                        type="number" step="0.01" min="0" max="999999"
+                        type="number" step="0.01" min="0"
                         value={f.cantidad}
                         onChange={e => update(f._key, 'cantidad', e.target.value)}
                         placeholder="0"
@@ -920,7 +783,7 @@ function Recepcion() {
                     </td>
                     <td className="col-total">
                       <input
-                        type="number" step="0.01" min="0" max="9999999999"
+                        type="number" step="0.01" min="0"
                         value={f.total}
                         onChange={e => update(f._key, 'total', e.target.value)}
                         placeholder="0.00"
@@ -932,9 +795,10 @@ function Recepcion() {
                         type="button"
                         className="ingreso-row-del"
                         onClick={() => removeFila(f._key)}
+                        aria-label="Eliminar fila"
                         title="Eliminar fila"
                       >
-                        ×
+                        <FiX size={16} />
                       </button>
                     </td>
                   </tr>
@@ -971,7 +835,7 @@ function Recepcion() {
             </div>
           )}
           <div className="ingreso-footer-actions">
-            <button type="button" className="aur-btn-text" onClick={() => { setFilas([newRow()]); setFactura(''); setProveedor(''); setInvoiceImage(null); if (loadedOrdenId) setStep('list'); setLoadedOrdenId(null); setLoadedOrden(null); setEditandoRecepcion(null); }} disabled={saving}>
+            <button type="button" className="aur-btn-text" onClick={handleLimpiarClick} disabled={saving}>
               <FiX size={15} /> Limpiar
             </button>
             <button type="button" className="aur-btn-pill" onClick={handleGuardarTodo} disabled={saving}>
@@ -992,45 +856,19 @@ function Recepcion() {
             )}
           </div>
 
-          {(() => {
-            if (ocVisibles.length === 0) return (
-              <div className="ingreso-oc-empty">
-                <p>Sin órdenes pendientes.</p>
-              </div>
-            );
-            return (
-              <div className="ingreso-oc-list">
-                {ocVisibles.map(orden => {
-                  const isLoaded   = loadedOrdenId === orden.id;
-                  const isParcial  = orden.estado === 'recibida_parcialmente';
-                  return (
-                    <div
-                      key={orden.id}
-                      className={[
-                        'ingreso-oc-card',
-                        isLoaded  ? 'ingreso-oc-card--loaded'  : '',
-                        isParcial ? 'ingreso-oc-card--parcial' : '',
-                      ].join(' ')}
-                      onClick={() => loadOrdenIntoForm(orden)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => e.key === 'Enter' && loadOrdenIntoForm(orden)}
-                    >
-                      <div className="ingreso-oc-title-row">
-                        <span className="ingreso-oc-title">{orden.poNumber || 'OC sin número'}</span>
-                        {isParcial && <span className="ingreso-oc-badge-parcial">Parcial</span>}
-                      </div>
-                      <div className="ingreso-oc-meta">
-                        <span>{orden.proveedor || <em>Sin proveedor</em>}</span>
-                        <span><FiPackage size={11} /> {Array.isArray(orden.items) ? orden.items.length : 0} prod.</span>
-                      </div>
-                      <div className="ingreso-oc-fecha">{formatDate(orden.fecha)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          {ocVisibles.length === 0 ? renderOcEmpty() : (
+            <div className="ingreso-oc-list">
+              {ocVisibles.map(orden => (
+                <OcCard
+                  key={orden.id}
+                  orden={orden}
+                  isLoaded={loadedOrdenId === orden.id}
+                  isParcial={orden.estado === 'recibida_parcialmente'}
+                  onClick={() => loadOrdenIntoForm(orden)}
+                />
+              ))}
+            </div>
+          )}
         </aside>
 
       </div>}{/* /ingreso-top-layout + step form */}
@@ -1040,7 +878,7 @@ function Recepcion() {
     {/* Modal: Órdenes de Compra */}
     {ocModalOpen && (
       <div className="ingreso-scan-overlay" onClick={e => { if (e.target === e.currentTarget) setOcModalOpen(false); }}>
-        <div className="ingreso-oc-modal">
+        <div className="ingreso-oc-modal" role="dialog" aria-modal="true" aria-label="Órdenes de Compra">
           <div className="ingreso-oc-modal-header">
             <div className="ingreso-oc-modal-title">
               <FiFileText size={16} />
@@ -1050,6 +888,7 @@ function Recepcion() {
               )}
             </div>
             <button
+              ref={ocModalCloseRef}
               type="button"
               className="ingreso-scan-modal-close"
               onClick={() => setOcModalOpen(false)}
@@ -1059,41 +898,17 @@ function Recepcion() {
             </button>
           </div>
           <div className="ingreso-oc-modal-body">
-            {ocVisibles.length === 0 ? (
-              <div className="ingreso-oc-empty">
-                <p>Sin órdenes pendientes.</p>
-              </div>
-            ) : (
+            {ocVisibles.length === 0 ? renderOcEmpty() : (
               <div className="ingreso-oc-list">
-                {ocVisibles.map(orden => {
-                  const isLoaded  = loadedOrdenId === orden.id;
-                  const isParcial = orden.estado === 'recibida_parcialmente';
-                  return (
-                    <div
-                      key={orden.id}
-                      className={[
-                        'ingreso-oc-card',
-                        isLoaded  ? 'ingreso-oc-card--loaded'  : '',
-                        isParcial ? 'ingreso-oc-card--parcial' : '',
-                      ].join(' ')}
-                      onClick={() => { loadOrdenIntoForm(orden); setOcModalOpen(false); }}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => e.key === 'Enter' && (loadOrdenIntoForm(orden), setOcModalOpen(false))}
-                    >
-                      <div className="ingreso-oc-title-row">
-                        <span className="ingreso-oc-title">{orden.poNumber || 'OC sin número'}</span>
-                        {isParcial && <span className="ingreso-oc-badge-parcial">Parcial</span>}
-                        {isLoaded  && <span className="ingreso-oc-badge-loaded">Cargada</span>}
-                      </div>
-                      <div className="ingreso-oc-meta">
-                        <span>{orden.proveedor || <em>Sin proveedor</em>}</span>
-                        <span><FiPackage size={11} /> {Array.isArray(orden.items) ? orden.items.length : 0} prod.</span>
-                      </div>
-                      <div className="ingreso-oc-fecha">{formatDate(orden.fecha)}</div>
-                    </div>
-                  );
-                })}
+                {ocVisibles.map(orden => (
+                  <OcCard
+                    key={orden.id}
+                    orden={orden}
+                    isLoaded={loadedOrdenId === orden.id}
+                    isParcial={orden.estado === 'recibida_parcialmente'}
+                    onClick={() => { loadOrdenIntoForm(orden); setOcModalOpen(false); }}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -1101,12 +916,12 @@ function Recepcion() {
       </div>
     )}
 
-
     {/* Lightbox: imagen de factura */}
     {lightboxSrc && (
       <div className="ingreso-scan-overlay" onClick={e => { if (e.target === e.currentTarget) setLightboxSrc(null); }}>
-        <div className="factura-lightbox-inner">
+        <div className="factura-lightbox-inner" role="dialog" aria-modal="true" aria-label="Imagen de factura">
           <button
+            ref={lightboxCloseRef}
             type="button"
             className="ingreso-scan-modal-close"
             onClick={() => setLightboxSrc(null)}
@@ -1117,6 +932,18 @@ function Recepcion() {
           <img src={lightboxSrc} alt="Imagen de factura" className="factura-lightbox-img" />
         </div>
       </div>
+    )}
+
+    {confirmLimpiar && (
+      <AuroraConfirmModal
+        danger
+        title="Descartar la recepción"
+        body={`Vas a descartar ${filas.filter(f => f.nombreComercial.trim()).length || 'las'} línea(s) cargada(s)${invoiceImage ? ' y la imagen adjunta' : ''}. Esta acción no se puede deshacer.`}
+        confirmLabel="Descartar"
+        cancelLabel="Seguir editando"
+        onConfirm={doLimpiar}
+        onCancel={() => setConfirmLimpiar(false)}
+      />
     )}
     </>
   );
