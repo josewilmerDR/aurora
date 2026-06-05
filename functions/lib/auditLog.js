@@ -110,6 +110,14 @@ const ACTIONS = Object.freeze({
   MATERIAL_SIEMBRA_DELETE: 'material_siembra.delete',
   STOCK_ADJUST: 'stock.adjust',
   PAYROLL_PAY: 'payroll.pay',
+  // Planilla fija. APPROVE deja la planilla lista para pago (decisión
+  // privilegiada de supervisor) → INFO. DELETE de una planilla ya aprobada o
+  // pagada es irreversible: borra una obligación de dinero real junto con su
+  // history[] y la tarea de aprobación asociada → WARNING. El borrado de una
+  // planilla en estado pendiente queda fuera (reversible, sin efecto contable),
+  // alineado con la política del archivo.
+  PAYROLL_APPROVE: 'payroll.approve',
+  PAYROLL_DELETE: 'payroll.delete',
   // Ficha laboral. Solo el cambio de salario/precio-hora queda auditado: es la
   // base monetaria de la nómina (forensic: quién lo cambió, sobre qué trabajador
   // y de cuánto a cuánto). El resto de la ficha (puesto, horario, contacto,

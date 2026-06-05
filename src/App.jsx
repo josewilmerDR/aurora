@@ -342,7 +342,19 @@ function App() {
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
             <Route path="/orden-compra/:taskId" element={<OCDesdeSolicitud />} />
-            <Route path="/hr/planilla/fijo/reporte" element={<FixedPayrollReport />} />
+          </Route>
+
+          {/* Protected routes WITHOUT sidebar (full-bleed documents). Auth-gated
+              like the rest of the app; the report renders salarios + cédulas, so
+              it must not live in the public block. */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <SimpleLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/hr/planilla/fijo/reporte" element={<RoleRoute path="/hr/planilla/fijo/reporte"><FixedPayrollReport /></RoleRoute>} />
           </Route>
 
           {/* Protected routes with sidebar */}

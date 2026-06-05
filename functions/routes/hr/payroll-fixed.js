@@ -12,8 +12,9 @@
 const { Router } = require('express');
 const { db, Timestamp, twilioWhatsappFrom } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership } = require('../../lib/helpers');
+const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { getTwilioClient } = require('../../lib/clients');
+const { rateLimit } = require('../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const {
@@ -172,8 +173,14 @@ function parsePeriodoISO(periodoInicio, periodoFin) {
 const PLANILLA_FIJO_ROLES_WRITE = ['supervisor', 'administrador', 'rrhh'];
 const canEditarFijo = (req) => PLANILLA_FIJO_ROLES_WRITE.includes(req.userRole);
 
-router.get('/api/hr/planilla-fijo', authenticate, async (req, res) => {
+router.get('/api/hr/planilla-fijo', authenticate, rateLimit('hr_planilla_read', 'costly_read'), async (req, res) => {
   try {
+    // Las planillas llevan salario, cédula y total neto de cada empleado de la
+    // finca. encargado+ only — sin esto un trabajador podía dumpear la nómina
+    // completa por API directa (el gate de la ruta en UI es defensa secundaria).
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read planillas.', 403);
+    }
     const snap = await db.collection('hr_planilla_fijo')
       .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc').get();
@@ -386,6 +393,24 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
       });
     }
 
+    // Aprobación: deja la planilla lista para pago (decisión privilegiada de
+    // supervisor). Forensic: quién aprobó qué obligación y por cuánto. INFO.
+    if (estado === 'aprobada' && estado !== currentEstado) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_APPROVE,
+        target: { type: 'planilla_fijo', id: req.params.id },
+        metadata: {
+          tipo: 'fijo',
+          periodoLabel: currentDoc.periodoLabel || update.periodoLabel || null,
+          totalGeneral: update.totalGeneral ?? currentDoc.totalGeneral ?? null,
+          empleadosCount: (update.filas || currentDoc.filas || []).length,
+        },
+        severity: SEVERITY.INFO,
+      });
+    }
+
     res.status(200).json({ id: req.params.id });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to update planilla.', 500);
@@ -414,6 +439,28 @@ router.delete('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), as
     if (!taskSnap.empty) {
       await taskSnap.docs[0].ref.delete();
     }
+
+    // Borrar una planilla ya aprobada o pagada es irreversible y elimina una
+    // obligación de dinero real junto con su rastro (history/tarea). Forensic:
+    // quién la borró, de qué período/estado y por cuánto. El borrado de una
+    // pendiente es reversible y queda fuera, alineado con la política del audit.
+    if (['aprobada', 'pagada'].includes(estadoActual)) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_DELETE,
+        target: { type: 'planilla_fijo', id: req.params.id },
+        metadata: {
+          tipo: 'fijo',
+          estado: estadoActual,
+          periodoLabel: data.periodoLabel || null,
+          totalGeneral: data.totalGeneral ?? null,
+          empleadosCount: (data.filas || []).length,
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
+
     res.status(200).json({ message: 'Planilla deleted.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete planilla.', 500);

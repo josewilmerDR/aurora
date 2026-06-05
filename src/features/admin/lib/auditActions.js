@@ -55,6 +55,8 @@ export const ACTION_OPTIONS = [
   { value: 'material_siembra.delete',       label: 'Material de siembra — eliminación' },
   { value: 'stock.adjust',                  label: 'Ajuste manual de stock' },
   { value: 'payroll.pay',                   label: 'Pago de planilla' },
+  { value: 'payroll.approve',               label: 'Planilla aprobada' },
+  { value: 'payroll.delete',                label: 'Planilla eliminada' },
   { value: 'hr.ficha.salary.change',        label: 'Ficha — cambio de salario' },
   { value: 'asistencia.delete',             label: 'Registro de asistencia eliminado' },
   { value: 'permiso.decision',              label: 'Permiso aprobado/rechazado' },

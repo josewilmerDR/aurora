@@ -40,6 +40,11 @@ function FixedPayroll() {
   const [toast, setToast]           = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
+  // Crear/editar/eliminar planillas exige supervisor+ (el backend rechaza a
+  // encargado con 403). La página es accesible a encargado para lectura del
+  // historial, así que gateamos las acciones de escritura en UI — defensa
+  // secundaria, el backend manda (payroll-fixed.js → PLANILLA_FIJO_ROLES_WRITE).
+  const canEditar  = ['supervisor', 'administrador', 'rrhh'].includes(currentUser?.rol);
   const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(currentUser?.rol);
   const canPagar   = ['administrador', 'rrhh'].includes(currentUser?.rol);
 
@@ -679,9 +684,11 @@ function FixedPayroll() {
                 <button className="aur-btn-text" onClick={handleGenerarReporte}>
                   <FiFileText /> Previsualizar Planilla
                 </button>
-                <button className="aur-btn-pill" onClick={() => setSaveConfirmModal(true)} disabled={saving}>
-                  <FiSave /> {saving ? 'Guardando...' : editingId ? 'Actualizar planilla' : 'Guardar planilla'}
-                </button>
+                {canEditar && (
+                  <button className="aur-btn-pill" onClick={() => setSaveConfirmModal(true)} disabled={saving}>
+                    <FiSave /> {saving ? 'Guardando...' : editingId ? 'Actualizar planilla' : 'Guardar planilla'}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1176,19 +1183,23 @@ function FixedPayroll() {
                     </button>
                     {isPendiente && (
                       <>
-                        <button className="aur-icon-btn" title="Editar planilla" aria-label={`Editar planilla ${p.periodoLabel}`} onClick={() => handleEditarPlanilla(p)}>
-                          <FiEdit2 size={16} />
-                        </button>
+                        {canEditar && (
+                          <button className="aur-icon-btn" title="Editar planilla" aria-label={`Editar planilla ${p.periodoLabel}`} onClick={() => handleEditarPlanilla(p)}>
+                            <FiEdit2 size={16} />
+                          </button>
+                        )}
                         {canAprobar && (
                           <button className="planilla-hist-pay-btn planilla-hist-pay-btn--aprobar" title="Aprobar planilla"
                             onClick={() => setAprobarConfirm(p)}>
                             <FiThumbsUp size={14} /> Aprobar
                           </button>
                         )}
-                        <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar planilla" aria-label={`Eliminar planilla ${p.periodoLabel}`}
-                          onClick={() => setDeleteConfirm(p)}>
-                          <FiTrash2 size={16} />
-                        </button>
+                        {canEditar && (
+                          <button className="aur-icon-btn aur-icon-btn--danger" title="Eliminar planilla" aria-label={`Eliminar planilla ${p.periodoLabel}`}
+                            onClick={() => setDeleteConfirm(p)}>
+                            <FiTrash2 size={16} />
+                          </button>
+                        )}
                       </>
                     )}
                     {isAprobada && canPagar && (
