@@ -58,6 +58,12 @@ export default function FixedPayrollReport() {
       // Para planillas guardadas la emisión es su fecha de creación, NO hoy.
       if (data.fechaEmision) setFechaEmisionIso(data.fechaEmision);
       setHydrated(true);
+      // PII de nómina (salarios + cédulas) ya está en el estado del componente;
+      // no debe quedar legible en sessionStorage tras renderizar — la borramos
+      // para que un equipo compartido no la exponga vía DevTools mientras viva
+      // la pestaña. El borrador del editor (aurora_planilla_fijo_state) se
+      // gestiona aparte en FixedPayroll.
+      sessionStorage.removeItem('aurora_planilla_reporte');
     } catch {
       navigate(origin);
     }

@@ -28,6 +28,9 @@ export const ROUTE_MIN_ROLE = {
   '/siembra/materiales': 'encargado',
   '/ordenes-compra/historial': 'encargado',
   '/hr/planilla/fijo': 'encargado',
+  // Reporte/comprobante de planilla (renderiza salarios + cédulas). Mismo gate
+  // que la página origen; sin esto la ruta vivía fuera de ProtectedRoute.
+  '/hr/planilla/fijo/reporte': 'encargado',
   '/hr/planilla/horas': 'encargado',
   '/monitoreo/paquetes': 'supervisor',
   '/monitoreo/muestreos': 'encargado',
