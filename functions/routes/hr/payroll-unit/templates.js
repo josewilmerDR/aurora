@@ -18,6 +18,7 @@ const { db, Timestamp } = require('../../../lib/firebase');
 const { authenticate } = require('../../../lib/middleware');
 const { verifyOwnership } = require('../../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../../lib/errors');
+const { rateLimit } = require('../../../lib/rateLimit');
 const {
   PLANILLA_LIMITS,
   canActOnBehalf,
@@ -29,7 +30,7 @@ const { sanitizeSegmentos, sanitizeTrabajadores } = require('./helpers');
 
 const router = Router();
 
-router.get('/api/hr/plantillas-planilla', authenticate, async (req, res) => {
+router.get('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_plantillas_read', 'costly_read'), async (req, res) => {
   try {
     const encargadoId = typeof req.query.encargadoId === 'string' ? req.query.encargadoId.trim() : '';
     if (!encargadoId)

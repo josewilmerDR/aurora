@@ -66,6 +66,17 @@ router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async 
     if (encargadoId !== authUserId && !canActOnBehalf(req))
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot create planillas on behalf of another encargado.', 403);
 
+    // Mismos gates de estado que el PUT: crear directamente una planilla
+    // 'aprobada'/'pagada' equivale a la transición correspondiente y exige el
+    // rol respectivo. Sin esto, un encargado podía hacer POST estado:'pagada'
+    // y materializar un pago saltándose el flujo de aprobación/pago.
+    const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(req.userRole);
+    const canPagar   = ['administrador', 'rrhh'].includes(req.userRole);
+    if (estado === 'aprobada' && !canAprobar)
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to approve planillas.', 403);
+    if (estado === 'pagada' && !canPagar)
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to pay planillas.', 403);
+
     const segs = sanitizeSegmentos(segmentos || []);
     if (!segs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, segs.msg, 400);
     const tabs = sanitizeTrabajadores(trabajadores || []);
@@ -116,6 +127,27 @@ router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async 
     if (consecutivo) docData.consecutivo = consecutivo;
 
     const ref = await db.collection('hr_planilla_unidad').add(docData);
+
+    // Si la planilla nace ya 'pagada' (admin/rrhh), el pago es dinero real y
+    // debe auditarse igual que la transición PUT→pagada — si no, un pago creado
+    // de un solo POST quedaría sin rastro en el feed/audit stream.
+    if (estadoFinal === 'pagada') {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_PAY,
+        target: { type: 'planilla_unidad', id: ref.id },
+        metadata: {
+          tipo: 'unidad',
+          consecutivo: consecutivo || null,
+          encargadoNombre: encargadoNombreCanon || null,
+          totalGeneral: enriched.totalGeneral ?? null,
+          trabajadoresCount: (enriched.trabajadores || []).length,
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
+
     res.status(201).json({ id: ref.id, consecutivo });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to create planilla.', 500);
@@ -331,6 +363,26 @@ router.delete('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), 
     if (['aprobada', 'pagada'].includes(data.estado) && !isAdminLike)
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Planilla already approved/paid; only administrador or rrhh may delete it.', 403);
     await db.collection('hr_planilla_unidad').doc(req.params.id).delete();
+
+    // Borrar una planilla es irreversible; las terminales (aprobada/pagada)
+    // representan dinero ya comprometido. Auditar siempre, con severidad mayor
+    // cuando se elimina un registro aprobado/pagado.
+    const eraTerminal = ['aprobada', 'pagada'].includes(data.estado);
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PAYROLL_DELETE,
+      target: { type: 'planilla_unidad', id: req.params.id },
+      metadata: {
+        tipo: 'unidad',
+        estado: data.estado || null,
+        consecutivo: data.consecutivo || null,
+        encargadoNombre: data.encargadoNombre || null,
+        totalGeneral: data.totalGeneral ?? null,
+      },
+      severity: eraTerminal ? SEVERITY.WARNING : SEVERITY.INFO,
+    });
+
     res.status(200).json({ message: 'Planilla deleted.' });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete planilla.', 500);

@@ -477,6 +477,14 @@
   min-width: 120px;
 }
 
+/* Aviso para el encargado dueño cuando la planilla está pendiente y él no
+   puede aprobarla (el botón Aprobar se reserva a supervisor/admin/rrhh). */
+.pu-await-approval {
+  font-size: 0.85rem;
+  color: rgba(230, 242, 255, 0.7);
+  font-style: italic;
+}
+
 /* Campos FECHA / ENCARGADO fuera de la tabla */
 .pu-header-fields {
   display: flex;
