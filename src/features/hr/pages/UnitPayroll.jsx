@@ -9,6 +9,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraModal from '../../../components/AuroraModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import SegmentCombobox from '../components/SegmentCombobox';
+import { translateApiError } from '../../../lib/errorMessages';
 import { todayStr, fmtMoney, fmtDate, newSegId, newSegmento, isHoraUnit, safeImageUrl, ESTADO_LABEL, ESTADO_CLASS, parseLaborString, countTrabajadoresConCantidad } from '../lib/unit-payroll-shared';
 import '../styles/hr.css';
 import '../styles/unit-payroll.css';
@@ -100,6 +101,18 @@ function UnitPayroll() {
   const location = useLocation();
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'success') => setToast({ message: msg, type });
+
+  // Traduce el código de error del backend (p.ej. INSUFFICIENT_ROLE → "No
+  // tienes el rol necesario…") a un mensaje en español. Cae al `fallback`
+  // genérico si el body no se puede leer. La Response sólo se lee una vez.
+  const errMsgFromRes = async (res, fallback) => {
+    try {
+      const body = await res.json();
+      return translateApiError(body, fallback);
+    } catch {
+      return fallback;
+    }
+  };
 
   const canAprobar = ['supervisor', 'administrador', 'rrhh'].includes(currentUser?.rol);
   const canPagar   = ['administrador', 'rrhh'].includes(currentUser?.rol);
@@ -613,7 +626,7 @@ function UnitPayroll() {
           if (data.consecutivo) { setConsecutivo(data.consecutivo); savedConsecutivo = data.consecutivo; }
         }
       }
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errMsgFromRes(res, 'Error al guardar la planilla.'));
       clearSegsDraft();
       clearCantsDraft();
       clearFechaDraft();
@@ -632,8 +645,8 @@ function UnitPayroll() {
         : `Planilla${consecLabel} guardada correctamente.`);
       setShowForm(false);
       fetchHistorial();
-    } catch {
-      showToast('Error al guardar la planilla.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al guardar la planilla.', 'error');
     } finally {
       saveInProgressRef.current = false;
       setGuardando(false);
@@ -753,12 +766,12 @@ function UnitPayroll() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errMsgFromRes(res, errMsg));
       showToast(okMsg);
       setRecentlyTouchedId(p.id);
       fetchHistorial();
-    } catch {
-      showToast(errMsg, 'error');
+    } catch (err) {
+      showToast(err?.message || errMsg, 'error');
     } finally {
       setActionLoadingId(null);
     }
@@ -780,7 +793,7 @@ function UnitPayroll() {
   const handleEliminar = async (p) => {
     try {
       const res = await apiFetch(`/api/hr/planilla-unidad/${p.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errMsgFromRes(res, 'Error al eliminar la planilla.'));
       // Si la planilla eliminada estaba cargada en el formulario, limpiar
       if (planillaId === p.id) {
         clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
@@ -791,14 +804,21 @@ function UnitPayroll() {
       }
       showToast('Planilla eliminada.');
       fetchHistorial();
-    } catch {
-      showToast('Error al eliminar la planilla.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al eliminar la planilla.', 'error');
     }
   };
 
   const handleAprobarDesdeFormulario = async () => {
     if (!planillaId) return;
     const encId = currentUser?.userId || currentUser?.uid;
+    // Espera a que termine un autosave en vuelo: si dispara un POST/PUT en
+    // paralelo con esta aprobación, puede crear un borrador duplicado o pisar
+    // el PUT de aprobación (mismo guard que handleGuardar).
+    while (saveInProgressRef.current) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    saveInProgressRef.current = true;
     setGuardando(true);
     try {
       const body = buildPlanillaBody('aprobada', encId);
@@ -806,7 +826,7 @@ function UnitPayroll() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error(await errMsgFromRes(res, 'Error al aprobar la planilla.'));
       clearSegsDraft(); clearCantsDraft(); clearFechaDraft(); clearObsDraft();
       clearDraftActive(DRAFT_FORM_KEY);
       planillaIdRef.current = null;
@@ -817,10 +837,11 @@ function UnitPayroll() {
       setShowAprobarConfirm(false);
       setShowForm(false);
       fetchHistorial();
-    } catch {
-      showToast('Error al aprobar la planilla.', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Error al aprobar la planilla.', 'error');
       setShowAprobarConfirm(false);
     } finally {
+      saveInProgressRef.current = false;
       setGuardando(false);
     }
   };
@@ -1651,10 +1672,18 @@ function UnitPayroll() {
         </div>
         <div className="form-actions" style={{ marginTop: 14 }}>
           {planillaEstado === 'pendiente' ? (
-            <button className="aur-btn-pill" onClick={() => setShowAprobarConfirm(true)} disabled={guardando}>
-              <FiThumbsUp size={15} />
-              Aprobar
-            </button>
+            // El botón de aprobar sólo se muestra a quien puede aprobar en el
+            // backend (supervisor/admin/rrhh). Defensa secundaria: el PUT igual
+            // rechaza con 403, pero así el encargado dueño no ve una acción que
+            // fallaría. Si no puede aprobar, la planilla queda en espera.
+            canAprobar ? (
+              <button className="aur-btn-pill" onClick={() => setShowAprobarConfirm(true)} disabled={guardando}>
+                <FiThumbsUp size={15} />
+                Aprobar
+              </button>
+            ) : (
+              <span className="pu-await-approval">Planilla en espera de aprobación.</span>
+            )
           ) : (
             <button className="aur-btn-pill" onClick={() => handleGuardar('pendiente')} disabled={guardando || trabajadores.length === 0 || (!currentUser?.userId && currentUser?.rol !== 'administrador')}>
               <FiSave size={15} />
