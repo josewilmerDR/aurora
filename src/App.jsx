@@ -108,6 +108,7 @@ import { useAutoPageTitle } from './hooks/usePageTitle';
 import { useEscapeClose } from './hooks/useEscapeClose';
 import { UserProvider, useUser, hasMinRole } from './contexts/UserContext';
 import { RemindersProvider, useReminders } from './contexts/RemindersContext';
+import { HrProvider } from './contexts/HrContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { resolveRouteMinRole } from './lib/routeRoles';
 import { ADVANCED_ENABLED } from './lib/features';
@@ -348,7 +349,9 @@ function App() {
             element={
               <ProtectedRoute>
                 <RemindersProvider>
-                  <MainLayout />
+                  <HrProvider>
+                    <MainLayout />
+                  </HrProvider>
                 </RemindersProvider>
               </ProtectedRoute>
             }

@@ -52,6 +52,7 @@ function calcHoras(hi, hf) {
 export default function RegisterPermisoModal({
   trabajador,
   defaultFecha,
+  defaultTipo,
   periodoInicio,
   periodoFin,
   autoApprove,
@@ -60,7 +61,12 @@ export default function RegisterPermisoModal({
   showToast,
 }) {
   const apiFetch = useApiFetch();
-  const [tipo, setTipo]             = useState('permiso_sin_goce');
+  // `defaultTipo` permite que quien abre el modal (ej: Asistencia, con un estado
+  // de ausencia ya elegido) pre-seleccione el tipo coherente. Si no es válido,
+  // caemos al default histórico.
+  const [tipo, setTipo]             = useState(
+    () => (TIPOS.some(t => t.value === defaultTipo) ? defaultTipo : 'permiso_sin_goce')
+  );
   const [esParcial, setEsParcial]   = useState(false);
   const [fInicio, setFInicio]       = useState(defaultFecha);
   const [fFin, setFFin]             = useState(defaultFecha);

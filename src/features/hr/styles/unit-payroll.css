@@ -445,7 +445,7 @@
   border-radius: 6px;
   padding: 10px 14px;
   font-size: 0.84rem;
-  color: #ffcc44;
+  color: var(--hr-warn);
   margin-bottom: 12px;
 }
 
@@ -685,13 +685,13 @@ select.ut-ctrl {
   border-color: var(--aurora-border);
 }
 
-/* Rojo destructivo unificado (#ff4d4d) — mismo tono que .pu-history-delete-btn.
+/* Rojo destructivo unificado (var(--hr-negative)) — mismo tono que .pu-history-delete-btn.
    Semántica aparte de --aur-danger (magenta): este es el rojo de "quitar/borrar"
    de la grilla. */
 .ut-remove-worker-btn:hover {
-  color: #ff4d4d !important;
-  border-color: rgba(255, 77, 77, 0.5) !important;
-  background: rgba(255, 77, 77, 0.08) !important;
+  color: var(--hr-negative) !important;
+  border-color: var(--aur-egreso-border) !important;
+  background: var(--aur-egreso-tint) !important;
 }
 
 /* ── Barra de trabajadores ocultos ───────────────────────────────────────── */
@@ -708,7 +708,7 @@ select.ut-ctrl {
   border: 1px solid rgba(255, 200, 0, 0.2);
   border-radius: 6px;
   font-size: 0.78rem;
-  color: #ffcc44;
+  color: var(--hr-warn);
   position: sticky;
   bottom: 8px;
   z-index: 3;
@@ -719,7 +719,7 @@ select.ut-ctrl {
   background: transparent;
   border: 1px solid rgba(255, 200, 0, 0.4);
   border-radius: 4px;
-  color: #ffcc44;
+  color: var(--hr-warn);
   font-size: 0.75rem;
   padding: 3px 9px;
   cursor: pointer;
@@ -909,8 +909,8 @@ select.ut-ctrl {
 
 .pu-history-delete-btn:hover {
   opacity: 1;
-  border-color: #ff4d4d;
-  color: #ff4d4d;
+  border-color: var(--hr-negative);
+  color: var(--hr-negative);
 }
 
 .pu-history-preview-btn {
@@ -937,12 +937,12 @@ select.ut-ctrl {
 /* Variantes de color para aprobar (azul) y pagar (verde) — antes eran estilos
    inline con hex hardcodeado. */
 .pu-history-preview-btn--approve {
-  color: #5599ff;
+  color: var(--hr-info);
   border-color: rgba(51, 153, 255, 0.3);
 }
 .pu-history-preview-btn--approve:hover {
-  border-color: #5599ff;
-  color: #5599ff;
+  border-color: var(--hr-info);
+  color: var(--hr-info);
 }
 .pu-history-preview-btn--pay {
   color: var(--aurora-green);

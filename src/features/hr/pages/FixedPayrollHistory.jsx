@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FiEye, FiFileText, FiX, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useHrActiveEmployee } from '../../../contexts/HrContext';
 import { ROLE_LABELS } from '../../../contexts/UserContext';
 import EmptyState from '../../../components/ui/EmptyState';
 import { fmtSigned } from '../lib/payroll-format';
@@ -18,14 +19,30 @@ const LASTVIEW_KEY = 'aurora_fph_last_viewed';
 function FixedPayrollHistory() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { activeEmployeeId, setActiveEmployee } = useHrActiveEmployee();
   const [users, setUsers]         = useState([]);
   const [planillas, setPlanillas] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [usersError, setUsersError]         = useState(false);
   const [planillasError, setPlanillasError] = useState(false);
   const [selectedId, setSelectedId] = useState(() => {
+    // Precedencia: deep-link explícito (?empleadoId) > empleado activo del dominio
+    // > última selección persistida (round-trip al reporte). La intención más
+    // explícita de "ver a esta persona" gana.
+    const fromUrl = searchParams.get('empleadoId') || activeEmployeeId;
+    if (fromUrl) {
+      try { sessionStorage.setItem(SELECTED_KEY, fromUrl); } catch { /* ignore */ }
+      return fromUrl;
+    }
     try { return sessionStorage.getItem(SELECTED_KEY) || null; } catch { return null; }
   });
+
+  // Un deep-link explícito pasa a ser el empleado activo del dominio.
+  useEffect(() => {
+    const p = searchParams.get('empleadoId');
+    if (p) setActiveEmployee(p);
+  }, [searchParams, setActiveEmployee]);
   const [search, setSearch]           = useState('');
   const [highlightId, setHighlightId] = useState(null);
   const searchRef = useRef(null);
@@ -132,6 +149,8 @@ function FixedPayrollHistory() {
 
   const handleSelect = (id) => {
     setSelectedId(id);
+    // Propaga al dominio: este empleado queda activo para el resto de páginas HR.
+    setActiveEmployee(id);
     try { sessionStorage.setItem(SELECTED_KEY, id); } catch { /* ignore */ }
   };
 
