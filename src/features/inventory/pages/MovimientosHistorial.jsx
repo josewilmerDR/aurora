@@ -77,7 +77,7 @@ function MovimientosHistorial() {
         setProductos(Array.isArray(prods) ? prods : []);
       })
       .catch((e) => {
-        console.error(e);
+        console.error('Error cargando movimientos:', e?.message || e);
         setError('No se pudo cargar el historial de movimientos.');
       })
       .finally(() => setLoading(false));
