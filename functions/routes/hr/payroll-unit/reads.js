@@ -14,9 +14,20 @@ const { authenticate } = require('../../../lib/middleware');
 const { hasMinRoleBE } = require('../../../lib/helpers');
 const { rateLimit } = require('../../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../../lib/errors');
-const { FECHA_RE } = require('../helpers');
+const { FECHA_RE, canActOnBehalf, resolveAuthUserId } = require('../helpers');
 
 const router = Router();
+
+// Campos que la página de planilla por unidad realmente consume (lista + editor
+// + comprobante PDF). Whitelist explícita para NO filtrar el `history[]` (con
+// `byEmail` de quien creó/aprobó/editó) ni `createdBy`/`updatedBy` (emails de
+// auditoría) a cualquier encargado. El doc completo solo lo necesitan los
+// mutadores server-side, no esta lectura. #H2 auditoría dominio.
+const PLANILLA_UNIDAD_LIST_FIELDS = [
+  'encargadoId', 'encargadoNombre', 'consecutivo', 'estado',
+  'segmentos', 'trabajadores', 'totalGeneral', 'observaciones',
+  'snapshotCreado',
+];
 
 // Tope duro de filas devueltas por el historial. La colección crece sin cota
 // (1 doc por trabajador × segmento × planilla aprobada); sin límite, cada
@@ -33,26 +44,47 @@ const HISTORIAL_FIELDS = [
   'cantidad', 'subtotal',
 ];
 
-router.get('/api/hr/planilla-unidad', authenticate, rateLimit('hr_planilla_read', 'costly_read'), async (req, res) => {
+// Proyecta un doc de hr_planilla_unidad a la forma de lista (whitelist + fechas
+// ISO). Pura y exportada para test: garantiza que history/createdBy/updatedBy
+// (emails de auditoría) nunca salen al cliente. #H2 auditoría dominio.
+function projectPlanillaUnidadList(id, v) {
+  const out = { id };
+  for (const f of PLANILLA_UNIDAD_LIST_FIELDS) out[f] = v[f];
+  out.fecha = v.fecha?.toDate ? v.fecha.toDate().toISOString() : null;
+  out.createdAt = v.createdAt?.toDate ? v.createdAt.toDate().toISOString() : null;
+  return out;
+}
+
+async function listPlanillasUnidad(req, res) {
   try {
     // Las planillas llevan salarios (precioHora) y totales de pago de cada
     // trabajador. Gate a encargado+ para que un trabajador no pueda enumerar
     // la nómina de la finca por API directa (igual que GET /api/hr/fichas).
     if (!hasMinRoleBE(req.userRole, 'encargado'))
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read planillas.', 403);
-    const snap = await db.collection('hr_planilla_unidad')
-      .where('fincaId', '==', req.fincaId)
-      .orderBy('createdAt', 'desc').get();
-    const data = snap.docs.map(d => ({
-      id: d.id, ...d.data(),
-      fecha: d.data().fecha ? d.data().fecha.toDate().toISOString() : null,
-      createdAt: d.data().createdAt ? d.data().createdAt.toDate().toISOString() : null,
-    }));
+
+    // Scope al dueño: un encargado solo ve SUS propias planillas, espejando el
+    // gate de escritura (mutations.js bloquea editar/borrar las de otro). Sin
+    // esto, cualquier encargado enumeraba las planillas de TODAS las cuadrillas
+    // con precioHora por trabajador y emails de auditoría. supervisor/admin/rrhh
+    // (canActOnBehalf) sí ven toda la finca. #H2 auditoría dominio.
+    let query = db.collection('hr_planilla_unidad').where('fincaId', '==', req.fincaId);
+    if (!canActOnBehalf(req)) {
+      const authUserId = await resolveAuthUserId(req);
+      // Sin identidad resoluble no hay planillas propias que mostrar (fail-closed).
+      if (!authUserId) return res.status(200).json([]);
+      query = query.where('encargadoId', '==', authUserId);
+    }
+
+    const snap = await query.orderBy('createdAt', 'desc').get();
+    const data = snap.docs.map(d => projectPlanillaUnidadList(d.id, d.data()));
     res.status(200).json(data);
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to fetch planillas.', 500);
   }
-});
+}
+
+router.get('/api/hr/planilla-unidad', authenticate, rateLimit('hr_planilla_read', 'costly_read'), listPlanillasUnidad);
 
 router.get('/api/hr/planilla-unidad/historial', authenticate, rateLimit('hr_planilla_read', 'costly_read'), async (req, res) => {
   try {
@@ -94,3 +126,7 @@ router.get('/api/hr/planilla-unidad/historial', authenticate, rateLimit('hr_plan
 });
 
 module.exports = router;
+// Exportados para tests.
+module.exports.listPlanillasUnidad = listPlanillasUnidad;
+module.exports.projectPlanillaUnidadList = projectPlanillaUnidadList;
+module.exports.PLANILLA_UNIDAD_LIST_FIELDS = PLANILLA_UNIDAD_LIST_FIELDS;

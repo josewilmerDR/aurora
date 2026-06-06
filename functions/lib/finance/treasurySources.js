@@ -110,8 +110,15 @@ async function fetchFixedPayrollOutflows(fincaId, { fromISO, toISO: toStr }) {
 
   if (snap.empty) return [];
 
+  // Solo planillas comprometidas (aprobada/pagada) son una salida de caja real.
+  // Un borrador o pendiente recién creado NO debe proyectarse como obligación
+  // mensual recurrente — antes, al ser la "más reciente", un borrador secuestraba
+  // toda la proyección de tesorería (#H7 auditoría dominio).
+  const TERMINAL = new Set(['aprobada', 'pagada']);
+  const docs = snap.docs.map(d => d.data()).filter(d => TERMINAL.has(d.estado));
+  if (docs.length === 0) return [];
+
   // Última entrada por periodoInicio.
-  const docs = snap.docs.map(d => d.data());
   docs.sort((a, b) => toDateValue(b.periodoInicio) - toDateValue(a.periodoInicio));
   const latest = docs[0];
   const total = Number(latest.totalGeneral) || 0;
@@ -174,7 +181,11 @@ async function fetchUnitPayrollOutflows(fincaId, { fromISO, toISO: toStr }) {
     const fecha = toDateSafeISO(rec.fecha);
     if (!fecha) continue;
     if (fecha < cutoffISO || fecha > todayISO) continue;
-    totalRecent += Number(rec.totalGeneral) || 0;
+    // `subtotal` es el valor monetario de la fila (trabajador×segmento); la suma
+    // de subtotales = total real de la planilla. `totalGeneral` está denormalizado
+    // (mismo total de toda la planilla repetido en cada fila), por lo que sumarlo
+    // por fila inflaba el promedio por (nº trabajadores × nº segmentos).
+    totalRecent += Number(rec.subtotal) || 0;
   }
   if (totalRecent <= 0) return [];
 

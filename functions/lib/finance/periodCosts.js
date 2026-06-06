@@ -75,11 +75,16 @@ async function computePeriodCosts(fincaId, { from, to }) {
   });
 
   // 2) Planilla directa (por unidad).
+  // hr_planilla_unidad_historial guarda 1 doc por trabajador×segmento y en cada
+  // fila DENORMALIZA `totalGeneral` (el total de TODA la planilla). El valor
+  // monetario real de la fila es `subtotal` (cantidad × costoUnitario), cuya
+  // suma reconstituye el total de la planilla. Sumar `totalGeneral` por fila
+  // multiplicaba el costo por (nº trabajadores × nº segmentos).
   planUnidadSnap.docs.forEach(d => {
     const rec = d.data();
     const fecha = toISODate(rec.fecha);
     if (!inRange(fecha, from, to)) return;
-    totals.planilla_directa += parseFloat(rec.totalGeneral) || 0;
+    totals.planilla_directa += parseFloat(rec.subtotal) || 0;
   });
 
   // 3) Planilla fija (categorizada como indirecto en costos.js, pero aquí

@@ -112,11 +112,16 @@ async function computeLoteCostTotals(fincaId, { desde, hasta }) {
   });
 
   // 2. Planilla directa.
+  // Cada fila de hr_planilla_unidad_historial es un (trabajador × segmento) y
+  // su `loteNombre` apunta al lote de ESE segmento. El valor a atribuir es
+  // `subtotal` (cantidad × costoUnitario de la fila); `totalGeneral` denormaliza
+  // el total de toda la planilla (que puede abarcar varios lotes) en cada fila,
+  // así que usarlo aquí sobre-contaba y además mis-atribuía a un solo lote.
   planHistSnap.docs.forEach(d => {
     const rec = d.data();
     const fecha = rec.fecha?.toDate?.()?.toISOString?.()?.split('T')[0] || rec.fecha || '';
     if (fecha < desde || fecha > hasta) return;
-    const total = parseFloat(rec.totalGeneral) || 0;
+    const total = parseFloat(rec.subtotal) || 0;
     if (!total) return;
     const loteNombre = rec.loteNombre || '';
     let loteId = null;

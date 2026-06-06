@@ -43,7 +43,7 @@ router.get('/api/hr/asistencia', authenticate, rateLimit('hr_asistencia_read', '
   }
 });
 
-router.post('/api/hr/asistencia', authenticate, rateLimit('hr_asistencia_write', 'write'), async (req, res) => {
+async function registerAsistencia(req, res) {
   try {
     // Mismo boundary que el batch: escribe la base de nómina, así que exige
     // encargado+, valida estado contra la enum, la fecha con regex y que el
@@ -61,20 +61,28 @@ router.post('/api/hr/asistencia', authenticate, rateLimit('hr_asistencia_write',
     if (!workerDoc.exists || workerDoc.data().fincaId !== req.fincaId) {
       return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid worker.', 400);
     }
-    const ref = await db.collection('hr_asistencia').add({
+    // Upsert idempotente con doc id determinista `${trabajadorId}_${fecha}`, igual
+    // que el endpoint /batch: la asistencia es naturalmente "una por trabajador por
+    // día". Con `.add()` (id aleatorio) reenviar el mismo día creaba registros
+    // duplicados que el aggregator de scoring sumaba (horasExtra inflado, estado
+    // ambiguo). merge:true sobreescribe en lugar de duplicar.
+    const docId = `${id}_${fecha}`;
+    await db.collection('hr_asistencia').doc(docId).set({
       trabajadorId: id,
       trabajadorNombre: workerDoc.data().nombre || '',
       fecha: Timestamp.fromDate(new Date(fecha + 'T12:00:00')),
       estado,
       horasExtra: Math.max(0, Math.min(24, Number(horasExtra) || 0)),
       notas: String(notas || '').slice(0, ASISTENCIA_NOTAS_MAX),
-      fincaId: req.fincaId, createdAt: Timestamp.now(),
-    });
-    res.status(201).json({ id: ref.id });
+      fincaId: req.fincaId, updatedAt: Timestamp.now(),
+    }, { merge: true });
+    res.status(201).json({ id: docId });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register attendance.', 500);
   }
-});
+}
+
+router.post('/api/hr/asistencia', authenticate, rateLimit('hr_asistencia_write', 'write'), registerAsistencia);
 
 // Batch upsert: registra la asistencia de toda la cuadrilla para una fecha
 // en un solo request. Usa doc id determinista `${trabajadorId}_${fecha}`
@@ -194,3 +202,5 @@ router.delete('/api/hr/asistencia/:id', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+// Exportado para tests.
+module.exports.registerAsistencia = registerAsistencia;

@@ -39,6 +39,7 @@
     { "collectionGroup": "maquinaria",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "idMaquina",      "order": "ASCENDING"  }] },
     { "collectionGroup": "labores",              "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "codigo",         "order": "ASCENDING"  }] },
     { "collectionGroup": "hr_planilla_unidad",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "createdAt",  "order": "DESCENDING" }] },
+    { "collectionGroup": "hr_planilla_unidad",           "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "encargadoId", "order": "ASCENDING" }, { "fieldPath": "createdAt",  "order": "DESCENDING" }] },
     { "collectionGroup": "hr_planilla_unidad_historial", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "aprobadoAt", "order": "DESCENDING" }] },
     { "collectionGroup": "hr_planilla_unidad_historial", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "fecha", "order": "DESCENDING" }] },
     { "collectionGroup": "hr_plantillas_planilla","queryScope": "COLLECTION", "fields": [{ "fieldPath": "fincaId", "order": "ASCENDING" }, { "fieldPath": "encargadoId",    "order": "ASCENDING"  }, { "fieldPath": "createdAt", "order": "DESCENDING" }] },

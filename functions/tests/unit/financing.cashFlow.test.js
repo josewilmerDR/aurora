@@ -81,7 +81,9 @@ describe('buildHistoricalEvents', () => {
     const events = buildHistoricalEvents({
       incomeRecords: [],
       horimetro: [{ fecha: '2026-02-01', combustible: { costoEstimado: 50 } }],
-      planillaUnidad: [{ fecha: '2026-02-15', totalGeneral: 300 }],
+      // historial: el valor de caja de la fila es `subtotal`, no `totalGeneral`
+      // (este último está denormalizado al total de toda la planilla).
+      planillaUnidad: [{ fecha: '2026-02-15', subtotal: 300, totalGeneral: 300 }],
       planillaFija:   [{ periodoInicio: '2026-02-01', totalGeneral: 1000 }],
       cedulas: [{ status: 'aplicada_en_campo', aplicadaAt: '2026-03-01', snap_productos: [{ total: 10, precioUnitario: 5 }] }],
       costosIndirectos: [{ fecha: '2026-04-01', monto: 200 }],
@@ -91,6 +93,27 @@ describe('buildHistoricalEvents', () => {
     const sources = events.map(e => e.source).sort();
     expect(sources).toEqual(['combustible', 'indirectos', 'insumos', 'planilla_fija', 'planilla_unidad']);
     expect(events.every(e => e.type === 'outflow')).toBe(true);
+  });
+
+  // Regresión H1: el snapshot tiene varias filas por planilla con el mismo
+  // `totalGeneral` denormalizado. La salida de caja por unidad debe sumar
+  // `subtotal` por fila, no `totalGeneral` (que multiplicaba por nº filas).
+  test('planilla por unidad: salida de caja suma subtotales, no totalGeneral', () => {
+    const PLANILLA_TOTAL = 900;
+    const events = buildHistoricalEvents({
+      incomeRecords: [], horimetro: [],
+      planillaUnidad: [
+        { fecha: '2026-02-10', subtotal: 300, totalGeneral: PLANILLA_TOTAL },
+        { fecha: '2026-02-10', subtotal: 300, totalGeneral: PLANILLA_TOTAL },
+        { fecha: '2026-02-10', subtotal: 300, totalGeneral: PLANILLA_TOTAL },
+      ],
+      planillaFija: [], cedulas: [], costosIndirectos: [], productos: [], range,
+    });
+    const totalUnidad = events
+      .filter(e => e.source === 'planilla_unidad')
+      .reduce((s, e) => s + e.amount, 0);
+    // Antes del fix: 3 × 900 = 2700. Correcto: 3 × 300 = 900.
+    expect(totalUnidad).toBe(PLANILLA_TOTAL);
   });
 
   test('excludes events outside the range', () => {
@@ -138,7 +161,7 @@ describe('buildCashFlow', () => {
     const out = buildCashFlow({
       rawHistoryInputs: {
         incomeRecords: [{ collectionStatus: 'cobrado', actualCollectionDate: '2026-03-10', totalAmount: 1000 }],
-        horimetro: [], planillaUnidad: [{ fecha: '2026-03-20', totalGeneral: 300 }],
+        horimetro: [], planillaUnidad: [{ fecha: '2026-03-20', subtotal: 300, totalGeneral: 300 }],
         planillaFija: [], cedulas: [], costosIndirectos: [], productos: [],
         range: { from: '2026-01-01', to: '2026-03-31' },
       },

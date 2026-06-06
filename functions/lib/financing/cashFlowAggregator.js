@@ -107,10 +107,15 @@ function buildHistoricalEvents({
   }
 
   // Planilla por unidad — cash-out on fecha.
+  // Cada doc de hr_planilla_unidad_historial es una fila (trabajador×segmento);
+  // su valor monetario es `subtotal`. `totalGeneral` está denormalizado (total de
+  // toda la planilla repetido en cada fila), así que sumarlo por fila multiplicaba
+  // la salida de caja por (nº trabajadores × nº segmentos). Cada fila genera un
+  // evento por su subtotal; agregados por fecha suman al total real.
   for (const rec of planillaUnidad || []) {
     const date = toISODate(rec.fecha);
     if (!date || date < from || date > to) continue;
-    const amt = Number(rec.totalGeneral) || 0;
+    const amt = Number(rec.subtotal) || 0;
     if (amt > 0) events.push({ date, amount: amt, type: 'outflow', source: 'planilla_unidad' });
   }
 
