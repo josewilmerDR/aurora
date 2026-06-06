@@ -8,6 +8,7 @@ import EmptyState from '../../../components/ui/EmptyState';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EditProductoModal from '../components/EditProductoModal';
 import { TIPOS, formatCurrency } from '../lib/agroquimicos';
+import { translateApiError } from '../../../lib/errorMessages';
 import '../styles/agroquimicos.css';
 
 const STOCK_CERO_MSG = 'Solo permitido para productos con existencias en cero.';
@@ -56,7 +57,7 @@ function ProductosCatalogo() {
     try {
       const res = await apiFetch(`/api/productos/${p.id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.message || 'Error al eliminar el producto.'); return; }
+      if (!res.ok) { toast.error(translateApiError(data, 'Error al eliminar el producto.')); return; }
       // Quita la fila localmente (optimista): evita re-fetch completo y parpadeo.
       setProductos(prev => prev.filter(x => x.id !== p.id));
       setConfirmDelete(null);
