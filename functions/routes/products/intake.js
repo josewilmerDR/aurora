@@ -16,19 +16,52 @@
 const { Router } = require('express');
 const { db, Timestamp, FieldValue, admin } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
+const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const router = Router();
 
-router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
+// Strip control + bidi chars de strings user-controlled antes de persistir
+// (alineado con el canon de UnidadesMedida). Construida con RegExp + códigos
+// para no incrustar chars crudos en el fuente. Recorta a max.
+const CONTROL_BIDI = new RegExp(
+  '[' +
+  '\\u0000-\\u001F\\u007F-\\u009F' +                 // C0 + C1 control
+  '\\u200B-\\u200F\\u202A-\\u202E\\u2066-\\u2069' +  // zero-width + bidi overrides
+  ']',
+  'g',
+);
+const cleanStr = (v, max) =>
+  (typeof v === 'string' ? v : '').replace(CONTROL_BIDI, '').slice(0, max);
+// Acota numéricos user-controlled a [min, max] descartando NaN/Infinity.
+const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const n = parseFloat(v);
+  if (!isFinite(n)) return 0;
+  return Math.min(Math.max(n, min), max);
+};
+
+// Registrar un ingreso crea/mergea productos, incrementa stockActual, escribe
+// el ledger de movimientos y cierra OCs (transición irreversible). Es un write
+// privilegiado: mismo piso que POST /api/productos (encargado+) y rate-limited
+// como escritura masiva con upload a Storage.
+router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar', 'write'), async (req, res) => {
   try {
-    const { items, proveedor, fecha, facturaNumero, ordenCompraId, ocPoNumber, imageBase64, mediaType } = req.body;
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register intake.', 403);
+    }
+
+    const { items, fecha, ordenCompraId, imageBase64, mediaType } = req.body;
+    const proveedor = cleanStr(req.body.proveedor, 200);
+    const facturaNumero = cleanStr(req.body.facturaNumero, 100);
+    const ocPoNumber = cleanStr(req.body.ocPoNumber, 40);
 
     // --- Input validation ---
-    if (typeof proveedor === 'string' && proveedor.length > 200) {
+    if (typeof req.body.proveedor === 'string' && req.body.proveedor.length > 200) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Supplier name too long.', 400);
     }
-    if (typeof facturaNumero === 'string' && facturaNumero.length > 100) {
+    if (typeof req.body.facturaNumero === 'string' && req.body.facturaNumero.length > 100) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invoice number too long.', 400);
     }
     if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.length > 15 * 1024 * 1024) {
@@ -58,7 +91,7 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
     // ── Pre-resolve products (async before the batch) ────────────────────────
     const resolved = [];
     for (const item of validos) {
-      const stockIngresado = parseFloat(item.cantidad) || 0;
+      const stockIngresado = num(item.cantidad, { min: 0, max: 999999 });
       if (stockIngresado <= 0) continue;
 
       let existingDoc = null;
@@ -84,7 +117,11 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
     const recepcionRef = db.collection('recepciones').doc();
 
     // ── Upload invoice image to Firebase Storage (if provided) ───────────────
+    // Si el upload falla NO abortamos la recepción (el ledger es lo crítico),
+    // pero señalizamos `imagenGuardada:false` para que el front avise que el
+    // comprobante no quedó adjunto.
     let facturaImageUrl = null;
+    let imagenGuardada = !imageBase64; // true si no se esperaba imagen
     if (imageBase64) {
       try {
         const { randomUUID } = require('crypto');
@@ -102,8 +139,10 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
         facturaImageUrl = isEmulator
           ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
           : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+        imagenGuardada = true;
       } catch (storageErr) {
         console.error('Storage upload failed (factura ingreso):', storageErr.message);
+        imagenGuardada = false;
       }
     }
 
@@ -113,6 +152,8 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
     let creados = 0, mergeados = 0;
 
     for (const { item, stockIngresado, existingDoc } of resolved) {
+      const precioUnitario = num(item.precioUnitario, { min: 0, max: 1e9 });
+      const iva = num(item.iva, { min: 0, max: 100 });
       let productoId;
       if (existingDoc) {
         productoId = existingDoc.id;
@@ -127,8 +168,8 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
           ingredienteActivo: item.ingredienteActivo || '',
           tipo: item.tipo || '',
           unidad: item.unidad || '',
-          precioUnitario: parseFloat(item.precioUnitario) || 0,
-          iva: parseFloat(item.iva) || 0,
+          precioUnitario,
+          iva,
           proveedor: proveedor || '',
           stockActual: stockIngresado,
           stockMinimo: 0,
@@ -151,8 +192,8 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
         nombreComercial: item.nombreComercial || '',
         cantidad: stockIngresado,
         unidad: item.unidad || '',
-        precioUnitario: parseFloat(item.precioUnitario) || 0,
-        iva: parseFloat(item.iva) || 0,
+        precioUnitario,
+        iva,
         proveedor: proveedor || '',
         fecha: fechaTs,
         motivo: proveedor ? `Ingreso: ${proveedor}` : 'Ingreso de inventario',
@@ -168,11 +209,11 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
         productoId,
         idProducto: (item.idProducto || '').trim(),
         nombreComercial: item.nombreComercial || '',
-        cantidadOC: parseFloat(item.cantidadOC) || stockIngresado,
+        cantidadOC: num(item.cantidadOC, { min: 0, max: 999999 }) || stockIngresado,
         cantidadRecibida: stockIngresado,
         unidad: item.unidad || '',
-        precioUnitario: parseFloat(item.precioUnitario) || 0,
-        iva: parseFloat(item.iva) || 0,
+        precioUnitario,
+        iva,
       });
     }
 
@@ -195,12 +236,27 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
       if (ordenDoc.exists && ordenDoc.data().fincaId === req.fincaId) {
         const ocData = ordenDoc.data();
         const ocItems = ocData.items || [];
-        // Recalculate cantidadRecibida server-side (do not trust the client)
+        // Recalculate cantidadRecibida server-side (do not trust the client).
+        // Conciliamos por productoId (estable) y consumimos cada línea de
+        // recepción una sola vez. El fallback por nombre comercial es ambiguo
+        // cuando hay líneas homónimas, así que solo se usa si la línea de OC NO
+        // tiene productoId — evita cerrar la OC contra la línea equivocada.
+        const usados = new Set();
+        const findMatch = (predicate) => {
+          for (let idx = 0; idx < recepcionItems.length; idx++) {
+            if (usados.has(idx)) continue;
+            if (predicate(recepcionItems[idx])) { usados.add(idx); return recepcionItems[idx]; }
+          }
+          return null;
+        };
         const updatedItems = ocItems.map(ocItem => {
-          const match = recepcionItems.find(ri =>
-            ri.productoId === ocItem.productoId ||
-            (ri.nombreComercial || '').toLowerCase().trim() === (ocItem.nombreComercial || '').toLowerCase().trim()
-          );
+          let match = null;
+          if (ocItem.productoId) {
+            match = findMatch(ri => ri.productoId === ocItem.productoId);
+          } else {
+            const target = (ocItem.nombreComercial || '').toLowerCase().trim();
+            if (target) match = findMatch(ri => (ri.nombreComercial || '').toLowerCase().trim() === target);
+          }
           const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
           const nowReceived = match ? match.cantidadRecibida : 0;
           return { ...ocItem, cantidadRecibida: prevReceived + nowReceived };
@@ -217,7 +273,26 @@ router.post('/api/ingreso/confirmar', authenticate, async (req, res) => {
     }
 
     await batch.commit();
-    res.status(201).json({ recepcionId: recepcionRef.id, creados, mergeados });
+
+    // Audit: el ingreso muta stock, crea productos y cierra OCs (irreversible).
+    // Mismo criterio que PURCHASE_RECEIPT en el flujo de /api/recepciones.
+    await writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PURCHASE_RECEIPT,
+      target: { type: 'recepcion', id: recepcionRef.id },
+      metadata: {
+        creados,
+        mergeados,
+        itemsCount: recepcionItems.length,
+        ordenCompraId: ordenCompraId || null,
+        proveedor: proveedor || null,
+        facturaNumero: facturaNumero || null,
+      },
+      severity: SEVERITY.INFO,
+    });
+
+    res.status(201).json({ recepcionId: recepcionRef.id, creados, mergeados, imagenGuardada });
   } catch (error) {
     console.error('Error in ingreso/confirmar:', error);
     sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to register intake.', 500);

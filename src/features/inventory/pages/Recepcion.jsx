@@ -9,6 +9,7 @@ import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import PortalCombobox from '../../../components/ui/PortalCombobox';
 import { compressImage, MAX_IMAGE_SIZE } from '../../../lib/image';
+import { translateApiError } from '../../../lib/errorMessages';
 import { newRow, nextRowKey, calcPrecioUnit, calcIvaAmount, formatDate } from '../lib/recepcion';
 
 // ── Autocompletado de productos (id o nombre) ──────────────────────────────
@@ -307,7 +308,7 @@ function Recepcion() {
         body: JSON.stringify({ imageBase64: imgData.base64, mediaType: imgData.mediaType }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error del servidor');
+      if (!res.ok) throw new Error(translateApiError(data, 'Error al escanear la factura.'));
 
       const lineasNormalizadas = (data.lineas || []).map(l => ({
         productoId: l.productoId || null,
@@ -427,6 +428,7 @@ function Recepcion() {
   };
 
   const handleGuardarTodo = async () => {
+    if (saving) return; // guard anti doble-submit (además del botón deshabilitado)
     const conNombre = filas.filter(f => f.nombreComercial.trim());
     const validas = conNombre.filter(f => (parseFloat(f.cantidad) || 0) > 0);
     if (validas.length === 0) {
@@ -461,7 +463,11 @@ function Recepcion() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error');
+      if (!res.ok) throw new Error(translateApiError(data, 'Error al registrar el ingreso.'));
+
+      if (data.imagenGuardada === false) {
+        showToast('El ingreso se registró, pero no se pudo adjuntar la imagen de la factura.', 'error', { duration: 8000 });
+      }
 
       if (loadedOrden) fetchOrdenes();
 
