@@ -15,13 +15,33 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { hasMinRoleBE } = require('../../lib/helpers');
+const { rateLimit } = require('../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 
 const router = Router();
 
-router.get('/api/movimientos', authenticate, async (req, res) => {
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Rate-limited: cada request es un query con limit(500) garantizado, y el
+// ledger expone precios, proveedores y números de factura. encargado+ porque
+// el módulo Bodega y la UI del historial ya gatean a ese piso; el gate vivía
+// sólo en el frontend (bypasseable con token).
+router.get('/api/movimientos', authenticate, rateLimit('movimientos_read', 'public_read'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can read movimientos.', 403);
+    }
     const { productoId, fechaDesde, fechaHasta } = req.query;
+    if (productoId !== undefined && (typeof productoId !== 'string' || productoId.length > 128)) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid productoId.', 400);
+    }
+    if (fechaDesde !== undefined && !DATE_RE.test(fechaDesde)) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid fechaDesde (expected YYYY-MM-DD).', 400);
+    }
+    if (fechaHasta !== undefined && !DATE_RE.test(fechaHasta)) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Invalid fechaHasta (expected YYYY-MM-DD).', 400);
+    }
     let query = db.collection('movimientos')
       .where('fincaId', '==', req.fincaId)
       .orderBy('fecha', 'desc')
