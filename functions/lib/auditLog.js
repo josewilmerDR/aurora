@@ -157,6 +157,14 @@ const ACTIONS = Object.freeze({
   PURCHASE_ORDER_CREATE: 'purchase_order.create',
   PURCHASE_RECEIPT: 'purchase.receipt',
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
+  // Solicitudes de compra. CREATE inicia un flujo de dinero y dispara una
+  // scheduled_task al feed de un responsable — mismo criterio forense que
+  // PURCHASE_ORDER_CREATE (va como INFO). DELETE es un borrado duro
+  // irreversible que elimina la solicitud (la tarea asociada sobrevive
+  // huérfana) → WARNING. Los UPDATE rutinarios quedan fuera, alineado con la
+  // política del archivo.
+  SOLICITUD_COMPRA_CREATE: 'solicitud_compra.create',
+  SOLICITUD_COMPRA_DELETE: 'solicitud_compra.delete',
   INCOME_CREATE: 'income.create',
   // UPDATE de un ingreso cambia montos, comprador o el estado/fecha de cobro de
   // un registro financiero — forensicamente relevante igual que budget.update

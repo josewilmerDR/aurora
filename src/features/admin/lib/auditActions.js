@@ -70,6 +70,8 @@ export const ACTION_OPTIONS = [
   { value: 'purchase_order.create',         label: 'Orden de compra creada' },
   { value: 'purchase.receipt',              label: 'Recepción de mercancía' },
   { value: 'purchase.receipt.void',         label: 'Recepción de mercancía anulada' },
+  { value: 'solicitud_compra.create',       label: 'Solicitud de compra creada' },
+  { value: 'solicitud_compra.delete',       label: 'Solicitud de compra eliminada' },
   { value: 'income.create',                 label: 'Ingreso registrado' },
   { value: 'income.update',                 label: 'Ingreso actualizado' },
   { value: 'income.delete',                 label: 'Ingreso eliminado' },
