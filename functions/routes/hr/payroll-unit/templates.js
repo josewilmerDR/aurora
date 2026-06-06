@@ -24,7 +24,6 @@ const {
   canActOnBehalf,
   trimStr,
   resolveAuthUserId,
-  planillaRateLimit,
 } = require('../helpers');
 const { sanitizeSegmentos, sanitizeTrabajadores } = require('./helpers');
 
@@ -54,7 +53,7 @@ router.get('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_plantillas
   }
 });
 
-router.post('/api/hr/plantillas-planilla', authenticate, planillaRateLimit(), async (req, res) => {
+router.post('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
   try {
     const { nombre, segmentos, trabajadores, encargadoId } = req.body;
     const nombreClean = trimStr(nombre, PLANILLA_LIMITS.nombrePlantilla).trim();
@@ -86,7 +85,7 @@ router.post('/api/hr/plantillas-planilla', authenticate, planillaRateLimit(), as
   }
 });
 
-router.delete('/api/hr/plantillas-planilla/:id', authenticate, planillaRateLimit(), async (req, res) => {
+router.delete('/api/hr/plantillas-planilla/:id', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_plantillas_planilla', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

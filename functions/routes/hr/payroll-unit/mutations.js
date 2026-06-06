@@ -24,6 +24,7 @@ const { authenticate } = require('../../../lib/middleware');
 const { verifyOwnership } = require('../../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../../lib/auditLog');
+const { rateLimit } = require('../../../lib/rateLimit');
 const {
   FECHA_RE,
   PLANILLA_LIMITS,
@@ -34,7 +35,6 @@ const {
   resolveAuthUserId,
   buildHistoryEntry,
   appendHistory,
-  planillaRateLimit,
 } = require('../helpers');
 const {
   isHoraUnit,
@@ -45,7 +45,7 @@ const {
 
 const router = Router();
 
-router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async (req, res) => {
+router.post('/api/hr/planilla-unidad', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
   try {
     const { fecha, encargadoId, segmentos, trabajadores, estado, observaciones } = req.body;
 
@@ -154,7 +154,7 @@ router.post('/api/hr/planilla-unidad', authenticate, planillaRateLimit(), async 
   }
 });
 
-router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), async (req, res) => {
+router.put('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -263,8 +263,29 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
       update.consecutivo = consecutivo;
     }
 
-    // Snapshot al aprobar
+    // Snapshot al aprobar — sólo el PRIMER aprobador materializa el historial.
+    //
+    // Claim atómico de `snapshotCreado` en una transacción sobre el doc de la
+    // planilla: sin esto, dos aprobaciones concurrentes (ambas admin-like)
+    // leían snapshotCreado=false y cada una committeaba el batch completo,
+    // duplicando todas las filas de hr_planilla_unidad_historial. El claim
+    // serializa: sólo la transacción ganadora procede a escribir el snapshot.
+    //
+    // Trade-off conocido: el flag se setea ANTES del batch.commit(); si el
+    // commit fallara, la planilla quedaría marcada como snapshotCreada sin
+    // filas. Es preferible a la duplicación (rara: requiere dos aprobaciones
+    // en milisegundos) y un reintento del admin no regenera el snapshot.
+    let weOwnSnapshot = false;
     if (estado === 'aprobada' && !currentDoc.snapshotCreado) {
+      const docRef = db.collection('hr_planilla_unidad').doc(req.params.id);
+      weOwnSnapshot = await db.runTransaction(async (t) => {
+        const fresh = await t.get(docRef);
+        if (!fresh.exists || fresh.data().snapshotCreado) return false;
+        t.update(docRef, { snapshotCreado: true });
+        return true;
+      });
+    }
+    if (weOwnSnapshot) {
       // Mergear datos viejos con cambios del body para usar la última versión.
       const doc = { ...currentDoc, ...update };
 
@@ -324,6 +345,28 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
 
     await db.collection('hr_planilla_unidad').doc(req.params.id).update(update);
 
+    // Aprobación de planilla: congela el snapshot inmutable del historial y deja
+    // la planilla lista para pago. Auditar la transición (antes sólo el pago y el
+    // delete dejaban rastro; la aprobación sólo vivía en el history[] mutable del
+    // doc). `weOwnSnapshot` garantiza que se audita una sola vez, por el aprobador
+    // real, y no en re-PUTs sobre una planilla ya aprobada.
+    if (weOwnSnapshot) {
+      writeAuditEvent({
+        fincaId: req.fincaId,
+        actor: req,
+        action: ACTIONS.PAYROLL_APPROVE,
+        target: { type: 'planilla_unidad', id: req.params.id },
+        metadata: {
+          tipo: 'unidad',
+          consecutivo: consecutivo || currentDoc.consecutivo || null,
+          encargadoNombre: currentDoc.encargadoNombre || null,
+          totalGeneral: update.totalGeneral ?? currentDoc.totalGeneral ?? null,
+          trabajadoresCount: (update.trabajadores || currentDoc.trabajadores || []).length,
+        },
+        severity: SEVERITY.WARNING,
+      });
+    }
+
     // Pago de planilla: dinero real. Auditar con WARNING. Mismo patrón que el
     // handler de fijo: ambos flujos de pago aparecen en el feed igual.
     if (estado === 'pagada' && currentEstado !== 'pagada') {
@@ -349,7 +392,7 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), asy
   }
 });
 
-router.delete('/api/hr/planilla-unidad/:id', authenticate, planillaRateLimit(), async (req, res) => {
+router.delete('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
