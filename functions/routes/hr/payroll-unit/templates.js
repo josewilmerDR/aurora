@@ -24,6 +24,7 @@ const {
   canActOnBehalf,
   trimStr,
   resolveAuthUserId,
+  loadUsersMap,
 } = require('../helpers');
 const { sanitizeSegmentos, sanitizeTrabajadores } = require('./helpers');
 
@@ -53,7 +54,7 @@ router.get('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_plantillas
   }
 });
 
-router.post('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
+async function createPlantilla(req, res) {
   try {
     const { nombre, segmentos, trabajadores, encargadoId } = req.body;
     const nombreClean = trimStr(nombre, PLANILLA_LIMITS.nombrePlantilla).trim();
@@ -71,19 +72,34 @@ router.post('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_planilla_
     const tabs = sanitizeTrabajadores(trabajadores || []);
     if (!tabs.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, tabs.msg, 400);
 
+    // Validar identidades contra la finca (#H6 auditoría dominio): el sanitizer
+    // solo recorta strings, así que sin esto una plantilla podía persistir
+    // trabajadorId/encargadoId de OTRA finca. Mismo criterio que enrichPlanilla:
+    // se descartan los trabajadores cuyo id no pertenece a la finca y se canoniza
+    // el nombre desde `users` (no se confía el del cliente).
+    const usersMap = await loadUsersMap(req.fincaId);
+    const encargadoClean = trimStr(encargadoId, 64);
+    if (!usersMap.has(encargadoClean))
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid encargado.', 400);
+    const trabajadoresClean = tabs.value
+      .filter(t => t.trabajadorId && usersMap.has(t.trabajadorId))
+      .map(t => ({ ...t, trabajadorNombre: trimStr(usersMap.get(t.trabajadorId).nombre, PLANILLA_LIMITS.string) }));
+
     const ref = await db.collection('hr_plantillas_planilla').add({
       fincaId: req.fincaId,
       nombre: nombreClean,
       segmentos: segs.value,
-      trabajadores: tabs.value,
-      encargadoId: trimStr(encargadoId, 64),
+      trabajadores: trabajadoresClean,
+      encargadoId: encargadoClean,
       createdAt: Timestamp.now(),
     });
     res.status(201).json({ id: ref.id });
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to save template.', 500);
   }
-});
+}
+
+router.post('/api/hr/plantillas-planilla', authenticate, rateLimit('hr_planilla_write', 'write'), createPlantilla);
 
 router.delete('/api/hr/plantillas-planilla/:id', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
   try {
@@ -101,3 +117,5 @@ router.delete('/api/hr/plantillas-planilla/:id', authenticate, rateLimit('hr_pla
 });
 
 module.exports = router;
+// Exportado para tests.
+module.exports.createPlantilla = createPlantilla;

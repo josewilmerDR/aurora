@@ -311,6 +311,13 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planilla_w
           const costoUnitario = (horaDirecta || horaConFactor)
             ? (Number(worker.precioHora) || 0) * (horaConFactor ? Number(seg.factorConversion) : 1)
             : (Number(seg.costoUnitario) || 0);
+          // CONTRATO DEL SNAPSHOT: cada doc es UNA fila (trabajador × segmento).
+          // `subtotal` (cantidad × costoUnitario) es el valor monetario de la fila
+          // y la suma de subtotales reconstituye el total de la planilla.
+          // `totalGeneral` se DENORMALIZA aquí (mismo total de toda la planilla en
+          // cada fila) solo para conveniencia de lectura; los consumidores que
+          // agregan costos/caja DEBEN sumar `subtotal`, nunca `totalGeneral` por
+          // fila (eso multiplica por nº trabajadores × nº segmentos).
           const ref = db.collection('hr_planilla_unidad_historial').doc();
           batch.set(ref, {
             fincaId:          req.fincaId,
@@ -392,7 +399,7 @@ router.put('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planilla_w
   }
 });
 
-router.delete('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planilla_write', 'write'), async (req, res) => {
+async function deletePlanillaUnidad(req, res) {
   try {
     const ownership = await verifyOwnership('hr_planilla_unidad', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -401,7 +408,23 @@ router.delete('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planill
     const authUserId = await resolveAuthUserId(req);
     if (docEncargadoId !== authUserId && !canActOnBehalf(req))
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Cannot delete planillas of another encargado.', 403);
-    // Bloquear delete de aprobada/pagada salvo admin/rrhh.
+
+    // Registro de costo INMUTABLE (#H4 auditoría dominio): al aprobar se
+    // materializan filas en hr_planilla_unidad_historial que finance contabiliza
+    // como costo real (periodCosts/loteCostTotals/treasury/incomeStatement).
+    // Esas filas NO se borran aquí; hard-borrar la planilla dejaba el costo
+    // colgando — desaparecía de la UI pero seguía sumando en costos/ROI sin doc
+    // navegable. Una vez creado el snapshot, la planilla deja de ser borrable:
+    // corregir importes se hace re-editando (admin/rrhh) o reversando estado, no
+    // destruyendo el registro. `snapshotCreado` es el marcador preciso (más que
+    // `estado`: una planilla aprobada y luego revertida a borrador conserva el
+    // snapshot y su costo booked).
+    if (data.snapshotCreado === true)
+      return sendApiError(res, ERROR_CODES.CONFLICT, 'Planilla has an immutable cost snapshot (already approved) and cannot be deleted.', 409);
+
+    // Sin snapshot: borrador/pendiente son reversibles (sin costo booked). El
+    // caso borde de una planilla nacida 'pagada' por POST (sin snapshot) sigue
+    // restringido a admin/rrhh; borrarla es seguro porque no dejó historial.
     const isAdminLike = ['administrador', 'rrhh'].includes(req.userRole);
     if (['aprobada', 'pagada'].includes(data.estado) && !isAdminLike)
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Planilla already approved/paid; only administrador or rrhh may delete it.', 403);
@@ -430,6 +453,10 @@ router.delete('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planill
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete planilla.', 500);
   }
-});
+}
+
+router.delete('/api/hr/planilla-unidad/:id', authenticate, rateLimit('hr_planilla_write', 'write'), deletePlanillaUnidad);
 
 module.exports = router;
+// Exportado para tests.
+module.exports.deletePlanillaUnidad = deletePlanillaUnidad;

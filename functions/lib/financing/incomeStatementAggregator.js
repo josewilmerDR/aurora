@@ -100,10 +100,14 @@ function computeCosts({
     totals.depreciacion += hours * depPerHour(maqMap[rec.implementoId]);
   }
 
+  // hr_planilla_unidad_historial: 1 doc por trabajador×segmento. El valor real de
+  // la fila es `subtotal`; `totalGeneral` denormaliza el total de toda la planilla
+  // en cada fila, por lo que sumarlo por fila inflaba el costo por (nº trabajadores
+  // × nº segmentos). La suma de subtotales reconstituye el total de la planilla.
   for (const rec of planillaUnidad || []) {
     const fecha = toISODate(rec.fecha);
     if (!inRange(fecha, from, to)) continue;
-    totals.planilla_directa += Number(rec.totalGeneral) || 0;
+    totals.planilla_directa += Number(rec.subtotal) || 0;
   }
 
   for (const rec of planillaFija || []) {

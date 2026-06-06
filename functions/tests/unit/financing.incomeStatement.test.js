@@ -54,13 +54,35 @@ describe('computeCosts', () => {
   test('planilla directa + fija', () => {
     const out = computeCosts({
       horimetro: [],
-      planillaUnidad: [{ fecha: '2026-05-01', totalGeneral: 300 }],
+      // hr_planilla_unidad_historial: 1 doc por fila (trabajador×segmento). El
+      // valor de la fila es `subtotal`; `totalGeneral` está denormalizado (total
+      // de toda la planilla) y NO debe sumarse por fila.
+      planillaUnidad: [{ fecha: '2026-05-01', subtotal: 300, totalGeneral: 300 }],
       planillaFija:   [{ periodoInicio: '2026-05-01', totalGeneral: 1000 }],
       cedulas: [], costosIndirectos: [], maquinaria: [], productos: [],
       range: RANGE,
     });
     expect(out.byCategory.planilla_directa).toBe(300);
     expect(out.byCategory.planilla_fija).toBe(1000);
+  });
+
+  // Regresión H1: un snapshot real tiene varias filas por planilla, cada una con
+  // el MISMO `totalGeneral` denormalizado. Sumar `totalGeneral` por fila inflaba
+  // el costo por (nº filas). Debe sumar `subtotal` → reconstituye el total real.
+  test('planilla directa: suma subtotales, no totalGeneral denormalizado', () => {
+    const PLANILLA_TOTAL = 900; // 3 filas de subtotal 300 c/u
+    const out = computeCosts({
+      horimetro: [],
+      planillaUnidad: [
+        { fecha: '2026-05-01', subtotal: 300, totalGeneral: PLANILLA_TOTAL },
+        { fecha: '2026-05-01', subtotal: 300, totalGeneral: PLANILLA_TOTAL },
+        { fecha: '2026-05-01', subtotal: 300, totalGeneral: PLANILLA_TOTAL },
+      ],
+      planillaFija: [], cedulas: [], costosIndirectos: [], maquinaria: [], productos: [],
+      range: RANGE,
+    });
+    // Antes del fix: 3 × 900 = 2700 (inflado 3×). Correcto: 3 × 300 = 900.
+    expect(out.byCategory.planilla_directa).toBe(PLANILLA_TOTAL);
   });
 
   test('insumos from cedulas uses precioUnitario fallback', () => {
@@ -126,7 +148,7 @@ describe('buildIncomeStatement', () => {
     const is = buildIncomeStatement({
       incomeRecords: [{ collectionStatus: 'pendiente', date: '2026-05-01', totalAmount: 2000 }],
       horimetro: [], planillaUnidad: [
-        { fecha: '2026-05-01', totalGeneral: 500 },
+        { fecha: '2026-05-01', subtotal: 500, totalGeneral: 500 },
       ],
       planillaFija: [], cedulas: [], costosIndirectos: [],
       maquinaria: [], productos: [],
@@ -140,7 +162,7 @@ describe('buildIncomeStatement', () => {
 
   test('marginRatio is 0 when revenue is 0', () => {
     const is = buildIncomeStatement({
-      incomeRecords: [], horimetro: [], planillaUnidad: [{ fecha: '2026-01-01', totalGeneral: 100 }],
+      incomeRecords: [], horimetro: [], planillaUnidad: [{ fecha: '2026-01-01', subtotal: 100, totalGeneral: 100 }],
       planillaFija: [], cedulas: [], costosIndirectos: [],
       maquinaria: [], productos: [], range: RANGE,
     });

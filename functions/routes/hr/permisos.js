@@ -208,7 +208,7 @@ router.put('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write', 
   }
 });
 
-router.delete('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write', 'write'), async (req, res) => {
+async function deletePermiso(req, res) {
   try {
     const ownership = await verifyOwnership('hr_permisos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -216,6 +216,14 @@ router.delete('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to delete.', 403);
     }
     const prev = ownership.doc.data() || {};
+    // Espejo del gate de aprobación (PUT exige supervisor+ para aprobar/rechazar):
+    // borrar un permiso YA decidido deshace una decisión de supervisor que
+    // justifica/descuenta nómina. Sin este piso, un encargado podía eliminar
+    // aprobaciones/rechazos de toda la finca evadiendo el rol superior. Los
+    // permisos en 'pendiente' siguen siendo borrables por encargado+.
+    if (['aprobado', 'rechazado'].includes(prev.estado) && !hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Only supervisor or above can delete an approved or rejected permiso.', 403);
+    }
     await db.collection('hr_permisos').doc(req.params.id).delete();
     writeAuditEvent({
       fincaId: req.fincaId,
@@ -233,6 +241,10 @@ router.delete('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write
   } catch (error) {
     return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to delete permiso.', 500);
   }
-});
+}
+
+router.delete('/api/hr/permisos/:id', authenticate, rateLimit('hr_permisos_write', 'write'), deletePermiso);
 
 module.exports = router;
+// Exportado para tests.
+module.exports.deletePermiso = deletePermiso;
