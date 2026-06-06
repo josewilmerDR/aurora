@@ -5,6 +5,7 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useDraft, markDraftActive, clearDraftActive } from '../../../hooks/useDraft';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
 import { TIPOS, MONEDAS } from '../lib/agroquimicos';
+import { translateApiError } from '../../../lib/errorMessages';
 
 /* ── Limits ──────────────────────────────────────────────────────────────────
  * Forma propia (min/max/exclusive/required): este modal valida campo-a-campo en
@@ -372,7 +373,10 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
   };
 
   // Siempre se llaman ambos hooks (regla de hooks); se usa el apropiado según isNew.
-  const [draftForm, setDraftForm, clearFormDraft] = useDraft('nuevo-producto', initialForm, { storage: 'local' });
+  // session (no local): el borrador lleva precio/proveedor/tipoCambio — datos
+  // comerciales que no deben quedar residuales en localStorage de un equipo
+  // compartido tras cerrar sesión.
+  const [draftForm, setDraftForm, clearFormDraft] = useDraft('nuevo-producto', initialForm, { storage: 'session' });
   const [editFormState, setEditFormState] = useState(initialForm);
 
   const form    = isNew ? draftForm    : editFormState;
@@ -422,8 +426,8 @@ function EditProductoModal({ producto = {}, onClose, onSaved, isNew = false }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(numericPayload()),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al guardar');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(translateApiError(data, 'Error al guardar'));
       if (isNew) { clearFormDraft(); clearDraftActive('nuevo-producto'); }
       onSaved(data);
     } catch (err) {

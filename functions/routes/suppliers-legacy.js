@@ -77,8 +77,14 @@ function buildProveedorDoc(body) {
   };
 }
 
-router.get('/api/proveedores', authenticate, async (req, res) => {
+router.get('/api/proveedores', authenticate, rateLimit('proveedores_read', 'public_read'), async (req, res) => {
   try {
+    // Proveedores carry bank account + credit terms; gate reads to encargado+
+    // to match the write floor and the role of every consuming page (Recepción,
+    // Procurement, Productos). A trabajador must not enumerate the supplier roll.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can list proveedores.', 403);
+    }
     const snapshot = await db.collection('proveedores')
       .where('fincaId', '==', req.fincaId)
       .orderBy('nombre', 'asc')
