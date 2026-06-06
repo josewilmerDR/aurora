@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FiArrowLeft, FiPackage, FiCalendar, FiUser, FiFileText, FiImage, FiSlash, FiEdit, FiAlertTriangle, FiX } from 'react-icons/fi';
 import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useToast } from '../../../contexts/ToastContext';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
@@ -15,11 +16,17 @@ export default function RecepcionViewer() {
   const navigate = useNavigate();
   const apiFetch = useApiFetch();
   const toast = useToast();
+  const { currentUser } = useUser();
+
+  // Anular y Editar (que también anula) son supervisor+ en el backend; ocultar
+  // las acciones a roles menores (defensa secundaria; el backend manda).
+  const canVoid = hasMinRole(currentUser?.rol, 'supervisor');
 
   const [recepcion, setRecepcion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lightbox, setLightbox] = useState(false);
+  const [facturaUrl, setFacturaUrl] = useState(null);
 
   const [showAnularModal, setShowAnularModal] = useState(false);
   const [showEditarModal, setShowEditarModal] = useState(false);
@@ -55,6 +62,23 @@ export default function RecepcionViewer() {
   }, [apiFetch, id]);
 
   useEffect(() => { loadRecepcion(); }, [loadRecepcion]);
+
+  // La factura se sirve bajo demanda con un signed URL de 15 min (no un link
+  // público permanente). Se resuelve vía endpoint autenticado y finca-scoped.
+  useEffect(() => {
+    const hasImg = recepcion?.imagePath || recepcion?.imageUrl;
+    if (!hasImg) { setFacturaUrl(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/recepciones/${id}/factura`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setFacturaUrl(data.url || null);
+      } catch { /* sin adjunto resoluble; se omite la sección */ }
+    })();
+    return () => { cancelled = true; };
+  }, [recepcion, apiFetch, id]);
 
   const handleAnular = async () => {
     setBusy(true);
@@ -213,12 +237,13 @@ export default function RecepcionViewer() {
             </span>
           </div>
         )}
-        {(recepcion.createdAt || recepcion.createdByEmail) && (
+        {(recepcion.createdAt || (recepcion.createdByEmail && canVoid)) && (
           <div className="recv-meta-item">
             <span className="recv-meta-label"><FiUser size={13} /> Registrada</span>
             <span className="recv-meta-value">
               {formatDateTime(recepcion.createdAt)}
-              {recepcion.createdByEmail && <> · {recepcion.createdByEmail}</>}
+              {/* Email del registrador (PII) solo a supervisor+. */}
+              {recepcion.createdByEmail && canVoid && <> · {recepcion.createdByEmail}</>}
             </span>
           </div>
         )}
@@ -275,7 +300,7 @@ export default function RecepcionViewer() {
         </div>
       )}
 
-      {recepcion.imageUrl && (
+      {facturaUrl && (
         <div className="recv-image-section">
           <span className="recv-meta-label"><FiImage size={13} /> Factura adjunta</span>
           <button
@@ -285,12 +310,12 @@ export default function RecepcionViewer() {
             aria-label="Ver factura adjunta"
             title="Ver factura"
           >
-            <img src={recepcion.imageUrl} alt="Factura" />
+            <img src={facturaUrl} alt="Factura" />
           </button>
         </div>
       )}
 
-      {!recepcion.anulada && (
+      {!recepcion.anulada && canVoid && (
         <div className="recv-actions">
           <button
             type="button"
@@ -422,7 +447,7 @@ export default function RecepcionViewer() {
             >
               <FiX size={18} />
             </button>
-            <img src={recepcion.imageUrl} alt="Factura" className="factura-lightbox-img" />
+            <img src={facturaUrl} alt="Factura" className="factura-lightbox-img" />
           </div>
         </div>
       )}

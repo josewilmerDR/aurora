@@ -16,13 +16,36 @@
 const { Router } = require('express');
 const { db, admin, Timestamp, FieldValue } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
+const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const router = Router();
 
+// Strip control + bidi chars de strings user-controlled antes de persistir
+// (alineado con intake.js). RegExp por códigos para no incrustar chars crudos.
+const CONTROL_BIDI = new RegExp(
+  '[' +
+  '\\u0000-\\u001F\\u007F-\\u009F' +                 // C0 + C1 control
+  '\\u200B-\\u200F\\u202A-\\u202E\\u2066-\\u2069' +  // zero-width + bidi overrides
+  ']',
+  'g',
+);
+const cleanStr = (v, max) =>
+  (typeof v === 'string' ? v : '').replace(CONTROL_BIDI, '').slice(0, max);
+// Acota numéricos user-controlled a [min, max] descartando NaN/Infinity/negativos.
+const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const n = parseFloat(v);
+  if (!isFinite(n)) return 0;
+  return Math.min(Math.max(n, min), max);
+};
+
 router.get('/api/recepciones', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view recepciones.', 403);
+    }
     const { ordenCompraId } = req.query;
     let query = db.collection('recepciones').where('fincaId', '==', req.fincaId);
     if (ordenCompraId) {
@@ -51,6 +74,9 @@ router.get('/api/recepciones', authenticate, async (req, res) => {
 
 router.get('/api/recepciones/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view recepciones.', 403);
+    }
     const doc = await db.collection('recepciones').doc(req.params.id).get();
     if (!doc.exists) {
       return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
@@ -75,20 +101,60 @@ router.get('/api/recepciones/:id', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/recepciones', authenticate, async (req, res) => {
+// Resuelve la factura adjunta bajo demanda. Devuelve un signed URL de 15 min
+// (no un link público permanente), validando rol + finca. Docs legacy guardan
+// imageUrl con token permanente → se devuelve tal cual para no romperlos.
+router.get('/api/recepciones/:id/factura', authenticate, async (req, res) => {
   try {
-    const { ordenCompraId, poNumber, proveedor, items, notas, imageBase64, mediaType } = req.body;
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view recepciones.', 403);
+    }
+    const doc = await db.collection('recepciones').doc(req.params.id).get();
+    if (!doc.exists || doc.data().fincaId !== req.fincaId) {
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
+    }
+    const data = doc.data();
+    if (!data.imagePath) {
+      if (data.imageUrl) return res.json({ url: data.imageUrl }); // legacy
+      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'No attachment for this reception.', 404);
+    }
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(data.imagePath);
+    const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+    if (isEmulator) {
+      // getSignedUrl no funciona en el emulador (sin service account). Fallback:
+      // construir la URL con el download token guardado en metadata.
+      const [meta] = await file.getMetadata();
+      const token = meta.metadata?.firebaseStorageDownloadTokens;
+      const encodedPath = encodeURIComponent(data.imagePath);
+      return res.json({
+        url: `http://${isEmulator}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`,
+      });
+    }
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      version: 'v4',
+      expires: Date.now() + 15 * 60 * 1000, // 15 min
+    });
+    return res.json({ url });
+  } catch (error) {
+    console.error('[recepciones:factura]', error);
+    return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to resolve attachment.', 500);
+  }
+});
+
+router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'write'), async (req, res) => {
+  try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register a reception.', 403);
+    }
+    const { ordenCompraId, items, imageBase64, mediaType } = req.body;
+    // Sanitizar strings user-controlled (control/bidi strip + cap de longitud).
+    const poNumber = cleanStr(req.body.poNumber, 100);
+    const proveedor = cleanStr(req.body.proveedor, 200);
+    const notas = cleanStr(req.body.notas, 1000);
 
     // Input validation
-    if (typeof notas === 'string' && notas.length > 1000) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'notas must not exceed 1000 characters.', 400);
-    }
-    if (typeof poNumber === 'string' && poNumber.length > 100) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'PO number is too long.', 400);
-    }
-    if (typeof proveedor === 'string' && proveedor.length > 200) {
-      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Supplier name is too long.', 400);
-    }
     if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.length > 15 * 1024 * 1024) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Image is too large (max ~10 MB).', 400);
     }
@@ -127,8 +193,12 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
     const recepcionRef = db.collection('recepciones').doc();
     const motivo = `Recepción OC: ${poNumber || ordenCompraId || 'Manual'}`;
 
-    // Upload image to Firebase Storage (if provided)
-    let imageUrl = null;
+    // Upload image to Firebase Storage (if provided). Se persiste el PATH, no
+    // una URL con token permanente: la factura se sirve bajo demanda vía
+    // GET /api/recepciones/:id/factura con un signed URL de 15 min, autenticado
+    // y finca-scoped (alineado con warehouses.js H8). Evita un link público
+    // no expirable que cualquiera con la URL podría abrir sin auth.
+    let imagePath = null;
     if (imageBase64) {
       try {
         const { randomUUID } = require('crypto');
@@ -141,11 +211,7 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
           contentType: mediaType || 'image/jpeg',
           metadata: { metadata: { firebaseStorageDownloadTokens: token } },
         });
-        const isEmulator = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
-        const encodedPath = encodeURIComponent(fileName);
-        imageUrl = isEmulator
-          ? `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`
-          : `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${token}`;
+        imagePath = fileName;
       } catch (storageErr) {
         console.error('[recepciones] Storage upload failed:', storageErr.message);
       }
@@ -154,7 +220,7 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
     const batch = db.batch();
 
     for (const item of recibidos) {
-      const cantidadRecibida = parseFloat(item.cantidadRecibida);
+      const cantidadRecibida = num(item.cantidadRecibida, { max: 999999 });
       if (item.productoId) {
         batch.update(db.collection('productos').doc(item.productoId), {
           stockActual: FieldValue.increment(cantidadRecibida),
@@ -162,11 +228,11 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
         batch.set(db.collection('movimientos').doc(), {
           tipo: 'ingreso',
           productoId: item.productoId,
-          idProducto: item.idProducto || '',
-          nombreComercial: item.nombreComercial || '',
+          idProducto: cleanStr(item.idProducto, 100),
+          nombreComercial: cleanStr(item.nombreComercial, 200),
           cantidad: cantidadRecibida,
-          unidad: item.unidad || '',
-          precioUnitario: parseFloat(item.precioUnitario) || 0,
+          unidad: cleanStr(item.unidad, 40),
+          precioUnitario: num(item.precioUnitario),
           proveedor: proveedor || '',
           ocPoNumber: poNumber || '',
           ordenCompraId: ordenCompraId || null,
@@ -186,16 +252,16 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
       fechaRecepcion: Timestamp.now(),
       items: recibidos.map(i => ({
         productoId: i.productoId || null,
-        idProducto: i.idProducto || '',
-        nombreComercial: i.nombreComercial || '',
-        cantidadOC: parseFloat(i.cantidadOC) || 0,
-        cantidadRecibida: parseFloat(i.cantidadRecibida),
-        unidad: i.unidad || '',
-        precioUnitario: parseFloat(i.precioUnitario) || 0,
-        iva: parseFloat(i.iva) || 0,
+        idProducto: cleanStr(i.idProducto, 100),
+        nombreComercial: cleanStr(i.nombreComercial, 200),
+        cantidadOC: num(i.cantidadOC, { max: 999999 }),
+        cantidadRecibida: num(i.cantidadRecibida, { max: 999999 }),
+        unidad: cleanStr(i.unidad, 40),
+        precioUnitario: num(i.precioUnitario),
+        iva: num(i.iva, { max: 100 }),
       })),
       notas: notas || '',
-      imageUrl: imageUrl || null,
+      imagePath: imagePath || null,
       createdAt: Timestamp.now(),
       createdBy: req.uid || null,
       createdByEmail: req.userEmail || '',
@@ -252,8 +318,11 @@ router.post('/api/recepciones', authenticate, async (req, res) => {
 //     sin tener que hacer joins.
 //   - Si la recepción venía de una OC, la cantidadRecibida de cada item se
 //     decrementa y el estado de la OC se recalcula.
-router.post('/api/recepciones/:id/anular', authenticate, async (req, res) => {
+router.post('/api/recepciones/:id/anular', authenticate, rateLimit('recepciones_write', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'supervisor')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can void a reception.', 403);
+    }
     const razon = (req.body?.razon || '').trim();
     if (!razon) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Razón es requerida.', 400);
@@ -263,129 +332,143 @@ router.post('/api/recepciones/:id/anular', authenticate, async (req, res) => {
     }
 
     const recepcionRef = db.collection('recepciones').doc(req.params.id);
-    const recepcionDoc = await recepcionRef.get();
-    if (!recepcionDoc.exists) {
-      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
-    }
-    const recepcion = recepcionDoc.data();
-    if (recepcion.fincaId !== req.fincaId) {
-      return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Recepción no encontrada.', 404);
-    }
-    if (recepcion.anulada) {
-      return sendApiError(res, ERROR_CODES.CONFLICT, 'La recepción ya está anulada.', 409);
-    }
 
-    const items = Array.isArray(recepcion.items) ? recepcion.items : [];
-    const itemsConProducto = items.filter(it => it.productoId);
+    // Toda la anulación corre en una transacción: re-lee la recepción DENTRO de
+    // la tx y aborta si ya está anulada. Cierra el TOCTOU de dos "anular"
+    // concurrentes que, con el batch anterior, podían pasar ambos el check
+    // !anulada y revertir el stock dos veces.
+    let txResult;
+    try {
+      txResult = await db.runTransaction(async (t) => {
+        const recepcionDoc = await t.get(recepcionRef);
+        if (!recepcionDoc.exists) {
+          return { error: { code: ERROR_CODES.NOT_FOUND, msg: 'Recepción no encontrada.', status: 404 } };
+        }
+        const recepcion = recepcionDoc.data();
+        if (recepcion.fincaId !== req.fincaId) {
+          return { error: { code: ERROR_CODES.NOT_FOUND, msg: 'Recepción no encontrada.', status: 404 } };
+        }
+        if (recepcion.anulada) {
+          return { error: { code: ERROR_CODES.CONFLICT, msg: 'La recepción ya está anulada.', status: 409 } };
+        }
 
-    // 1. Validar stock disponible en cada producto.
-    const productoDocs = await Promise.all(
-      itemsConProducto.map(it => db.collection('productos').doc(it.productoId).get())
-    );
-    const blocking = [];
-    for (let i = 0; i < itemsConProducto.length; i++) {
-      const item = itemsConProducto[i];
-      const doc = productoDocs[i];
-      const cant = parseFloat(item.cantidadRecibida) || 0;
-      const stock = doc.exists ? (parseFloat(doc.data().stockActual) || 0) : 0;
-      if (stock < cant) {
-        blocking.push({
-          nombreComercial: item.nombreComercial || doc.data()?.nombreComercial || item.idProducto || 'Producto',
-          stockActual: stock,
-          cantidadAReversar: cant,
-          unidad: item.unidad || doc.data()?.unidad || '',
-        });
-      }
-    }
-    if (blocking.length > 0) {
-      const lines = blocking.map(b =>
-        `${b.nombreComercial}: stock ${b.stockActual} ${b.unidad} < a reversar ${b.cantidadAReversar} ${b.unidad}`
-      ).join('; ');
-      return sendApiError(res,
-        ERROR_CODES.VALIDATION_FAILED,
-        `No se puede anular: stock insuficiente. ${lines}`,
-        422
-      );
-    }
+        const items = Array.isArray(recepcion.items) ? recepcion.items : [];
+        const itemsConProducto = items.filter(it => it.productoId);
 
-    // 2. Localizar movimientos originales (para flag recepcionAnulada).
-    const movsSnap = await db.collection('movimientos')
-      .where('recepcionId', '==', req.params.id)
-      .where('fincaId', '==', req.fincaId)
-      .get();
+        // ── LECTURAS (todas antes de cualquier escritura) ──────────────────
+        const productoRefs = itemsConProducto.map(it => db.collection('productos').doc(it.productoId));
+        const productoDocs = await Promise.all(productoRefs.map(r => t.get(r)));
 
-    const batch = db.batch();
-    const motivo = `Anulación recepción REC-${req.params.id.slice(-6).toUpperCase()}`;
-
-    // 3. Decrementar stock + escribir movimientos compensatorios.
-    for (const item of itemsConProducto) {
-      const cant = parseFloat(item.cantidadRecibida) || 0;
-      batch.update(db.collection('productos').doc(item.productoId), {
-        stockActual: FieldValue.increment(-cant),
-      });
-      batch.set(db.collection('movimientos').doc(), {
-        tipo: 'anulacion_ingreso',
-        productoId: item.productoId,
-        idProducto: item.idProducto || '',
-        nombreComercial: item.nombreComercial || '',
-        cantidad: cant,
-        unidad: item.unidad || '',
-        precioUnitario: parseFloat(item.precioUnitario) || 0,
-        proveedor: recepcion.proveedor || '',
-        fecha: Timestamp.now(),
-        motivo,
-        razon,
-        recepcionId: req.params.id,
-        fincaId: req.fincaId,
-      });
-    }
-
-    // 4. Marcar movimientos originales como anulados (denormalización para lectura).
-    for (const mov of movsSnap.docs) {
-      const d = mov.data();
-      if (d.tipo === 'ingreso') {
-        batch.update(mov.ref, { recepcionAnulada: true });
-      }
-    }
-
-    // 5. Actualizar la recepción.
-    batch.update(recepcionRef, {
-      anulada: true,
-      anuladaAt: Timestamp.now(),
-      anuladaPor: req.uid,
-      anuladaRazon: razon,
-    });
-
-    // 6. Si venía de una OC, decrementar cantidadRecibida y recalcular estado.
-    if (recepcion.ordenCompraId) {
-      const ocRef = db.collection('ordenes_compra').doc(recepcion.ordenCompraId);
-      const ocDoc = await ocRef.get();
-      if (ocDoc.exists && ocDoc.data().fincaId === req.fincaId) {
-        const ocData = ocDoc.data();
-        const ocItems = ocData.items || [];
-        const updatedItems = ocItems.map(ocItem => {
-          const match = items.find(ri =>
-            ri.productoId === ocItem.productoId ||
-            (ri.nombreComercial || '').toLowerCase().trim() === (ocItem.nombreComercial || '').toLowerCase().trim()
-          );
-          if (!match) return ocItem;
-          const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
-          const reverted = parseFloat(match.cantidadRecibida) || 0;
-          return { ...ocItem, cantidadRecibida: Math.max(0, prevReceived - reverted) };
-        });
-        const totalRecibido = updatedItems.reduce((s, i) => s + (parseFloat(i.cantidadRecibida) || 0), 0);
-        const allFull = updatedItems.every(i =>
-          (parseFloat(i.cantidad) || 0) === 0 ||
-          (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
+        const movsSnap = await t.get(
+          db.collection('movimientos')
+            .where('recepcionId', '==', req.params.id)
+            .where('fincaId', '==', req.fincaId)
         );
-        const nextEstado = totalRecibido === 0
-          ? 'pendiente'
-          : (allFull ? 'recibida' : 'recibida_parcialmente');
-        batch.update(ocRef, { estado: nextEstado, items: updatedItems });
-      }
+
+        let ocRef = null;
+        let ocDoc = null;
+        if (recepcion.ordenCompraId) {
+          ocRef = db.collection('ordenes_compra').doc(recepcion.ordenCompraId);
+          ocDoc = await t.get(ocRef);
+        }
+
+        // Validar stock disponible (no deshacer un ingreso ya consumido).
+        const blocking = [];
+        for (let i = 0; i < itemsConProducto.length; i++) {
+          const item = itemsConProducto[i];
+          const doc = productoDocs[i];
+          const cant = parseFloat(item.cantidadRecibida) || 0;
+          const stock = doc.exists ? (parseFloat(doc.data().stockActual) || 0) : 0;
+          if (stock < cant) {
+            blocking.push({
+              nombreComercial: item.nombreComercial || doc.data()?.nombreComercial || item.idProducto || 'Producto',
+              stockActual: stock,
+              cantidadAReversar: cant,
+              unidad: item.unidad || doc.data()?.unidad || '',
+            });
+          }
+        }
+        if (blocking.length > 0) {
+          const lines = blocking.map(b =>
+            `${b.nombreComercial}: stock ${b.stockActual} ${b.unidad} < a reversar ${b.cantidadAReversar} ${b.unidad}`
+          ).join('; ');
+          return { error: { code: ERROR_CODES.VALIDATION_FAILED, msg: `No se puede anular: stock insuficiente. ${lines}`, status: 422 } };
+        }
+
+        // ── ESCRITURAS ─────────────────────────────────────────────────────
+        const motivo = `Anulación recepción ${recepcion.poNumber ? `OC ${recepcion.poNumber}` : (recepcion.proveedor || 'manual')}`;
+
+        // Decrementar stock + movimientos compensatorios.
+        for (let i = 0; i < itemsConProducto.length; i++) {
+          const item = itemsConProducto[i];
+          const cant = parseFloat(item.cantidadRecibida) || 0;
+          t.update(productoRefs[i], { stockActual: FieldValue.increment(-cant) });
+          t.set(db.collection('movimientos').doc(), {
+            tipo: 'anulacion_ingreso',
+            productoId: item.productoId,
+            idProducto: item.idProducto || '',
+            nombreComercial: item.nombreComercial || '',
+            cantidad: cant,
+            unidad: item.unidad || '',
+            precioUnitario: parseFloat(item.precioUnitario) || 0,
+            proveedor: recepcion.proveedor || '',
+            fecha: Timestamp.now(),
+            motivo,
+            razon,
+            recepcionId: req.params.id,
+            fincaId: req.fincaId,
+          });
+        }
+
+        // Marcar movimientos originales como anulados (denormalización lectura).
+        for (const mov of movsSnap.docs) {
+          if (mov.data().tipo === 'ingreso') {
+            t.update(mov.ref, { recepcionAnulada: true });
+          }
+        }
+
+        // Actualizar la recepción.
+        t.update(recepcionRef, {
+          anulada: true,
+          anuladaAt: Timestamp.now(),
+          anuladaPor: req.uid,
+          anuladaRazon: razon,
+        });
+
+        // Si venía de una OC, decrementar cantidadRecibida y recalcular estado.
+        if (ocRef && ocDoc && ocDoc.exists && ocDoc.data().fincaId === req.fincaId) {
+          const ocItems = ocDoc.data().items || [];
+          const updatedItems = ocItems.map(ocItem => {
+            const match = items.find(ri =>
+              ri.productoId === ocItem.productoId ||
+              (ri.nombreComercial || '').toLowerCase().trim() === (ocItem.nombreComercial || '').toLowerCase().trim()
+            );
+            if (!match) return ocItem;
+            const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
+            const reverted = parseFloat(match.cantidadRecibida) || 0;
+            return { ...ocItem, cantidadRecibida: Math.max(0, prevReceived - reverted) };
+          });
+          const totalRecibido = updatedItems.reduce((s, i) => s + (parseFloat(i.cantidadRecibida) || 0), 0);
+          const allFull = updatedItems.every(i =>
+            (parseFloat(i.cantidad) || 0) === 0 ||
+            (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
+          );
+          const nextEstado = totalRecibido === 0
+            ? 'pendiente'
+            : (allFull ? 'recibida' : 'recibida_parcialmente');
+          t.update(ocRef, { estado: nextEstado, items: updatedItems });
+        }
+
+        return { ok: true, proveedor: recepcion.proveedor || '', itemsCount: itemsConProducto.length };
+      });
+    } catch (txErr) {
+      console.error('[recepciones:anular:tx]', txErr);
+      return sendApiError(res, ERROR_CODES.INTERNAL_ERROR, 'Failed to void reception.', 500);
     }
 
-    await batch.commit();
+    if (txResult.error) {
+      return sendApiError(res, txResult.error.code, txResult.error.msg, txResult.error.status);
+    }
 
     writeAuditEvent({
       fincaId: req.fincaId,
@@ -393,8 +476,8 @@ router.post('/api/recepciones/:id/anular', authenticate, async (req, res) => {
       action: ACTIONS.PURCHASE_RECEIPT_VOID || 'PURCHASE_RECEIPT_VOID',
       target: { type: 'recepcion', id: req.params.id },
       metadata: {
-        proveedor: (recepcion.proveedor || '').slice(0, 200),
-        itemsCount: itemsConProducto.length,
+        proveedor: (txResult.proveedor || '').slice(0, 200),
+        itemsCount: txResult.itemsCount,
         razon: razon.slice(0, 200),
       },
       severity: SEVERITY.WARNING,
