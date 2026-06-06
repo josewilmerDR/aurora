@@ -61,6 +61,10 @@ function UnitPayrollHistory() {
   const { currentUser } = useUser();
   const [rows,    setRows]    = useState([]);
   const [loading, setLoading] = useState(true);
+  // `firstLoad` distingue la carga inicial (spinner a pantalla completa) de los
+  // refetches por cambio de período: estos últimos no deben desmontar la página
+  // —y con ella los datepickers— mientras el usuario ajusta el rango. #1.
+  const [firstLoad, setFirstLoad] = useState(true);
   const [error,   setError]   = useState(false);
 
   const [filterFrom, setFilterFrom] = useState('');
@@ -70,15 +74,22 @@ function UnitPayrollHistory() {
   // cambia con activeFincaId) y al pulsar Reintentar. Sin esto, abrir el tab
   // una vez dejaba la lista congelada — incluso tras aprobar una planilla
   // nueva en el Editor o cambiar de finca. #2.
+  // El rango de período se envía al backend para acotar el payload en origen
+  // (la colección de historial crece sin cota). El filtrado fino por columna y
+  // la paginación los sigue haciendo la tabla sobre la data ya acotada. #1.
   const loadData = useCallback(() => {
     setLoading(true);
     setError(false);
-    apiFetch('/api/hr/planilla-unidad/historial')
+    const qs = new URLSearchParams();
+    if (filterFrom) qs.set('from', filterFrom);
+    if (filterTo)   qs.set('to',   filterTo);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    apiFetch(`/api/hr/planilla-unidad/historial${suffix}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => { setRows(Array.isArray(data) ? data : []); })
-      .catch(err => { console.error(err); setError(true); })
-      .finally(() => setLoading(false));
-  }, [apiFetch]);
+      .catch(err => { if (import.meta.env.DEV) console.error(err); setError(true); })
+      .finally(() => { setLoading(false); setFirstLoad(false); });
+  }, [apiFetch, filterFrom, filterTo]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -146,7 +157,7 @@ function UnitPayrollHistory() {
     );
   };
 
-  if (loading) {
+  if (loading && firstLoad) {
     return (
       <div className="aur-sheet uph-page" aria-busy="true">
         <span className="aur-sr-only" aria-live="polite">Cargando historial…</span>
@@ -155,7 +166,7 @@ function UnitPayrollHistory() {
     );
   }
 
-  if (error) {
+  if (error && firstLoad) {
     return (
       <div className="aur-sheet uph-page">
         <div className="uph-error" role="alert">
