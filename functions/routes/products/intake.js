@@ -20,6 +20,8 @@ const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { reconcileReceive, computeEstado } = require('../../lib/inventory/ocReconcile');
+const { MAX_RECEIVE_QTY } = require('../../lib/inventory/quantities');
 
 const router = Router();
 
@@ -75,7 +77,7 @@ router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar
     }
     for (const item of items) {
       const qty = parseFloat(item.cantidad);
-      if (!isNaN(qty) && (qty < 0 || qty > 999999 || !isFinite(qty))) {
+      if (!isNaN(qty) && (qty < 0 || qty > MAX_RECEIVE_QTY || !isFinite(qty))) {
         return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid quantity for ${item.nombreComercial || 'a product'}.`, 400);
       }
     }
@@ -91,7 +93,7 @@ router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar
     // ── Pre-resolve products (async before the batch) ────────────────────────
     const resolved = [];
     for (const item of validos) {
-      const stockIngresado = num(item.cantidad, { min: 0, max: 999999 });
+      const stockIngresado = num(item.cantidad, { min: 0, max: MAX_RECEIVE_QTY });
       if (stockIngresado <= 0) continue;
 
       let existingDoc = null;
@@ -209,7 +211,7 @@ router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar
         productoId,
         idProducto: (item.idProducto || '').trim(),
         nombreComercial: item.nombreComercial || '',
-        cantidadOC: num(item.cantidadOC, { min: 0, max: 999999 }) || stockIngresado,
+        cantidadOC: num(item.cantidadOC, { min: 0, max: MAX_RECEIVE_QTY }) || stockIngresado,
         cantidadRecibida: stockIngresado,
         unidad: item.unidad || '',
         precioUnitario,
@@ -234,41 +236,11 @@ router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar
     if (ordenCompraId) {
       const ordenDoc = await db.collection('ordenes_compra').doc(ordenCompraId).get();
       if (ordenDoc.exists && ordenDoc.data().fincaId === req.fincaId) {
-        const ocData = ordenDoc.data();
-        const ocItems = ocData.items || [];
-        // Recalculate cantidadRecibida server-side (do not trust the client).
-        // Conciliamos por productoId (estable) y consumimos cada línea de
-        // recepción una sola vez. El fallback por nombre comercial es ambiguo
-        // cuando hay líneas homónimas, así que solo se usa si la línea de OC NO
-        // tiene productoId — evita cerrar la OC contra la línea equivocada.
-        const usados = new Set();
-        const findMatch = (predicate) => {
-          for (let idx = 0; idx < recepcionItems.length; idx++) {
-            if (usados.has(idx)) continue;
-            if (predicate(recepcionItems[idx])) { usados.add(idx); return recepcionItems[idx]; }
-          }
-          return null;
-        };
-        const updatedItems = ocItems.map(ocItem => {
-          let match = null;
-          if (ocItem.productoId) {
-            match = findMatch(ri => ri.productoId === ocItem.productoId);
-          } else {
-            const target = (ocItem.nombreComercial || '').toLowerCase().trim();
-            if (target) match = findMatch(ri => (ri.nombreComercial || '').toLowerCase().trim() === target);
-          }
-          const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
-          const nowReceived = match ? match.cantidadRecibida : 0;
-          return { ...ocItem, cantidadRecibida: prevReceived + nowReceived };
-        });
-        const allFull = updatedItems.every(i =>
-          (parseFloat(i.cantidad) || 0) === 0 ||
-          (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
-        );
-        batch.update(ordenDoc.ref, {
-          estado: allFull ? 'recibida' : 'recibida_parcialmente',
-          items: updatedItems,
-        });
+        // Conciliación server-side (nunca confiamos en el cliente): acumula lo
+        // recibido sobre las líneas de la OC y deriva el estado de su propia
+        // `cantidad`. Lógica compartida con receipts.js (recepción/anulación).
+        const updatedItems = reconcileReceive(ordenDoc.data().items || [], recepcionItems);
+        batch.update(ordenDoc.ref, { estado: computeEstado(updatedItems), items: updatedItems });
       }
     }
 

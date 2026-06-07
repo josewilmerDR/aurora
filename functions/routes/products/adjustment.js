@@ -14,13 +14,24 @@
 const { Router } = require('express');
 const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { hasMinRoleBE } = require('../../lib/helpers');
+const { rateLimit } = require('../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const router = Router();
 
-router.post('/api/inventario/ajuste', authenticate, async (req, res) => {
+// El ajuste físico reescribe stockActual a un valor arbitrario y es la
+// operación MÁS fraud-prone del dominio (un insider puede ocultar pérdidas
+// con una nota vaga). Va con el mismo piso que el resto de escrituras de
+// inventario (encargado+) — el gate vivía solo en la UI (Existencias), por lo
+// que un trabajador con token podía ajustar stock vía API — y rate-limited
+// como escritura (cada request es un batch de hasta 250 ops).
+router.post('/api/inventario/ajuste', authenticate, rateLimit('inventario_ajuste', 'write'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can adjust inventory.', 403);
+    }
     const { nota, ajustes } = req.body;
     if (!nota || !nota.trim()) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Explanatory note is required.', 400);
