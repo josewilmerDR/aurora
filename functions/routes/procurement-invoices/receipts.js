@@ -22,26 +22,9 @@ const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { reconcileReceive, reconcileRevert, computeEstado } = require('../../lib/inventory/ocReconcile');
 const { MAX_RECEIVE_QTY } = require('../../lib/inventory/quantities');
+const { cleanStr, num } = require('../../lib/inventory/sanitize');
 
 const router = Router();
-
-// Strip control + bidi chars de strings user-controlled antes de persistir
-// (alineado con intake.js). RegExp por códigos para no incrustar chars crudos.
-const CONTROL_BIDI = new RegExp(
-  '[' +
-  '\\u0000-\\u001F\\u007F-\\u009F' +                 // C0 + C1 control
-  '\\u200B-\\u200F\\u202A-\\u202E\\u2066-\\u2069' +  // zero-width + bidi overrides
-  ']',
-  'g',
-);
-const cleanStr = (v, max) =>
-  (typeof v === 'string' ? v : '').replace(CONTROL_BIDI, '').slice(0, max);
-// Acota numéricos user-controlled a [min, max] descartando NaN/Infinity/negativos.
-const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
-  const n = parseFloat(v);
-  if (!isFinite(n)) return 0;
-  return Math.min(Math.max(n, min), max);
-};
 
 router.get('/api/recepciones', authenticate, rateLimit('recepciones_read', 'public_read'), async (req, res) => {
   try {
