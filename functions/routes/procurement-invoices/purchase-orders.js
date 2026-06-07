@@ -17,13 +17,47 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { hasMinRoleBE } = require('../../lib/helpers');
+const { rateLimit } = require('../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 
 const router = Router();
 
-router.get('/api/ordenes-compra', authenticate, async (req, res) => {
+// Sanitizadores compartidos por POST y PATCH: una OC nunca debe persistir
+// strings sin acotar ni números sin rango, vengan del create o del update.
+const str = (v, max) => (typeof v === 'string' ? v : '').slice(0, max);
+const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const n = parseFloat(v);
+  if (!isFinite(n)) return 0;
+  return Math.min(Math.max(n, min), max);
+};
+
+// Normaliza una línea de OC a la forma canónica + acotada. `cantidadRecibida`
+// NO se incluye a propósito: es un campo de conciliación que sólo mantienen
+// receipts.js/intake.js (recepción) — el cliente nunca debe poder fijarlo, o
+// podría resetearlo y re-recibir la misma OC (doble ingreso de stock).
+function normalizeOcItem(i) {
+  return {
+    productoId: i.productoId || null,
+    nombreComercial: str(i.nombreComercial, 200),
+    ingredienteActivo: str(i.ingredienteActivo, 200),
+    cantidad: num(i.cantidad, { min: 0, max: 1e9 }),
+    unidad: str(i.unidad, 20),
+    precioUnitario: num(i.precioUnitario, { min: 0, max: 1e9 }),
+    iva: num(i.iva, { min: 0, max: 100 }),
+    moneda: str(i.moneda, 10) || 'CRC',
+  };
+}
+
+// Las OCs exponen proveedores, precios y totales, y materializan stock en
+// recepción: todo el CRUD va con piso encargado+, alineado con el resto del
+// dominio (compras, recepciones, solicitudes). El gate vivía solo en la UI.
+router.get('/api/ordenes-compra', authenticate, rateLimit('ordenes_read', 'public_read'), async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view purchase orders.', 403);
+    }
     const snapshot = await db.collection('ordenes_compra')
       .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc')
@@ -47,6 +81,9 @@ router.get('/api/ordenes-compra', authenticate, async (req, res) => {
 
 router.post('/api/ordenes-compra', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create purchase orders.', 403);
+    }
     const { fecha, fechaEntrega, proveedor, direccionProveedor, elaboradoPor, notas, items, taskId, solicitudId, rfqId, exchangeRateToCRC } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product is required.', 400);
@@ -64,13 +101,6 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
     if (fecha && fechaEntrega && fechaEntrega < fecha) {
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Delivery date cannot be earlier than order date.', 400);
     }
-    const str = (v, max) => (typeof v === 'string' ? v : '').slice(0, max);
-    const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
-      const n = parseFloat(v);
-      if (!isFinite(n)) return 0;
-      return Math.min(Math.max(n, min), max);
-    };
-
     // Moneda funcional = CRC. Si algún ítem está en otra moneda, exigimos
     // tipo de cambio y congelamos `totalCRC` al crear la OC.
     const hasNonCrcItem = items.some(i => {
@@ -114,16 +144,7 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
       taskId: taskId || null,
       solicitudId: solicitudId || null,
       rfqId: rfqId || null,
-      items: items.map(i => ({
-        productoId: i.productoId || null,
-        nombreComercial: str(i.nombreComercial, 200),
-        ingredienteActivo: str(i.ingredienteActivo, 200),
-        cantidad: num(i.cantidad, { min: 0, max: 1e9 }),
-        unidad: str(i.unidad, 20),
-        precioUnitario: num(i.precioUnitario, { min: 0, max: 1e9 }),
-        iva: num(i.iva, { min: 0, max: 100 }),
-        moneda: str(i.moneda, 10) || 'CRC',
-      })),
+      items: items.map(normalizeOcItem),
       exchangeRateToCRC: fxRate,
       totalCRC: Math.round(totalCRC * 100) / 100,
       createdAt: Timestamp.now(),
@@ -174,17 +195,72 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
 
 router.patch('/api/ordenes-compra/:id', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update purchase orders.', 403);
+    }
     const { id } = req.params;
     const { estado, items } = req.body;
     const valid = ['activa', 'completada', 'cancelada', 'recibida', 'recibida_parcialmente'];
     if (!valid.includes(estado)) return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid estado.', 400);
+    if (items !== undefined && !Array.isArray(items)) {
+      return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'items must be an array.', 400);
+    }
+    if (Array.isArray(items) && items.length > 500) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Too many products in a single order.', 400);
+    }
     const docRef = db.collection('ordenes_compra').doc(id);
     const doc = await docRef.get();
     if (!doc.exists || doc.data().fincaId !== req.fincaId)
       return sendApiError(res, ERROR_CODES.NOT_FOUND, 'Purchase order not found.', 404);
+    const prevData = doc.data();
     const updateData = { estado, updatedAt: Timestamp.now() };
-    if (Array.isArray(items)) updateData.items = items;
+
+    if (Array.isArray(items)) {
+      // Las líneas entrantes se sanitizan con el mismo normalizador que el
+      // create — el cliente no puede inyectar campos arbitrarios ni números
+      // sin rango. `cantidadRecibida` es server-maintained (recepción): se
+      // PRESERVA del doc actual, emparejando consume-once por productoId y, en
+      // su defecto, por nombre comercial. Sin esto un PATCH podía resetear lo
+      // recibido y re-recibir la OC (doble ingreso de stock).
+      const prevItems = Array.isArray(prevData.items) ? prevData.items : [];
+      const usados = new Set();
+      const takeReceived = (it) => {
+        const pid = it.productoId || null;
+        const target = (it.nombreComercial || '').toLowerCase().trim();
+        for (let idx = 0; idx < prevItems.length; idx++) {
+          if (usados.has(idx)) continue;
+          const p = prevItems[idx];
+          const match = pid
+            ? p.productoId === pid
+            : (target && (p.nombreComercial || '').toLowerCase().trim() === target);
+          if (match) { usados.add(idx); return parseFloat(p.cantidadRecibida) || 0; }
+        }
+        return 0;
+      };
+      updateData.items = items.map((it) => ({
+        ...normalizeOcItem(it),
+        cantidadRecibida: takeReceived(it),
+      }));
+    }
+
     await docRef.update(updateData);
+
+    // Audit el cambio de estado/líneas. `cancelada` saca la OC del flujo de
+    // recepción; editar líneas altera el documento formal al proveedor.
+    writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PURCHASE_ORDER_UPDATE,
+      target: { type: 'orden_compra', id },
+      metadata: {
+        poNumber: prevData.poNumber || null,
+        estadoAnterior: prevData.estado || null,
+        estadoNuevo: estado,
+        itemsEditados: Array.isArray(items),
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(200).json({ message: 'Estado updated.' });
   } catch (error) {
     console.error('[ordenes-compra:patch]', error);

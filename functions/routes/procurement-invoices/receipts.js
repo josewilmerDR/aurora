@@ -20,28 +20,13 @@ const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { reconcileReceive, reconcileRevert, computeEstado } = require('../../lib/inventory/ocReconcile');
+const { MAX_RECEIVE_QTY } = require('../../lib/inventory/quantities');
+const { cleanStr, num } = require('../../lib/inventory/sanitize');
 
 const router = Router();
 
-// Strip control + bidi chars de strings user-controlled antes de persistir
-// (alineado con intake.js). RegExp por códigos para no incrustar chars crudos.
-const CONTROL_BIDI = new RegExp(
-  '[' +
-  '\\u0000-\\u001F\\u007F-\\u009F' +                 // C0 + C1 control
-  '\\u200B-\\u200F\\u202A-\\u202E\\u2066-\\u2069' +  // zero-width + bidi overrides
-  ']',
-  'g',
-);
-const cleanStr = (v, max) =>
-  (typeof v === 'string' ? v : '').replace(CONTROL_BIDI, '').slice(0, max);
-// Acota numéricos user-controlled a [min, max] descartando NaN/Infinity/negativos.
-const num = (v, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
-  const n = parseFloat(v);
-  if (!isFinite(n)) return 0;
-  return Math.min(Math.max(n, min), max);
-};
-
-router.get('/api/recepciones', authenticate, async (req, res) => {
+router.get('/api/recepciones', authenticate, rateLimit('recepciones_read', 'public_read'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view recepciones.', 403);
@@ -72,7 +57,7 @@ router.get('/api/recepciones', authenticate, async (req, res) => {
   }
 });
 
-router.get('/api/recepciones/:id', authenticate, async (req, res) => {
+router.get('/api/recepciones/:id', authenticate, rateLimit('recepciones_read', 'public_read'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view recepciones.', 403);
@@ -104,7 +89,7 @@ router.get('/api/recepciones/:id', authenticate, async (req, res) => {
 // Resuelve la factura adjunta bajo demanda. Devuelve un signed URL de 15 min
 // (no un link público permanente), validando rol + finca. Docs legacy guardan
 // imageUrl con token permanente → se devuelve tal cual para no romperlos.
-router.get('/api/recepciones/:id/factura', authenticate, async (req, res) => {
+router.get('/api/recepciones/:id/factura', authenticate, rateLimit('recepciones_read', 'public_read'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view recepciones.', 403);
@@ -166,7 +151,7 @@ router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'wr
     }
     for (const item of items) {
       const qty = parseFloat(item.cantidadRecibida);
-      if (qty < 0 || qty > 999999 || !isFinite(qty)) {
+      if (qty < 0 || qty > MAX_RECEIVE_QTY || !isFinite(qty)) {
         return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid quantity for ${item.nombreComercial || 'a product'}.`, 400);
       }
     }
@@ -175,7 +160,11 @@ router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'wr
       return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'At least one product must have quantity received > 0.', 400);
     }
 
-    // Verify the order exists, belongs to the finca and is active
+    // Verify the order exists, belongs to the finca and is active. Guardamos sus
+    // líneas para conciliarlas server-side más abajo (recepción parcial
+    // acumulativa). Aceptamos ambos rótulos de "parcial": el canónico
+    // `recibida_parcialmente` y el legacy `recibida_parcial`.
+    let ordenItems = null;
     if (ordenCompraId) {
       const ordenDoc = await db.collection('ordenes_compra').doc(ordenCompraId).get();
       if (!ordenDoc.exists) {
@@ -185,8 +174,31 @@ router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'wr
       if (ordenData.fincaId !== req.fincaId) {
         return sendApiError(res, ERROR_CODES.FORBIDDEN, 'No access to this purchase order.', 403);
       }
-      if (ordenData.estado !== 'activa' && ordenData.estado !== 'recibida_parcial') {
+      const abierta = ['activa', 'recibida_parcial', 'recibida_parcialmente'];
+      if (!abierta.includes(ordenData.estado)) {
         return sendApiError(res, ERROR_CODES.CONFLICT, 'This order has already been received or cancelled.', 400);
+      }
+      ordenItems = Array.isArray(ordenData.items) ? ordenData.items : [];
+    }
+
+    // H1 — multi-tenant: el productoId de cada línea lo controla el cliente y
+    // abajo se usa para `increment(stockActual)`. Sin verificar la finca del
+    // producto, un encargado podría inflar el stock de un producto de OTRA finca
+    // (el movimiento se escribe con SU fincaId, invisible para la finca víctima).
+    // Espeja el chequeo de intake.js/adjustment.js: resolvemos cada productoId y
+    // abortamos si alguno no pertenece a la finca (mismo error para inexistente y
+    // foráneo, sin filtrar existencia cross-tenant).
+    const productoIds = [...new Set(recibidos.map(i => i.productoId).filter(Boolean))];
+    if (productoIds.length > 0) {
+      const prodSnaps = await Promise.all(
+        productoIds.map(id => db.collection('productos').doc(id).get())
+      );
+      const ownedProductoIds = new Set();
+      for (const snap of prodSnaps) {
+        if (snap.exists && snap.data().fincaId === req.fincaId) ownedProductoIds.add(snap.id);
+      }
+      if (productoIds.some(id => !ownedProductoIds.has(id))) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'One or more products are invalid for this finca.', 400);
       }
     }
 
@@ -268,11 +280,17 @@ router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'wr
     });
 
     if (ordenCompraId) {
-      const allReceived = items.every(
-        i => parseFloat(i.cantidadRecibida) >= parseFloat(i.cantidadOC)
-      );
+      // Conciliación server-side: acumula lo recibido sobre las líneas de la OC
+      // y deriva el estado de su propia `cantidad` (no del `cantidadOC` que
+      // manda el cliente). Misma lógica que intake.js y la anulación.
+      const updatedItems = reconcileReceive(ordenItems || [], recibidos.map(i => ({
+        productoId: i.productoId || null,
+        nombreComercial: i.nombreComercial || '',
+        cantidadRecibida: num(i.cantidadRecibida, { max: MAX_RECEIVE_QTY }),
+      })));
       batch.update(db.collection('ordenes_compra').doc(ordenCompraId), {
-        estado: allReceived ? 'recibida' : 'recibida_parcial',
+        estado: computeEstado(updatedItems),
+        items: updatedItems,
       });
     }
 
@@ -437,26 +455,11 @@ router.post('/api/recepciones/:id/anular', authenticate, rateLimit('recepciones_
 
         // Si venía de una OC, decrementar cantidadRecibida y recalcular estado.
         if (ocRef && ocDoc && ocDoc.exists && ocDoc.data().fincaId === req.fincaId) {
-          const ocItems = ocDoc.data().items || [];
-          const updatedItems = ocItems.map(ocItem => {
-            const match = items.find(ri =>
-              ri.productoId === ocItem.productoId ||
-              (ri.nombreComercial || '').toLowerCase().trim() === (ocItem.nombreComercial || '').toLowerCase().trim()
-            );
-            if (!match) return ocItem;
-            const prevReceived = parseFloat(ocItem.cantidadRecibida) || 0;
-            const reverted = parseFloat(match.cantidadRecibida) || 0;
-            return { ...ocItem, cantidadRecibida: Math.max(0, prevReceived - reverted) };
-          });
-          const totalRecibido = updatedItems.reduce((s, i) => s + (parseFloat(i.cantidadRecibida) || 0), 0);
-          const allFull = updatedItems.every(i =>
-            (parseFloat(i.cantidad) || 0) === 0 ||
-            (parseFloat(i.cantidadRecibida) || 0) >= (parseFloat(i.cantidad) || 0)
-          );
-          const nextEstado = totalRecibido === 0
-            ? 'pendiente'
-            : (allFull ? 'recibida' : 'recibida_parcialmente');
-          t.update(ocRef, { estado: nextEstado, items: updatedItems });
+          // Revertir lo recibido por esta recepción y recomputar estado con la
+          // misma lógica compartida que la recepción (consume-once + estado
+          // derivado de la propia OC).
+          const updatedItems = reconcileRevert(ocDoc.data().items || [], items);
+          t.update(ocRef, { estado: computeEstado(updatedItems), items: updatedItems });
         }
 
         return { ok: true, proveedor: recepcion.proveedor || '', itemsCount: itemsConProducto.length };

@@ -155,6 +155,10 @@ const ACTIONS = Object.freeze({
   PERMISO_DECISION: 'permiso.decision',
   PERMISO_DELETE: 'permiso.delete',
   PURCHASE_ORDER_CREATE: 'purchase_order.create',
+  // UPDATE de una OC cambia su estado (incl. `cancelada`, que la saca del
+  // flujo de recepción) o sus líneas. Forensic: quién la canceló/editó y a qué
+  // estado. Las lecturas no se auditan. INFO, alineado con purchase_order.create.
+  PURCHASE_ORDER_UPDATE: 'purchase_order.update',
   PURCHASE_RECEIPT: 'purchase.receipt',
   PURCHASE_RECEIPT_VOID: 'purchase.receipt.void',
   // Solicitudes de compra. CREATE inicia un flujo de dinero y dispara una

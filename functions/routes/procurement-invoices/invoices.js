@@ -15,6 +15,7 @@ const { Router } = require('express');
 const { db, Timestamp, FieldValue } = require('../../lib/firebase');
 const { getAnthropicClient } = require('../../lib/clients');
 const { authenticate } = require('../../lib/middleware');
+const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const {
@@ -26,6 +27,7 @@ const {
   looksInjected,
 } = require('../../lib/aiGuards');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { MAX_RECEIVE_QTY } = require('../../lib/inventory/quantities');
 
 // Hard caps for invoice scanner output — any line exceeding these is rejected
 // instead of silently clamped, because an inflated quantity or subtotal flowing
@@ -37,8 +39,14 @@ const MAX_IMAGE_BASE64_BYTES = 15 * 1024 * 1024; // 15 MB (matches express body 
 
 const router = Router();
 
+// El historial de compras expone proveedores, líneas de factura y montos; va
+// con el mismo piso que el resto del dominio (encargado+). El gate vivía solo
+// en la UI — un trabajador con token podía polearlo vía API.
 router.get('/api/compras', authenticate, async (req, res) => {
   try {
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can view compras.', 403);
+    }
     const snapshot = await db.collection('compras')
       .where('fincaId', '==', req.fincaId)
       .orderBy('createdAt', 'desc')
@@ -59,6 +67,11 @@ router.get('/api/compras', authenticate, async (req, res) => {
 
 router.post('/api/compras/escanear', authenticate, rateLimit('compras_scan', 'ai_medium'), async (req, res) => {
   try {
+    // Quema tokens de Claude Vision y lee el catálogo completo: encargado+,
+    // igual que el resto de escrituras/lecturas caras del dominio.
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can scan invoices.', 403);
+    }
     const { imageBase64, mediaType } = req.body;
     if (!imageBase64 || !mediaType) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'imageBase64 and mediaType are required.', 400);
@@ -248,12 +261,50 @@ Reglas:
   }
 });
 
-router.post('/api/compras/confirmar', authenticate, async (req, res) => {
+router.post('/api/compras/confirmar', authenticate, rateLimit('compras_confirmar', 'write'), async (req, res) => {
   try {
+    // Crea productos, incrementa stock y escribe el ledger: write privilegiado,
+    // mismo piso que /api/ingreso/confirmar (encargado+).
+    if (!hasMinRoleBE(req.userRole, 'encargado')) {
+      return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can confirm a purchase.', 403);
+    }
     const { imageBase64, mediaType, proveedor, fecha, lineas } = req.body;
 
     if (!Array.isArray(lineas) || lineas.length === 0) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'At least one product line is required.', 400);
+    }
+    if (lineas.length > 200) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Too many lines.', 400);
+    }
+    // H9 — acotar la cantidad por línea con el mismo tope que intake/recepciones
+    // (antes este path no tenía cota superior; un valor inflado entraba directo a
+    // stock + movimientos).
+    for (const linea of lineas) {
+      const qty = parseFloat(linea.cantidadIngresada);
+      if (!isNaN(qty) && (qty < 0 || qty > MAX_RECEIVE_QTY || !isFinite(qty))) {
+        return sendApiError(res, ERROR_CODES.INVALID_INPUT, `Invalid quantity for ${linea.nombreComercial || linea.nombreFactura || 'a product'}.`, 400);
+      }
+    }
+
+    // H1 — multi-tenant: las líneas con productoId incrementan stock de un
+    // producto existente; el id lo controla el cliente. Verificamos que cada
+    // producto referenciado pertenezca a la finca antes de tocar su stock
+    // (espeja intake.js/adjustment.js). Las líneas sin productoId crean producto
+    // nuevo con req.fincaId, así que no requieren este chequeo.
+    const lineaProductoIds = [...new Set(
+      lineas.map(l => l && l.productoId).filter(Boolean)
+    )];
+    if (lineaProductoIds.length > 0) {
+      const snaps = await Promise.all(
+        lineaProductoIds.map(id => db.collection('productos').doc(id).get())
+      );
+      const ownedIds = new Set();
+      for (const snap of snaps) {
+        if (snap.exists && snap.data().fincaId === req.fincaId) ownedIds.add(snap.id);
+      }
+      if (lineaProductoIds.some(id => !ownedIds.has(id))) {
+        return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'One or more products are invalid for this finca.', 400);
+      }
     }
 
     const batch = db.batch();
@@ -334,9 +385,30 @@ router.post('/api/compras/confirmar', authenticate, async (req, res) => {
       imageBase64: imageBase64 || null,
       mediaType: mediaType || null,
       createdAt: Timestamp.now(),
+      createdBy: req.uid || null,
+      createdByEmail: req.userEmail || '',
     });
 
     await batch.commit();
+
+    // Audit: la confirmación crea productos, sube stock y escribe el ledger
+    // (irreversible). Mismo criterio que /api/ingreso/confirmar y
+    // /api/recepciones — cierra el único stock-writer del dominio que no
+    // dejaba rastro en audit_events.
+    await writeAuditEvent({
+      fincaId: req.fincaId,
+      actor: req,
+      action: ACTIONS.PURCHASE_RECEIPT,
+      target: { type: 'compra', id: compraRef.id },
+      metadata: {
+        proveedor: (proveedor || '').slice(0, 200),
+        productosCreados,
+        stockActualizados,
+        lineasCount: lineas.length,
+      },
+      severity: SEVERITY.INFO,
+    });
+
     res.status(201).json({
       id: compraRef.id,
       stockActualizados,

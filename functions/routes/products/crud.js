@@ -22,6 +22,43 @@ const { PRODUCT_FIELDS, validateProducto } = require('./helpers');
 
 const router = Router();
 
+// Busca la primera referencia ACTIVA a un producto fuera del catálogo. Borrar o
+// inactivar un producto referenciado deja IDs colgantes que los paths de
+// recepción/egreso luego `.update()` a ciegas. Firestore no puede filtrar por
+// un campo anidado en array-de-objetos, así que escaneamos en memoria los docs
+// candidatos ya acotados por finca + estado activo (cota natural: tareas
+// pendientes, OCs abiertas y solicitudes pendientes de la finca).
+async function findBlockingReference(fincaId, productoId) {
+  const hasProducto = (arr) =>
+    Array.isArray(arr) && arr.some(i => i && i.productoId === productoId);
+
+  const tasksSnap = await db.collection('scheduled_tasks')
+    .where('fincaId', '==', fincaId)
+    .where('status', '==', 'pending')
+    .get();
+  for (const d of tasksSnap.docs) {
+    if (hasProducto(d.data().activity?.productos)) return { type: 'tarea pendiente', id: d.id };
+  }
+
+  const ocSnap = await db.collection('ordenes_compra')
+    .where('fincaId', '==', fincaId)
+    .where('estado', 'in', ['activa', 'recibida_parcial', 'recibida_parcialmente'])
+    .get();
+  for (const d of ocSnap.docs) {
+    if (hasProducto(d.data().items)) return { type: 'orden de compra activa', id: d.id };
+  }
+
+  const solSnap = await db.collection('solicitudes_compra')
+    .where('fincaId', '==', fincaId)
+    .where('estado', '==', 'pendiente')
+    .get();
+  for (const d of solSnap.docs) {
+    if (hasProducto(d.data().items)) return { type: 'solicitud pendiente', id: d.id };
+  }
+
+  return null;
+}
+
 // Rate-limited: el catálogo expone stockActual, precioUnitario, periodos de
 // carencia/reingreso, proveedor — un autenticado con token podía polearlo
 // para extraer pricing y niveles de inventario.
@@ -177,6 +214,10 @@ router.delete('/api/productos/:id', authenticate, rateLimit('productos_write', '
     if (stock > 0) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Only products with zero stock can be deleted.', 409);
     }
+    const blocking = await findBlockingReference(req.fincaId, id);
+    if (blocking) {
+      return sendApiError(res, ERROR_CODES.CONFLICT, `Cannot delete: product is still referenced by a ${blocking.type}.`, 409);
+    }
     await db.collection('productos').doc(id).delete();
 
     writeAuditEvent({
@@ -208,6 +249,10 @@ router.put('/api/productos/:id/inactivar', authenticate, rateLimit('productos_wr
     const stock = ownership.doc.data().stockActual ?? 0;
     if (stock > 0) {
       return sendApiError(res, ERROR_CODES.CONFLICT, 'Only products with zero stock can be deactivated.', 409);
+    }
+    const blocking = await findBlockingReference(req.fincaId, req.params.id);
+    if (blocking) {
+      return sendApiError(res, ERROR_CODES.CONFLICT, `Cannot deactivate: product is still referenced by a ${blocking.type}.`, 409);
     }
     await db.collection('productos').doc(req.params.id).update({ activo: false });
 

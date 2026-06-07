@@ -68,6 +68,7 @@ export const ACTION_OPTIONS = [
   { value: 'permiso.decision',              label: 'Permiso aprobado/rechazado' },
   { value: 'permiso.delete',                label: 'Permiso eliminado' },
   { value: 'purchase_order.create',         label: 'Orden de compra creada' },
+  { value: 'purchase_order.update',         label: 'Orden de compra actualizada' },
   { value: 'purchase.receipt',              label: 'Recepción de mercancía' },
   { value: 'purchase.receipt.void',         label: 'Recepción de mercancía anulada' },
   { value: 'solicitud_compra.create',       label: 'Solicitud de compra creada' },
