@@ -262,7 +262,7 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, re
           const file = bucket.file(filePath);
           await file.save(Buffer.from(scanImageBase64, 'base64'), {
             contentType: scanImageMediaType || 'image/jpeg',
-            metadata: { firebaseStorageDownloadTokens: token },
+            metadata: { metadata: { firebaseStorageDownloadTokens: token } },
           });
           const emulatorHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
           const storageBase = emulatorHost
