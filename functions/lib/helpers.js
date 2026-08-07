@@ -1,6 +1,5 @@
 const webpush = require('web-push');
-const { db, Timestamp, FieldPath, APP_URL, twilioWhatsappFrom } = require('./firebase');
-const { getTwilioClient } = require('./clients');
+const { db, Timestamp, FieldPath } = require('./firebase');
 const { ERROR_CODES } = require('./errors');
 const { signTaskLink } = require('./taskLinkToken');
 
@@ -198,31 +197,40 @@ async function sendPushToFincaRoles(fincaId, roles, { title, body, url }) {
   }
 }
 
-// --- WHATSAPP NOTIFICATION HELPER ---
-async function sendWhatsAppToFincaRoles(fincaId, roles, mensaje) {
-  try {
-    const usersSnap = await db.collection('users')
-      .where('fincaId', '==', fincaId)
-      .get();
-    const targets = usersSnap.docs
-      .filter(d => roles.includes(d.data().rol) && d.data().telefono)
-      .map(d => d.data().telefono);
-    if (!targets.length) return;
+// Push a un usuario puntual (users doc id — mismo id que usa
+// push_subscriptions.uid). Devuelve cuántas notificaciones se entregaron.
+// Poda suscripciones muertas (410/404) igual que sendPushToFincaRoles.
+// Nota: el canal WhatsApp (Twilio) se eliminó; push es el único canal de
+// notificación saliente del backend.
+async function sendPushToUser(fincaId, userId, { title, body, url }) {
+  const subSnap = await db.collection('push_subscriptions')
+    .where('uid', '==', userId)
+    .where('fincaId', '==', fincaId)
+    .get();
+  if (subSnap.empty) return 0;
 
-    const client = getTwilioClient();
-    const from = `whatsapp:${twilioWhatsappFrom.value()}`;
+  const VAPID_SUBJECT = 'mailto:aurora@finca.com';
+  webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+  const payload = JSON.stringify({
+    title: title || 'Aurora',
+    body: body || '',
+    icon: '/aurora-logo.png',
+    badge: '/aurora-logo.png',
+    data: { url: url || '/' },
+  });
 
-    for (const phone of targets) {
-      try {
-        const to = `whatsapp:${phone.replace(/\s+/g, '')}`;
-        await client.messages.create({ body: mensaje, from, to });
-      } catch (err) {
-        console.error(`[WHATSAPP] Error sending to ${phone}:`, err.message);
+  let delivered = 0;
+  for (const subDoc of subSnap.docs) {
+    try {
+      await webpush.sendNotification(subDoc.data().subscription, payload);
+      delivered += 1;
+    } catch (err) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        await subDoc.ref.delete();
       }
     }
-  } catch (err) {
-    console.error('[WHATSAPP] Error sending WhatsApp to roles:', err.message);
   }
+  return delivered;
 }
 
 // NOTE: executeAutopilotAction and AutopilotPausedError live in
@@ -252,18 +260,14 @@ const escapeWhatsappText = (raw, maxLen = 120) => {
   return s;
 };
 
-// --- NOTIFICATION WITH LINK (WhatsApp message linking to the task) ---
+// --- NOTIFICATION WITH LINK (push notification linking to the task) ---
+// Antes salía por WhatsApp (Twilio); el canal se eliminó. El deep link
+// /task/:id con token HMAC se conserva: viaja en data.url del push y el
+// service worker abre la URL al tocar la notificación.
 const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
   try {
-    const client = getTwilioClient();
-
-    const userDoc = await db.collection('users').doc(taskData.activity.responsableId).get();
-    if (!userDoc.exists || !userDoc.data().telefono) return;
-
-    const userData = userDoc.data();
-    const cleanPhoneNumber = userData.telefono.replace(/\s+/g, '');
-    const to = `whatsapp:${cleanPhoneNumber}`;
-    const from = `whatsapp:${twilioWhatsappFrom.value()}`;
+    const responsableId = taskData.activity?.responsableId;
+    if (!responsableId || responsableId === 'proveeduria') return;
 
     let messageIntro;
     const activityDay = parseInt(taskData.activity.day);
@@ -279,18 +283,24 @@ const sendNotificationWithLink = async (taskRef, taskData, loteNombre) => {
     // isn't configured yet; the endpoint falls back to warn mode.
     const linkToken = signTaskLink(taskRef.id);
     const taskUrl = linkToken
-      ? `${APP_URL}/task/${taskRef.id}?t=${linkToken}`
-      : `${APP_URL}/task/${taskRef.id}`;
-    // Sanitize attacker-influenced fields before composing the message so
-    // user-supplied names cannot forge system-looking emphasis/URLs.
+      ? `/task/${taskRef.id}?t=${linkToken}`
+      : `/task/${taskRef.id}`;
+    // El saneo sigue aplicando: nombres controlados por usuarios no deben
+    // poder inyectar saltos de línea ni formato en la notificación.
     const safeName = escapeWhatsappText(taskData.activity?.name, 100);
     const safeLote = escapeWhatsappText(loteNombre, 80);
-    const body = `${messageIntro}\n*Actividad:* "${safeName}"\n*Lote:* ${safeLote}\n\n*Gestiona esta tarea aquí:*\n${taskUrl}`;
 
-    await client.messages.create({ body, from, to });
-    await taskRef.update({ status: 'notified' });
-    console.log(`Notification with LINK sent for task ${taskRef.id} to ${cleanPhoneNumber}`);
-
+    const delivered = await sendPushToUser(taskData.fincaId, responsableId, {
+      title: messageIntro,
+      body: `Actividad: "${safeName}" · Lote: ${safeLote}`,
+      url: taskUrl,
+    });
+    // 'notified' solo si de verdad se entregó al menos una notificación —
+    // antes el status cambiaba tras el POST a Twilio.
+    if (delivered > 0) {
+      await taskRef.update({ status: 'notified' });
+      console.log(`Notification with LINK sent for task ${taskRef.id} (${delivered} push)`);
+    }
   } catch (error) {
     console.error(`[ERROR] Failed to send notification with link for ${taskRef.id}:`, error);
   }
@@ -306,6 +316,6 @@ module.exports = {
   enrichTask,
   writeFeedEvent,
   sendPushToFincaRoles,
-  sendWhatsAppToFincaRoles,
+  sendPushToUser,
   sendNotificationWithLink,
 };

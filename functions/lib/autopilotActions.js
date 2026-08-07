@@ -7,9 +7,10 @@
  * effect and no record, or a "status: executed" record whose effect never
  * landed.
  *
- * Twilio is not transactional, so `enviar_notificacion` uses a two-phase
+ * Web push is not transactional, so `enviar_notificacion` uses a two-phase
  * pattern: mark the action as `pending_external` inside a transaction,
- * call Twilio, then update the action to `executed` or `failed`.
+ * send the push, then update the action to `executed` or `failed`.
+ * (El canal era WhatsApp/Twilio; se eliminó — push es el único canal.)
  *
  * Caller contract (when `actionDocRef` is provided):
  *   - On success: this module has written status='executed' (or
@@ -23,8 +24,8 @@
  * exist and the outcome is applied via `update`.
  */
 
-const { db, Timestamp, twilioWhatsappFrom } = require('./firebase');
-const { getTwilioClient } = require('./clients');
+const { db, Timestamp } = require('./firebase');
+const { sendPushToUser } = require('./helpers');
 const { isPaused: isAutopilotPaused } = require('./autopilotKillSwitch');
 const { ERROR_CODES } = require('./errors');
 const {
@@ -415,9 +416,9 @@ async function executeCrearOrdenCompra(params, fincaId, ctx, options) {
 }
 
 /**
- * Two-phase Twilio execution:
+ * Two-phase push execution:
  *   1. Inside a tx: mark action doc as `pending_external`.
- *   2. Outside the tx: call Twilio.
+ *   2. Outside the tx: send the web push.
  *   3. Update action doc to `executed` or `failed`.
  *
  * Guarantees we always have a record of the attempt at the cost of a possible
@@ -425,7 +426,7 @@ async function executeCrearOrdenCompra(params, fincaId, ctx, options) {
  * cleanup cron can reconcile stale `pending_external` records.
  */
 async function executeEnviarNotificacion(params, fincaId, ctx) {
-  const { userId, mensaje, telefono } = params;
+  const { userId, mensaje } = params;
   const startMs = Date.now();
 
   // Phase 1: mark pending (transactional when we have an action doc)
@@ -445,25 +446,22 @@ async function executeEnviarNotificacion(params, fincaId, ctx) {
     }
   }
 
-  // Phase 2: Twilio call
+  // Phase 2: web push
   try {
-    let phone = telefono;
-    if (!phone) {
-      const userDoc = await db.collection('users').doc(userId).get();
-      if (!userDoc.exists) throw new Error('User not found.');
-      phone = userDoc.data().telefono;
-    }
-    if (!phone) throw new Error('User has no phone number on file.');
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) throw new Error('User not found.');
 
-    const client = getTwilioClient();
-    const to = `whatsapp:${phone.replace(/\s+/g, '')}`;
-    const from = `whatsapp:${twilioWhatsappFrom.value()}`;
-    await client.messages.create({ body: mensaje, from, to });
+    const delivered = await sendPushToUser(fincaId, userId, {
+      title: 'Aurora — Piloto Automático',
+      body: mensaje,
+      url: '/autopilot',
+    });
+    if (delivered === 0) throw new Error('User has no push subscription on file.');
 
     const result = { ok: true, userId, enviado: true };
 
     // Phase 3: mark executed and record a non-compensable compensation
-    // (Twilio messages cannot be unsent; the record exists for UI clarity).
+    // (a delivered push cannot be unsent; the record exists for UI clarity).
     if (ctx.actionDocRef) {
       await ctx.actionDocRef.update({
         status: 'executed',

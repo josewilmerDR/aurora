@@ -4,9 +4,9 @@ const admin = require('firebase-admin');
 const { getFirestore, Timestamp, FieldValue, FieldPath } = require('firebase-admin/firestore');
 
 // --- SECRET DEFINITIONS (Firebase Functions "params" system) ---
-const twilioAccountSid = defineSecret("TWILIO_ACCOUNT_SID");
-const twilioAuthToken = defineSecret("TWILIO_AUTH_TOKEN");
-const twilioWhatsappFrom = defineSecret("TWILIO_WHATSAPP_FROM");
+// Los secrets TWILIO_* se eliminaron junto con el canal WhatsApp: push es
+// el único canal de notificación saliente. Si se reintegra WhatsApp será
+// por otro medio (decisión 2026-08-07).
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 const vapidPublicKey = defineSecret("VAPID_PUBLIC_KEY");
 const vapidPrivateKey = defineSecret("VAPID_PRIVATE_KEY");
@@ -65,9 +65,6 @@ module.exports = {
   resolveAppUrl, // exportada para tests
 
   // Secrets
-  twilioAccountSid,
-  twilioAuthToken,
-  twilioWhatsappFrom,
   anthropicApiKey,
   vapidPublicKey,
   vapidPrivateKey,
@@ -76,7 +73,6 @@ module.exports = {
   taskLinkSecret,
   // All secrets array for Cloud Function config
   allSecrets: [
-    twilioAccountSid, twilioAuthToken, twilioWhatsappFrom,
     anthropicApiKey, vapidPublicKey, vapidPrivateKey,
     openWeatherApiKey, alphaVantageApiKey,
     taskLinkSecret,

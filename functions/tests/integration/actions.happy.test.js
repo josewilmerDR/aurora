@@ -8,11 +8,13 @@
  *   - autopilot_compensations doc exists with the inverse operation ready to run
  */
 
-// Mock the Twilio client — enviar_notificacion must not hit the network.
+// Mock web-push — enviar_notificacion (ahora push, el canal Twilio se
+// eliminó) must not hit the network.
+jest.mock('web-push', () => ({
+  setVapidDetails: jest.fn(),
+  sendNotification: jest.fn().mockResolvedValue({}),
+}));
 jest.mock('../../lib/clients', () => ({
-  getTwilioClient: () => ({
-    messages: { create: jest.fn().mockResolvedValue({ sid: 'SM_test' }) },
-  }),
   getAnthropicClient: jest.fn(),
 }));
 
@@ -151,9 +153,14 @@ describe('executeAutopilotAction — happy paths', () => {
   test('enviar_notificacion transitions pending_external → executed + not_compensable record', async () => {
     const fincaId = uniqueFincaId('notif');
     fincas.push(fincaId);
-    // Seed a user with a phone number
+    // Seed a user with a push subscription (el canal es push, no WhatsApp)
     const userRef = db.collection('users').doc();
-    await userRef.set({ fincaId, telefono: '+573001234567' });
+    await userRef.set({ fincaId, nombre: 'Notif Target' });
+    const subRef = await db.collection('push_subscriptions').add({
+      uid: userRef.id,
+      fincaId,
+      subscription: { endpoint: 'https://push.example/x', keys: {} },
+    });
 
     const { actionDocRef, actionInitialDoc } = newActionContext(fincaId, { type: 'enviar_notificacion' });
     const result = await executeAutopilotAction('enviar_notificacion', {
@@ -171,6 +178,7 @@ describe('executeAutopilotAction — happy paths', () => {
     expect(comp.compensationType).toBe('not_compensable');
     expect(comp.status).toBe('not_compensable');
 
+    await subRef.delete();
     await userRef.delete();
   });
 

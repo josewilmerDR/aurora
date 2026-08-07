@@ -183,14 +183,13 @@ const AUTOPILOT_PROPOSE_TOOLS = [
   },
   {
     name: 'proponer_notificacion',
-    description: 'Propone enviar una notificación WhatsApp a un trabajador.',
+    description: 'Propone enviar una notificación push a un trabajador.',
     input_schema: {
       type: 'object',
       properties: {
         userId:   { type: 'string', description: 'ID del usuario destinatario (del catálogo).' },
         userName: { type: 'string', description: 'Nombre del usuario.' },
-        telefono: { type: 'string', description: 'Teléfono del usuario.' },
-        mensaje:  { type: 'string', description: 'Contenido del mensaje WhatsApp.' },
+        mensaje:  { type: 'string', description: 'Contenido de la notificación.' },
         razon:    { type: 'string', description: 'Razón de la notificación.' },
         prioridad:{ type: 'string', enum: ['alta', 'media', 'baja'] },
       },
@@ -340,14 +339,13 @@ const AUTOPILOT_EXECUTE_TOOLS = [
   },
   {
     name: 'ejecutar_notificacion',
-    description: 'Envía una notificación WhatsApp a un trabajador directamente.',
+    description: 'Envía una notificación push a un trabajador directamente.',
     input_schema: {
       type: 'object',
       properties: {
         userId:   { type: 'string', description: 'ID del usuario destinatario (del catálogo).' },
         userName: { type: 'string', description: 'Nombre del usuario.' },
-        telefono: { type: 'string', description: 'Teléfono del usuario.' },
-        mensaje:  { type: 'string', description: 'Contenido del mensaje WhatsApp.' },
+        mensaje:  { type: 'string', description: 'Contenido de la notificación.' },
         razon:    { type: 'string', description: 'Razón de la notificación.' },
         prioridad:{ type: 'string', enum: ['alta', 'media', 'baja'] },
       },

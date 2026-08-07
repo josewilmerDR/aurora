@@ -9,7 +9,7 @@
 // nada — sólo registra propuestas.
 
 const { db, Timestamp } = require('../../../lib/firebase');
-const { writeFeedEvent, sendPushToFincaRoles, sendWhatsAppToFincaRoles } = require('../../../lib/helpers');
+const { writeFeedEvent, sendPushToFincaRoles } = require('../../../lib/helpers');
 const {
   thinkingConfig,
   MAX_TOKENS_WITH_THINKING,
@@ -162,22 +162,11 @@ Analiza el estado y propón acciones concretas usando las herramientas disponibl
   // Push + WhatsApp — notificar a supervisores que hay acciones pendientes
   if (proposedActions.length > 0) {
     const notifRoles = ['supervisor', 'administrador'];
-    const actionsList = proposedActions.map(a => `• ${a.titulo}`).join('\n');
-
     sendPushToFincaRoles(req.fincaId, notifRoles, {
       title: '🤖 Aurora Copiloto — Nivel 2',
       body: `${proposedActions.length} acción(es) propuestas esperan tu aprobación.`,
       url: '/autopilot',
     });
-
-    sendWhatsAppToFincaRoles(req.fincaId, notifRoles, [
-      '🤖 *Aurora Copiloto — Nivel 2*',
-      '',
-      `*${proposedActions.length} acciones propuestas:*`,
-      actionsList,
-      '',
-      '_Ingresa a Aurora para aprobar o rechazar._',
-    ].join('\n'));
   }
 
   return res.json({

@@ -8,14 +8,13 @@
 jest.mock('../../lib/firebase', () => ({
   db: { collection: jest.fn() },
   Timestamp: { now: () => ({}) },
-  twilioWhatsappFrom: '',
 }));
 
 jest.mock('../../lib/autopilotKillSwitch', () => ({
   isPaused: jest.fn().mockResolvedValue(false),
 }));
 
-jest.mock('../../lib/clients', () => ({ getTwilioClient: jest.fn() }));
+jest.mock('../../lib/clients', () => ({ getAnthropicClient: jest.fn() }));
 
 const {
   executeAutopilotAction,

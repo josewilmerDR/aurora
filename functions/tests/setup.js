@@ -19,10 +19,4 @@ process.env.FIREBASE_CONFIG = process.env.FIREBASE_CONFIG || JSON.stringify({
 });
 process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'aurora-7dc9b';
 
-// Secrets are `.value()`-accessed lazily. Supply dummy values so test output
-// isn't littered with "No value found for secret parameter" warnings when a
-// case reads a secret before the mocked client intercepts the call (e.g. the
-// two-phase Twilio path). The mock prevents any actual network use.
-process.env.TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM || '+0000000000';
-process.env.TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || 'AC_test';
-process.env.TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || 'test';
+// (Los dummies TWILIO_* se eliminaron junto con el canal WhatsApp.)

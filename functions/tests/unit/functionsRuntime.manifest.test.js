@@ -8,7 +8,7 @@
  *
  *   1. El fallo silencioso del PR: agregar opciones a exports.api perdiendo
  *      `secrets: allSecrets`. Despliega bien, arranca bien, y en runtime
- *      todo lo de Claude, Twilio y push falla por credenciales vacías. Acá
+ *      todo lo de Claude y push falla por credenciales vacías. Acá
  *      se exige la lista COMPLETA de secrets.
  *   2. La región no se toca: fijar us-central1 es un no-op, pero cambiarla
  *      borra y recrea la función, cambia la URL y rompe el rewrite de
@@ -50,12 +50,13 @@ describe('manifiesto de exports.api', () => {
     expect(ep.region).toBeUndefined();
 
     // (1) la lista completa de secrets sobrevive a las opciones nuevas
+    // (6 desde que se eliminaron los TWILIO_* junto con el canal WhatsApp)
     const declared = (ep.secretEnvironmentVariables || []).map(s => s.key).sort();
     const expected = allSecrets.map(s => s.name).sort();
     expect(declared).toEqual(expected);
-    expect(declared.length).toBeGreaterThanOrEqual(9);
+    expect(declared.length).toBeGreaterThanOrEqual(6);
     expect(declared).toEqual(expect.arrayContaining([
-      'ANTHROPIC_API_KEY', 'TWILIO_AUTH_TOKEN', 'VAPID_PRIVATE_KEY', 'TASK_LINK_SECRET',
+      'ANTHROPIC_API_KEY', 'VAPID_PRIVATE_KEY', 'TASK_LINK_SECRET',
     ]));
   });
 });
