@@ -88,3 +88,9 @@ jobs:
 
       - name: Check routes/ LOC budget
         run: node scripts/check-routes-loc.cjs
+
+      # Identidad de inquilino: el literal "Finca Aurora" no puede volver a
+      # los documentos (imprimir el nombre de otra empresa es peor que un
+      # documento incompleto). Allowlist en el propio script.
+      - name: Check tenant literal
+        run: node scripts/check-tenant-literal.cjs

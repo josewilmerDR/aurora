@@ -11,6 +11,8 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraDataTable from '../../../components/AuroraDataTable';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 import '../styles/siembra.css';
 import '../styles/siembra-historial.css';
 
@@ -59,19 +61,9 @@ const COLUMNS = [
 const formatFecha = (iso) =>
   new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: '2-digit' });
 
-// Defense-in-depth: only allow https logo URLs so an admin-controlled config
-// can't be abused to point at an attacker-controlled origin (the URL is loaded
-// every time the preview opens). Data URIs are also accepted for uploaded
-// logos. Anything else falls back to the "AU" placeholder.
-const sanitizeLogoUrl = (url) => {
-  if (typeof url !== 'string' || !url) return '';
-  if (url.startsWith('https://') || url.startsWith('data:image/')) return url;
-  return '';
-};
-
 const EXPORT_HEADERS = ['Fecha', 'Lote', 'Bloque', 'Plantas', 'Densidad', 'Área (ha)', 'Material', 'Variedad', 'Cerrado', 'F. Cierre', 'Responsable'];
 
-function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onExportXLSX, onError }) {
+function SiembraHistorialPreview({ empresa, displayData, stats, onClose, onExportXLSX, onError }) {
   const fechaEmision = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: 'long', year: 'numeric' });
   const docRef = useRef(null);
   const [sharing, setSharing] = useState(false);
@@ -141,32 +133,13 @@ function SiembraHistorialPreview({ fincaConfig, displayData, stats, onClose, onE
 
       {/* ── Documento ── */}
       <div className="sh-preview-doc-wrap">
+        <IdentityNotice show={empresa.missingIdentity} />
         <div className="sh-preview-doc" ref={docRef}>
 
-          {/* Encabezado */}
+          {/* Encabezado — DocBrand guarda el String() del nombre: el
+              .toUpperCase() directo reventaba si config llegaba sin string. */}
           <div className="pr-doc-header">
-            <div className="pr-doc-brand">
-              <div className="pr-doc-logo">
-                {fincaConfig.logoUrl
-                  ? <img
-                      src={fincaConfig.logoUrl}
-                      alt="Logo"
-                      className="pr-doc-logo-img"
-                      referrerPolicy="no-referrer"
-                      crossOrigin="anonymous"
-                    />
-                  : 'AU'}
-              </div>
-              <div className="pr-doc-brand-info">
-                <div className="pr-doc-brand-name">{fincaConfig.nombreEmpresa.toUpperCase()}</div>
-                {fincaConfig.identificacion && <div className="pr-doc-brand-sub">Céd. {fincaConfig.identificacion}</div>}
-                {fincaConfig.direccion && (
-                  <div className="pr-doc-brand-sub">
-                    {fincaConfig.direccion}{fincaConfig.whatsapp ? ` · Tel: ${fincaConfig.whatsapp}` : ''}
-                  </div>
-                )}
-              </div>
-            </div>
+            <DocBrand classPrefix="pr-doc" empresa={empresa} boxedLogo uppercaseName />
             <div className="pr-doc-title-block">
               <div className="pr-doc-title">HISTORIAL DE SIEMBRA</div>
               <table className="pr-doc-meta-table">
@@ -361,7 +334,9 @@ function SiembraHistorial() {
   const [toast,     setToast]     = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [fincaConfig, setFincaConfig] = useState({ nombreEmpresa: 'Finca Aurora', identificacion: '', direccion: '', whatsapp: '', logoUrl: '' });
+  const [fincaConfig, setFincaConfig] = useState({});
+  // Cascada nombreEmpresa → organización + logo saneado (src/lib/empresa.js).
+  const empresa = useEmpresaIdentity(fincaConfig);
 
   const [lotes, setLotes]           = useState([]);
   const [materiales, setMateriales] = useState([]);
@@ -383,13 +358,7 @@ function SiembraHistorial() {
     if (!showPreview) return;
     apiFetch('/api/config')
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then(data => setFincaConfig({
-        nombreEmpresa:  data.nombreEmpresa  || 'Finca Aurora',
-        identificacion: data.identificacion || '',
-        direccion:      data.direccion      || '',
-        whatsapp:       data.whatsapp       || '',
-        logoUrl:        sanitizeLogoUrl(data.logoUrl),
-      }))
+      .then(data => setFincaConfig(data && typeof data === 'object' ? data : {}))
       .catch(() => showToast('No se pudo cargar la configuración de la finca. El encabezado del reporte usará valores por defecto.', 'error'));
   }, [showPreview]);
 
@@ -599,7 +568,7 @@ function SiembraHistorial() {
       )}
       {showPreview && (
         <SiembraHistorialPreview
-          fincaConfig={fincaConfig}
+          empresa={empresa}
           displayData={displayData}
           stats={stats}
           onClose={() => setShowPreview(false)}

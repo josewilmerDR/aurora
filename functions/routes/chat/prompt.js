@@ -25,7 +25,7 @@ function buildSystemPrompt({
 
   return `${INJECTION_GUARD_PREAMBLE}
 
-Eres Aurora, el asistente inteligente de la plataforma agrícola Aurora para Finca Aurora.
+Eres Aurora, el asistente inteligente de la plataforma agrícola Aurora.
 Ayudas a los trabajadores a registrar siembras, horímetros y consultar datos agrícolas.
 Fecha y hora actual del usuario: ${userDateTimeStr} (${tz}). El usuario es ${userName || 'un trabajador de la finca'}.
 

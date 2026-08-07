@@ -1,25 +1,7 @@
 import { forwardRef, useMemo } from 'react';
 import { tsToDate, formatDateLong, calcFechaCosecha, deriveCambiosLineas } from '../lib/cedulas-helpers';
-
-// Iniciales del nombre de la finca como fallback cuando no hay logoUrl.
-// Antes el placeholder estático "AU" sugería "Aurora" en cédulas de fincas
-// que tenían su propio nombreEmpresa configurado — quedaba como branding
-// confuso. Punto #23 audit. Devuelve max 2 chars en mayúsculas.
-const fincaInitials = (nombreEmpresa) => {
-  const txt = (nombreEmpresa || '').trim();
-  if (!txt) return 'AU';
-  const words = txt.split(/\s+/).filter(Boolean);
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-};
-
-// Validamos el scheme del logoUrl antes de renderizarlo como <img>. config.js
-// solo genera URLs http(s) desde Firebase Storage, pero una escritura directa
-// vía Admin SDK (chat tool, autopilot, consola Firestore manual) podría
-// colgar un data:, javascript: o file: que el browser cargaría sin chequeo.
-// Default-deny todo lo que no sea http/https — el fallback es el placeholder
-// de iniciales. L8 audit.
-const isSafeImgUrl = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 
 // ── CedulaDocumento ──────────────────────────────────────────────────────────
 // El papel blanco con el documento auditable de la cédula que se renderiza
@@ -93,29 +75,19 @@ const CedulaDocumento = forwardRef(function CedulaDocumento({
     return max > 0 ? `${max} h` : '—';
   }, [previewProductos, getProductoCatalog, snapOverrides?.periodoReingresoMax]);
 
+  // Cascada de identidad + saneo de logo unificados (antes locales acá:
+  // isSafeImgUrl L8 audit / fincaInitials #23 — ahora en src/lib/empresa.js,
+  // crossOrigin #13 lo pone DocBrand).
+  const empresa = useEmpresaIdentity(config);
+
   return (
     <div className="ca-doc-wrap">
+      <IdentityNotice show={empresa.missingIdentity} />
       <div className="ca-document" ref={ref}>
 
         {/* ── Encabezado ── */}
         <div className="ca-doc-header">
-          <div className="ca-doc-brand">
-            {isSafeImgUrl(config.logoUrl)
-              // crossOrigin="anonymous" pareado con html2canvas useCORS:true.
-              // Sin esto, un logo hosteado en CDN externo taintaba el canvas
-              // y toDataURL() lanzaba SecurityError → el botón "Compartir"
-              // caía silencioso. Punto #13 audit.
-              ? <img src={config.logoUrl} alt="Logo" className="ca-doc-logo-img" crossOrigin="anonymous" />
-              : <div className="ca-doc-logo">{fincaInitials(config.nombreEmpresa)}</div>
-            }
-            <div className="ca-doc-brand-info">
-              <div className="ca-doc-brand-name">{config.nombreEmpresa || 'Finca Aurora'}</div>
-              {config.identificacion && <div className="ca-doc-brand-sub">Cédula: {config.identificacion}</div>}
-              {config.whatsapp      && <div className="ca-doc-brand-sub">Tel: {config.whatsapp}</div>}
-              {config.correo        && <div className="ca-doc-brand-sub">{config.correo}</div>}
-              {config.direccion     && <div className="ca-doc-brand-sub">{config.direccion}</div>}
-            </div>
-          </div>
+          <DocBrand classPrefix="ca-doc" empresa={empresa} />
           <div className="ca-doc-title-block">
             <div className="ca-doc-title">CÉDULA DE APLICACIÓN DE AGROQUÍMICOS</div>
             <div className="ca-doc-subtitle">Aplicación: {previewTask.activityName}</div>

@@ -10,7 +10,9 @@ import AuroraModal from '../../../components/AuroraModal';
 import EmptyState from '../../../components/ui/EmptyState';
 import SegmentCombobox from '../components/SegmentCombobox';
 import { translateApiError } from '../../../lib/errorMessages';
-import { todayStr, fmtMoney, fmtDate, newSegId, newSegmento, isHoraUnit, safeImageUrl, ESTADO_LABEL, ESTADO_CLASS, parseLaborString, countTrabajadoresConCantidad } from '../lib/unit-payroll-shared';
+import { todayStr, fmtMoney, fmtDate, newSegId, newSegmento, isHoraUnit, ESTADO_LABEL, ESTADO_CLASS, parseLaborString, countTrabajadoresConCantidad } from '../lib/unit-payroll-shared';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 import '../styles/hr.css';
 import '../styles/unit-payroll.css';
 
@@ -137,7 +139,9 @@ function UnitPayroll() {
   const cantidadRefs = useRef({});
   const nuevoSegmentoRef = useRef(null);
   const pendingFocusSegId = useRef(null);
-  const [companyConfig, setCompanyConfig] = useState({ nombreEmpresa: '', logoUrl: '', identificacion: '', whatsapp: '', direccion: '' });
+  const [companyConfig, setCompanyConfig] = useState({});
+  // Cascada nombreEmpresa → organización + logo saneado (src/lib/empresa.js).
+  const empresa = useEmpresaIdentity(companyConfig);
   const [guardando, setGuardando] = useState(false);
   const [showAprobarConfirm, setShowAprobarConfirm] = useState(false);
   const [confirmDelPlanilla, setConfirmDelPlanilla] = useState(null);
@@ -313,7 +317,7 @@ function UnitPayroll() {
       const fallidos = results.filter(Boolean);
       if (fallidos.length) showToast(`No se pudieron cargar algunos catálogos: ${fallidos.join(', ')}.`, 'error');
     });
-    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig({ nombreEmpresa: data.nombreEmpresa || '', logoUrl: data.logoUrl || '', identificacion: data.identificacion || '', whatsapp: data.whatsapp || '', direccion: data.direccion || '' })).catch(console.error);
+    apiFetch('/api/config').then(r => r.json()).then(data => setCompanyConfig(data && typeof data === 'object' ? data : {})).catch(console.error);
     fetchHistorial();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1075,26 +1079,17 @@ function UnitPayroll() {
                   <p>Generando PDF…</p>
                 </div>
               )}
+              <IdentityNotice show={empresa.missingIdentity} />
               <div className="pu-preview-document" ref={previewRef}>
                 {/* Encabezado */}
                 <div className="pu-pdoc-header">
-                  <div className="pu-pdoc-brand">
-                    <div className="pu-pdoc-logo">
-                      {(() => {
-                        const logo = safeImageUrl(companyConfig.logoUrl);
-                        if (logo) return <img src={logo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }} />;
-                        return companyConfig.nombreEmpresa
-                          ? companyConfig.nombreEmpresa.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-                          : 'AU';
-                      })()}
-                    </div>
-                    <div className="pu-pdoc-brand-info">
-                      <div className="pu-pdoc-brand-name">{companyConfig.nombreEmpresa || 'Finca Aurora'}</div>
-                      {companyConfig.identificacion && <div className="pu-pdoc-brand-detail">Identificación: {companyConfig.identificacion}</div>}
-                      {companyConfig.whatsapp && <div className="pu-pdoc-brand-detail">Teléfono: {companyConfig.whatsapp}</div>}
-                      {companyConfig.direccion && <div className="pu-pdoc-brand-detail">Dirección: {companyConfig.direccion}</div>}
-                    </div>
-                  </div>
+                  <DocBrand
+                    classPrefix="pu-pdoc"
+                    empresa={empresa}
+                    boxedLogo
+                    subSuffix="brand-detail"
+                    logoImgStyle={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }}
+                  />
                   <div className="pu-pdoc-title-block">
                     <div className="pu-pdoc-title">Planilla por Unidad / Hora</div>
                     <table className="pu-pdoc-meta-table">

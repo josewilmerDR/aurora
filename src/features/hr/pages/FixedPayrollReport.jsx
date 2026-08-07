@@ -5,6 +5,8 @@ import { useApiFetch } from '../../../hooks/useApiFetch';
 import { useToast } from '../../../contexts/ToastContext';
 import { CCSS_RATE, fmt, fmtIsoLong, fmtIsoShort } from '../lib/payroll-format';
 import { csvRow, downloadCsv } from '../lib/csv';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 import '../styles/fixed-payroll-report.css';
 
 // salarioDiario autoritativo de la fila; fallback a mensual/30 sólo si no vino
@@ -29,9 +31,10 @@ export default function FixedPayrollReport() {
   const [fechaEmisionIso, setFechaEmisionIso] = useState(() => new Date().toISOString());
 
   // Company config from /api/config
-  const [config, setConfig] = useState({ nombreEmpresa: 'Finca Aurora', identificacion: '', direccion: '', whatsapp: '', logoUrl: '' });
+  const [config, setConfig] = useState({});
   const [configLoading, setConfigLoading] = useState(true);
-  const [logoBroken, setLogoBroken] = useState(false);
+  // Cascada nombreEmpresa → organización + logo saneado (src/lib/empresa.js).
+  const empresa = useEmpresaIdentity(config);
 
   const [hydrated, setHydrated] = useState(false);
   const [backRoute, setBackRoute] = useState('/hr/planilla/fijo');
@@ -110,14 +113,9 @@ export default function FixedPayrollReport() {
       .then(r => r.json())
       .then(data => {
         if (!alive) return;
-        setConfig({
-          nombreEmpresa:  data.nombreEmpresa  || 'Finca Aurora',
-          identificacion: data.identificacion || '',
-          direccion:      data.direccion      || '',
-          whatsapp:       data.whatsapp       || '',
-          logoUrl:        data.logoUrl        || '',
-        });
-        setLogoBroken(false);
+        // Config cruda: la cascada de nombre y el saneo de logo los aplica
+        // useEmpresaIdentity (src/lib/empresa.js) — acá sin fallbacks.
+        setConfig(data && typeof data === 'object' ? data : {});
       })
       .catch(() => {})
       .finally(() => { if (alive) setConfigLoading(false); });
@@ -223,9 +221,9 @@ export default function FixedPayrollReport() {
     }
   }, [docTitle, sharing, toast]);
 
-  // Loading: gateamos el documento hasta tener datos Y config. Evita el flash de
-  // branding placeholder ('Finca Aurora' / logo 'AU') saltando al real, y que el
-  // usuario imprima/comparta un documento a medio hidratar.
+  // Loading: gateamos el documento hasta tener datos Y config. Evita el flash
+  // del branding fallback saltando al real, y que el usuario imprima/comparta
+  // un documento a medio hidratar.
   if (!hydrated || configLoading) {
     return (
       <main className="pr-page">
@@ -309,22 +307,12 @@ export default function FixedPayrollReport() {
 
       {/* ══ DOCUMENT ══ */}
       <div className="pr-doc-wrap">
+        <IdentityNotice show={empresa.missingIdentity} />
         <div className="pr-document" ref={docRef}>
 
           {/* ── Encabezado ── */}
           <div className="pr-doc-header">
-            <div className="pr-doc-brand">
-              <div className="pr-doc-logo">
-                {config.logoUrl && !logoBroken
-                  ? <img src={config.logoUrl} alt={config.nombreEmpresa} className="pr-doc-logo-img" onError={() => setLogoBroken(true)} />
-                  : 'AU'}
-              </div>
-              <div className="pr-doc-brand-info">
-                <div className="pr-doc-brand-name">{String(config.nombreEmpresa || 'Finca Aurora').toUpperCase()}</div>
-                {config.identificacion && <div className="pr-doc-brand-sub">Céd. {config.identificacion}</div>}
-                {config.direccion && <div className="pr-doc-brand-sub">{config.direccion}{config.whatsapp ? ` · Tel: ${config.whatsapp}` : ''}</div>}
-              </div>
-            </div>
+            <DocBrand classPrefix="pr-doc" empresa={empresa} boxedLogo uppercaseName />
             <div className="pr-doc-title-block">
               <div className="pr-doc-title">
                 {isComprobante ? 'COMPROBANTE DE PAGO' : 'PLANILLA DE SALARIOS'}

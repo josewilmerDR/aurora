@@ -11,6 +11,8 @@ import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import { useUser } from '../../../contexts/UserContext';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 import '../styles/oc-nueva.css';
 import '../styles/oc-desde-solicitud.css';
 
@@ -292,6 +294,8 @@ const OrdenesList = () => {
   const [catalogo, setCatalogo] = useState([]);
   const [proveedoresCatalog, setProveedoresCatalog] = useState([]);
   const [empresaConfig, setEmpresaConfig] = useState({});
+  // Cascada nombreEmpresa → organización + logo saneado (src/lib/empresa.js).
+  const empresa = useEmpresaIdentity(empresaConfig);
   const [filas,       setFilas,       clearFilasDraft]       = useDraft('oc-filas',       () => [newRow()]);
   const [proveedor,   setProveedor,   clearProveedorDraft]   = useDraft('oc-proveedor',   '');
   const [contacto,    setContacto,    clearContactoDraft]    = useDraft('oc-contacto',    '');
@@ -1059,22 +1063,11 @@ const OrdenesList = () => {
             </div>
 
             <div className="po-doc-wrap">
+              <IdentityNotice show={empresa.missingIdentity} />
               <div className="po-document" ref={poDocRef}>
                 {/* Header */}
                 <div className="po-doc-header">
-                  <div className="po-doc-brand">
-                    {empresaConfig.logoUrl
-                      ? <img src={empresaConfig.logoUrl} alt="Logo" className="po-doc-logo-img" />
-                      : <div className="po-doc-logo">AU</div>
-                    }
-                    <div className="po-doc-brand-info">
-                      <div className="po-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
-                      {empresaConfig.identificacion && <div className="po-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
-                      {empresaConfig.whatsapp      && <div className="po-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
-                      {empresaConfig.correo         && <div className="po-doc-brand-sub">{empresaConfig.correo}</div>}
-                      {empresaConfig.direccion      && <div className="po-doc-brand-sub">{empresaConfig.direccion}</div>}
-                    </div>
-                  </div>
+                  <DocBrand classPrefix="po-doc" empresa={empresa} />
                   <div className="po-doc-title-block">
                     <div className="po-doc-title">ORDEN DE COMPRA</div>
                     <table className="po-doc-meta-table">
