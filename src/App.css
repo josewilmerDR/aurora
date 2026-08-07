@@ -180,14 +180,18 @@
   line-height: 1;
 }
 
-/* Cluster right-aligned: el primero (chat, siempre presente) recibe
-   margin-left:auto y empuja al resto a la derecha. Autopilot y profile
-   siguen sin spacer cuando el chat está presente. */
+/* Cluster right-aligned: el primero (ecosystem, siempre presente) recibe
+   margin-left:auto y empuja al resto a la derecha. Los siguientes resetean
+   el spacer cuando hay un hermano del cluster antes. */
+.aur-ecosystem,
 .aur-header-chat-btn,
 .aur-header-autopilot-btn,
 .aur-header-profile-btn {
   margin-left: auto;
 }
+.aur-ecosystem ~ .aur-header-chat-btn,
+.aur-ecosystem ~ .aur-header-autopilot-btn,
+.aur-ecosystem ~ .aur-header-profile-btn,
 .aur-header-chat-btn ~ .aur-header-autopilot-btn,
 .aur-header-chat-btn ~ .aur-header-profile-btn,
 .aur-header-autopilot-btn ~ .aur-header-profile-btn {
@@ -322,6 +326,7 @@
   }
 
   /* En mobile los botones del header vuelven a su flujo flex normal */
+  .aur-ecosystem,
   .aur-header-chat-btn,
   .aur-header-autopilot-btn,
   .aur-header-profile-btn {
