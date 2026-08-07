@@ -1,7 +1,7 @@
-// Pure builder for the outbound RFQ (Request for Quotation) message sent
-// to a supplier via WhatsApp. Spanish, intentionally short because WhatsApp
-// mobile reading is brief. Maximum body length ~1500 chars to stay well
-// below Twilio's 1600-char limit.
+// Pure builder for the RFQ (Request for Quotation) message que el operador
+// envía manualmente al proveedor (el canal Twilio se eliminó). Spanish,
+// intentionally short: lectura móvil breve. Maximum ~1500 chars — cabe en
+// un mensaje de WhatsApp/SMS si el operador usa ese medio.
 
 const MAX_MESSAGE = 1500;
 

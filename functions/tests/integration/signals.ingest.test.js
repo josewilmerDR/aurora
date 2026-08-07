@@ -9,7 +9,6 @@
  */
 
 jest.mock('../../lib/clients', () => ({
-  getTwilioClient: () => ({ messages: { create: jest.fn().mockResolvedValue({ sid: 'SM_test' }) } }),
   getAnthropicClient: jest.fn(),
 }));
 

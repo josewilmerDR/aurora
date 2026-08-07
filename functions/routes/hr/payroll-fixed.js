@@ -10,10 +10,9 @@
 // compartir archivo.
 
 const { Router } = require('express');
-const { db, Timestamp, twilioWhatsappFrom } = require('../../lib/firebase');
+const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
-const { getTwilioClient } = require('../../lib/clients');
+const { verifyOwnership, hasMinRoleBE, sendPushToFincaRoles } = require('../../lib/helpers');
 const { rateLimit } = require('../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
@@ -184,28 +183,15 @@ router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (r
       history: [buildHistoryEntry({ userId: authUserId, email: req.userEmail, action: 'created:pendiente' })],
     });
 
-    // Notificar supervisores/admins vía WhatsApp (best-effort).
+    // Notificar supervisores/admins vía push (best-effort). El canal
+    // WhatsApp/Twilio se eliminó.
     try {
-      const client = getTwilioClient();
-      const usersSnap = await db.collection('users')
-        .where('fincaId', '==', req.fincaId)
-        .where('rol', 'in', ['supervisor', 'administrador'])
-        .get();
       const total = totalGeneral.toLocaleString('es-CR');
-      const body = `📋 *Planilla Pendiente de Pago*\nPeríodo: ${labelClean}\nTotal a pagar: ₡${total}\nRevise y apruebe el pago en el sistema Aurora.`;
-      const from = `whatsapp:${twilioWhatsappFrom.value()}`;
-      const notifPromises = [];
-      usersSnap.forEach(doc => {
-        const u = doc.data();
-        if (u.telefono) {
-          const to = `whatsapp:${u.telefono.replace(/\s+/g, '')}`;
-          notifPromises.push(
-            client.messages.create({ body, from, to })
-              .catch(e => console.warn('Notif planilla fallida para', u.nombre, e.message))
-          );
-        }
+      await sendPushToFincaRoles(req.fincaId, ['supervisor', 'administrador'], {
+        title: '📋 Planilla pendiente de pago',
+        body: `Período: ${labelClean} · Total a pagar: ₡${total}. Revise y apruebe el pago.`,
+        url: '/hr/planilla',
       });
-      await Promise.all(notifPromises);
     } catch (notifErr) {
       console.warn('Failed to send planilla notifications:', notifErr.message);
     }

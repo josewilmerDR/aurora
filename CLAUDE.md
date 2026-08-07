@@ -66,9 +66,9 @@ functions/
   index.js              — Entry point (~53 LOC): mounts routers, exports Cloud Functions
   lib/
     firebase.js         — admin.initializeApp, db, Timestamp, FieldValue, secrets, constants
-    clients.js          — getTwilioClient(), getAnthropicClient() (lazy singletons)
+    clients.js          — getAnthropicClient() (lazy singleton; el cliente Twilio se eliminó)
     middleware.js        — authenticate, authenticateOnly
-    helpers.js          — enrichTask, writeFeedEvent, sendPush*, sendWhatsApp*, pick, verifyOwnership, hasMinRoleBE, sendNotificationWithLink, executeAutopilotAction, validateGuardrails
+    helpers.js          — enrichTask, writeFeedEvent, sendPushToFincaRoles, sendPushToUser, pick, verifyOwnership, hasMinRoleBE, sendNotificationWithLink (push), executeAutopilotAction, validateGuardrails
   routes/               — 28 Express Router modules (one per domain)
     auth.js, feed.js, tasks.js, cedulas.js, templates.js, users.js,
     bodegas.js, productos.js, packages.js, lotes.js, grupos.js,
@@ -83,13 +83,13 @@ functions/
 **Patterns:**
 - Each route file exports an `express.Router()` with full paths (e.g., `/api/tasks`)
 - `index.js` mounts routers with `app.use(require('./routes/...'))` — no path prefixes
-- Shared state via singleton modules: `lib/firebase.js` (db, secrets), `lib/clients.js` (lazy Twilio/Anthropic)
+- Shared state via singleton modules: `lib/firebase.js` (db, secrets), `lib/clients.js` (lazy Anthropic)
 - `enrichTask(taskDoc)` — augments scheduled task docs with lote name, hectares, responsible user name/phone, and a computed `dueDate`
 - Creating a lote triggers automatic task generation from the linked package's `activities[]`
 - Completing a task where `activity.type === 'aplicacion'` deducts stock using `FieldValue.increment()`
-- WhatsApp notifications via Twilio sent at task creation if the task is due within 3 days
+- Push notification (web push) con deep link /task/:id al crear/reasignar tareas — el canal WhatsApp/Twilio se eliminó (2026-08-07); si se reintegra WhatsApp será por otro medio
 - Invoice scanning (`POST /api/compras/escanear`) uses Claude vision to extract line items
-- Secrets loaded with Firebase `defineSecret()`: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `ANTHROPIC_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`
+- Secrets loaded with Firebase `defineSecret()`: `ANTHROPIC_API_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `OPENWEATHER_API_KEY`, `ALPHAVANTAGE_API_KEY`, `TASK_LINK_SECRET`
 - Local emulator secrets go in `functions/.env.local`
 - **Validation:** Zod schemas in `<domain>/schemas.js`. Hand-rolled `if (!req.body.x)` checks are legacy — convert to Zod when you touch the file. Pattern: [docs/code-standards.md §3](docs/code-standards.md).
 - **Errors:** every error response goes through `sendApiError(res, code, devMessage, status)` from [functions/lib/errors.js](functions/lib/errors.js). Codes are English; the frontend maps them to Spanish in [src/lib/errorMessages.js](src/lib/errorMessages.js).

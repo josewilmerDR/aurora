@@ -13,7 +13,7 @@
 // hay side effect que proteger).
 
 const { db, Timestamp } = require('../../../lib/firebase');
-const { writeFeedEvent, sendPushToFincaRoles, sendWhatsAppToFincaRoles } = require('../../../lib/helpers');
+const { writeFeedEvent, sendPushToFincaRoles } = require('../../../lib/helpers');
 const { validateGuardrails } = require('../../../lib/autopilotGuardrails');
 const { executeAutopilotAction } = require('../../../lib/autopilotActions');
 const {
@@ -239,38 +239,19 @@ Analiza el estado y ejecuta las acciones necesarias usando las herramientas disp
     title: `Análisis N3 completado: ${executedActions.length} ejecutadas, ${escalatedActions.length} escaladas`,
   });
 
-  // Push + WhatsApp — notificar a supervisores y administradores
+  // Push — notificar a supervisores y administradores
   const notifRoles = ['supervisor', 'administrador'];
 
   if (executedActions.length > 0 || escalatedActions.length > 0) {
-    const actionsList = executedActions.map(a => `✅ ${a.titulo}`).join('\n');
-    const escalatedList = escalatedActions.map(a => `⚠️ ${a.titulo}`).join('\n');
     const pushBody = executedActions.length > 0
       ? `${executedActions.length} acción(es) ejecutadas autónomamente.${escalatedActions.length > 0 ? ` ${escalatedActions.length} escalada(s).` : ''}`
       : `${escalatedActions.length} acción(es) escaladas requieren aprobación.`;
 
-    // Push inmediato
     sendPushToFincaRoles(req.fincaId, notifRoles, {
       title: '🤖 Aurora Copiloto — Nivel 3',
       body: pushBody,
       url: '/autopilot',
     });
-
-    // WhatsApp resumen
-    const whatsMsg = [
-      '🤖 *Aurora Copiloto — Nivel 3*',
-      '',
-      executedActions.length > 0 ? `*Acciones ejecutadas (${executedActions.length}):*` : null,
-      executedActions.length > 0 ? actionsList : null,
-      escalatedActions.length > 0 ? '' : null,
-      escalatedActions.length > 0 ? `*Acciones escaladas (${escalatedActions.length}):*` : null,
-      escalatedActions.length > 0 ? escalatedList : null,
-      escalatedActions.length > 0 ? '\n_Ingresa a Aurora para aprobar o rechazar las acciones escaladas._' : null,
-      '',
-      `Sesión: ${sessionRef.id}`,
-    ].filter(Boolean).join('\n');
-
-    sendWhatsAppToFincaRoles(req.fincaId, notifRoles, whatsMsg);
   }
 
   return res.json({

@@ -13,7 +13,6 @@ jest.mock('../../lib/clients', () => {
   const messagesCreate = jest.fn();
   return {
     __msg: messagesCreate,
-    getTwilioClient: () => ({ messages: { create: jest.fn().mockResolvedValue({ sid: 'x' }) } }),
     getAnthropicClient: jest.fn(() => ({ messages: { create: messagesCreate } })),
   };
 });

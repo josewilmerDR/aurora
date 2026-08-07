@@ -8,10 +8,11 @@
  *   - no compensation record is created (only successes produce compensations)
  */
 
+jest.mock('web-push', () => ({
+  setVapidDetails: jest.fn(),
+  sendNotification: jest.fn().mockRejectedValue(new Error('push boom')),
+}));
 jest.mock('../../lib/clients', () => ({
-  getTwilioClient: () => ({
-    messages: { create: jest.fn().mockRejectedValue(new Error('twilio boom')) },
-  }),
   getAnthropicClient: jest.fn(),
 }));
 

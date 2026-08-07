@@ -394,7 +394,7 @@ router.post('/api/tasks/:id/reschedule', authenticate, rateLimit('tasks_write', 
 
 router.post('/api/tasks/:id/reassign', authenticate, rateLimit('tasks_notify', 'notify'), async (req, res) => {
     try {
-        // RBAC: reassign fans out to Twilio and changes accountability —
+        // RBAC: reassign fans out a push notification and changes accountability —
         // encargado+ only, matching the same bar as reschedule.
         if (!hasMinRoleBE(req.userRole, 'encargado')) {
           return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to reassign tasks.', 403);

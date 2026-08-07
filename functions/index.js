@@ -95,7 +95,7 @@ if (isAdvanced()) {
 //   cambiarla borra y recrea la función, cambia la URL y rompe el rewrite
 //   de firebase.json.
 // - `secrets: allSecrets` NUNCA puede perderse al tocar estas opciones: el
-//   deploy pasa, la función arranca, y en runtime Claude/Twilio/push fallan
+//   deploy pasa, la función arranca, y en runtime Claude y push fallan
 //   por credenciales vacías. tests/unit/functionsRuntime.manifest.test.js
 //   lo guarda.
 // - timeoutSeconds 120 NO hace esperar al usuario: Hosting corta los

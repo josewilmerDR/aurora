@@ -1,16 +1,15 @@
-// POST /api/rfqs — creates an RFQ and fans out a WhatsApp message to every
-// supplier listed in `supplierIds`. Delivery outcomes are stored per-supplier
-// so the UI can tell which messages actually landed.
+// POST /api/rfqs — creates an RFQ with a suggested message per supplier.
 //
-// The RFQ doc lifecycle starts in 'sent' (at least one recipient reached) or
-// 'failed_send' (nobody reachable). Transitions: 'sent' → 'closed' (via the
-// close handler) or → 'cancelled' (via delete).
+// El canal saliente WhatsApp (Twilio) se eliminó: el RFQ nace en
+// 'failed_send' ("Sin envío" en la UI) con `mensajeSugerido` por proveedor
+// para que el operador lo envíe por el medio que use — consistente con las
+// respuestas, que ya se registran manualmente (response.js). Transiciones:
+// → 'closed' (via close handler) o → 'cancelled' (via delete).
 
 const { db, Timestamp } = require('../../lib/firebase');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { buildRfqDoc } = require('../../lib/procurement/rfqValidator');
 const { buildRfqMessage } = require('../../lib/procurement/rfqMessage');
-const { sendRfqToSupplier } = require('../../lib/procurement/sendSupplierMessage');
 
 async function createRfq(req, res) {
   try {
@@ -56,8 +55,13 @@ async function createRfq(req, res) {
         rfqId: rfqRef.id,
         notas: data.notas,
       });
-      const outcome = await sendRfqToSupplier({ supplier, messageBody });
-      outcomes.push(outcome);
+      outcomes.push({
+        supplierId: supplier.id || null,
+        supplierName: supplier.nombre || '',
+        sent: false,
+        reason: 'Envío manual: canal WhatsApp eliminado.',
+        mensajeSugerido: messageBody,
+      });
     }
 
     const anySent = outcomes.some(o => o.sent);

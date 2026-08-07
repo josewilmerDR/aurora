@@ -9,10 +9,11 @@
  * Plus negative cases: not_compensable, already_applied, expired, blocked.
  */
 
+jest.mock('web-push', () => ({
+  setVapidDetails: jest.fn(),
+  sendNotification: jest.fn().mockResolvedValue({}),
+}));
 jest.mock('../../lib/clients', () => ({
-  getTwilioClient: () => ({
-    messages: { create: jest.fn().mockResolvedValue({ sid: 'SM_ok' }) },
-  }),
   getAnthropicClient: jest.fn(),
 }));
 
@@ -130,7 +131,12 @@ describe('applyRollback — per compensation type', () => {
     const fincaId = uniqueFincaId('rb_notif');
     fincas.push(fincaId);
     const userRef = db.collection('users').doc();
-    await userRef.set({ fincaId, telefono: '+573001234567' });
+    await userRef.set({ fincaId, nombre: 'RB Notif' });
+    const subRef = await db.collection('push_subscriptions').add({
+      uid: userRef.id,
+      fincaId,
+      subscription: { endpoint: 'https://push.example/x', keys: {} },
+    });
 
     const { actionDocRef, actionInitialDoc } = newActionContext(fincaId);
     await executeAutopilotAction('enviar_notificacion', {
@@ -140,6 +146,7 @@ describe('applyRollback — per compensation type', () => {
     const rb = await applyRollback(actionDocRef.id, fincaId, actor);
     expect(rb.ok).toBe(false);
     expect(rb.code).toBe('COMPENSATION_NOT_COMPENSABLE');
+    await subRef.delete();
     await userRef.delete();
   });
 

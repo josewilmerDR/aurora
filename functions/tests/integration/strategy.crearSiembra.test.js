@@ -8,12 +8,9 @@
  *   - rollback via applyRollback flags the siembra as cancelada + action as rolledBack
  */
 
-// Mock Twilio/Anthropic — siembra ejecución no los invoca, pero el mock
-// evita costes secundarios si se tocan durante el path común.
+// Mock Anthropic — siembra ejecución no lo invoca, pero el mock evita
+// costes secundarios si se toca durante el path común.
 jest.mock('../../lib/clients', () => ({
-  getTwilioClient: () => ({
-    messages: { create: jest.fn().mockResolvedValue({ sid: 'SM_test' }) },
-  }),
   getAnthropicClient: jest.fn(),
 }));
 

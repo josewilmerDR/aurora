@@ -1,18 +1,9 @@
-const twilio = require('twilio');
 const Anthropic = require('@anthropic-ai/sdk');
-const { twilioAccountSid, twilioAuthToken } = require('./firebase');
 
 // External clients are initialized lazily to avoid deployment errors when
 // secrets are not yet available at module-load time.
-let twilioClient;
+// (El cliente Twilio se eliminó junto con el canal WhatsApp.)
 let anthropicClient;
-
-function getTwilioClient() {
-  if (!twilioClient) {
-    twilioClient = twilio(twilioAccountSid.value(), twilioAuthToken.value());
-  }
-  return twilioClient;
-}
 
 function getAnthropicClient() {
   if (!anthropicClient) {
@@ -31,4 +22,4 @@ function getAnthropicClient() {
   return anthropicClient;
 }
 
-module.exports = { getTwilioClient, getAnthropicClient };
+module.exports = { getAnthropicClient };

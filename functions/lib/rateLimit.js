@@ -5,7 +5,7 @@
 // invocations. Firestore transactions give atomic increments across
 // instances without requiring extra infrastructure (no Redis, no
 // Memorystore). Cost: one read + one write per protected request —
-// negligible next to the Claude/Twilio spend we are trying to cap.
+// negligible next to the Claude spend we are trying to cap.
 //
 // Design: fixed-window counters. Each doc holds (bucket, count) pairs for
 // two windows — one minute, one day. Fixed windows lose precision at
@@ -48,8 +48,8 @@ const LIMITS = {
   // es caro en lecturas de Firestore, pero holgado para el uso real del
   // date-picker.
   costly_read: { perMinute: 30, perDay: 500 },
-  // Write endpoints that fan out to paid external services (Twilio
-  // WhatsApp, SendGrid, etc.). One abused call = one billable message.
+  // Write endpoints that fan out to notification delivery (web push hoy;
+  // históricamente WhatsApp/Twilio). One abused call = one fan-out.
   notify:    { perMinute: 10,  perDay: 100  },
   // Public/unauthenticated GETs keyed by IP instead of uid. Tighter than
   // 'write' because anyone on the internet can hit them.

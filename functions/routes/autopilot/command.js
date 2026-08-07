@@ -21,7 +21,6 @@ const {
   hasMinRoleBE,
   writeFeedEvent,
   sendPushToFincaRoles,
-  sendWhatsAppToFincaRoles,
 } = require('../../lib/helpers');
 const { assertAutopilotActive } = require('../../lib/autopilotMiddleware');
 const {
@@ -398,23 +397,11 @@ Jerarquía de compras (igual que en modo análisis):
     // Notificar a supervisores si hay acciones pendientes
     if (proposedActions.length > 0) {
       const notifRoles = ['supervisor', 'administrador'];
-      const actionsList = proposedActions.map(a => `• ${a.titulo}`).join('\n');
       sendPushToFincaRoles(req.fincaId, notifRoles, {
         title: '🤖 Aurora Copiloto — Comando',
         body: `${proposedActions.length} acción(es) propuestas vía comando esperan tu aprobación.`,
         url: '/autopilot',
       });
-      sendWhatsAppToFincaRoles(req.fincaId, notifRoles, [
-        '🤖 *Aurora Copiloto — Comando*',
-        '',
-        `*Solicitud de ${req.userEmail || 'usuario'}:*`,
-        `"${text.slice(0, 200)}"`,
-        '',
-        `*${proposedActions.length} acciones propuestas:*`,
-        actionsList,
-        '',
-        '_Ingresa a Aurora para aprobar o rechazar._',
-      ].join('\n'));
     }
 
     res.json({

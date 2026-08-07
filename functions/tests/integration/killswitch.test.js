@@ -6,7 +6,6 @@
  */
 
 jest.mock('../../lib/clients', () => ({
-  getTwilioClient: jest.fn(),
   getAnthropicClient: jest.fn(),
 }));
 
