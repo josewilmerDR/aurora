@@ -1,28 +1,16 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /recepciones/{fileName} {
-      allow read: if true;
-      allow write: if false;
-    }
-    match /formularios-muestreo/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    match /plantillas-muestreo/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-    match /muestreos/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if false;
-    }
-    // Deny-all por defecto. Incluye config/**, donde vive el logo de la finca.
-    // Ese logo NO es legible por el SDK cliente: el backend lo sirve como
-    // capability URL tokenizado (firebaseStorageDownloadTokens) embebido en
-    // PDFs. El token no expira ni rota salvo re-subida del logo. Es aceptable
-    // para un logo de empresa (dato no sensible); NO reutilizar este patrón
-    // para assets sensibles bajo este match deny-all sin un esquema de expiración.
+    // Deny-all total: ningún acceso vía SDK cliente ni REST sin token.
+    // Todos los assets del bucket (facturas en recepciones/, logos en config/,
+    // escaneos en muestreos/) los sirve el backend, ya sea como signed URL v4
+    // o como capability URL tokenizada (firebaseStorageDownloadTokens). Ambas
+    // vías se validan ANTES de estas reglas, así que siguen funcionando a
+    // pesar del deny-all — no agregar excepciones por prefijo: cualquier
+    // match adicional reabre superficie que ningún código necesita.
+    // Los tokens no expiran ni rotan salvo re-subida del objeto; aceptable
+    // para datos no sensibles, NO reutilizar el patrón para assets sensibles
+    // sin un esquema de expiración.
     match /{allPaths=**} {
       allow read, write: if false;
     }
