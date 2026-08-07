@@ -90,8 +90,29 @@ if (isAdvanced()) {
 }
 
 // --- EXPORT CLOUD FUNCTIONS ---
+// Recursos explícitos (antes: defaults de Gen 2 — 256MiB / 60s / sin techo).
+// - NO fijar `region`: es un no-op (us-central1 ya es el default) pero
+//   cambiarla borra y recrea la función, cambia la URL y rompe el rewrite
+//   de firebase.json.
+// - `secrets: allSecrets` NUNCA puede perderse al tocar estas opciones: el
+//   deploy pasa, la función arranca, y en runtime Claude/Twilio/push fallan
+//   por credenciales vacías. tests/unit/functionsRuntime.manifest.test.js
+//   lo guarda.
+// - timeoutSeconds 120 NO hace esperar al usuario: Hosting corta los
+//   rewrites a los 60s pase lo que pase (504 del proxy). Lo que logra es
+//   que la función termine su trabajo en vez de morir a mitad de una
+//   escritura (deducción de stock, sesión de autopilot).
+// - memory 512MiB: express.json admite payloads de 15mb (escaneos base64)
+//   y los endpoints de IA arman prompts grandes; 256MiB quedaba justo.
+// - maxInstances 10 es techo de gasto Y de disponibilidad: al saturar,
+//   Cloud Run responde 429. Revisarlo ANTES de abrir registro self-serve.
 exports.api = functions.https.onRequest(
-  { secrets: allSecrets },
+  {
+    secrets: allSecrets,
+    memory: '512MiB',
+    timeoutSeconds: 120,
+    maxInstances: 10,
+  },
   app
 );
 
