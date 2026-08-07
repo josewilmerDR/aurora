@@ -6,6 +6,7 @@ import { useReminders } from '../contexts/RemindersContext';
 import { useApiFetch } from '../hooks/useApiFetch';
 import { ADVANCED_ENABLED } from '../lib/features';
 import { MODULES } from './Sidebar';
+import EcosystemMenu from './EcosystemMenu';
 
 export default function AppHeader({
   isCollapsed,
@@ -197,6 +198,8 @@ export default function AppHeader({
       >
         <FiSearch size={19} />
       </button>
+
+      <EcosystemMenu />
 
       <button
         className={`aur-icon-btn aur-icon-btn--success aur-header-chat-btn${chatOpen ? ' is-active' : ''}`}

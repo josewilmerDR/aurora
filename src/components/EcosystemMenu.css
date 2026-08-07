@@ -1,0 +1,94 @@
+/* ── Ecosystem launcher (waffle button + floating product card) ───────────
+   Visual parity with comunplace's EcosystemMenu: white card, large radius,
+   2-column grid of stacked tiles. The trigger button reuses the standard
+   header chrome (same shell as chat/autopilot buttons in App.css). */
+
+.aur-ecosystem {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Compound selector (.aur-icon-btn.X) beats .aur-icon-btn's base styles
+   regardless of aurora.css→component css load order (repo convention). */
+.aur-icon-btn.aur-ecosystem-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--aur-bg-hover);
+  border: 1px solid var(--aur-divider);
+}
+.aur-icon-btn.aur-ecosystem-btn:hover:not(:disabled) {
+  background: var(--aur-accent-tint);
+  border-color: var(--aur-accent-tint-3);
+}
+.aur-icon-btn.aur-ecosystem-btn.is-active {
+  background: var(--aur-accent-tint-2);
+  border-color: var(--aur-accent-tint-3);
+}
+
+/* White card on purpose (cross-app parity), so colors are hardcoded here
+   instead of using Aurora's dark-theme tokens. */
+.aur-ecosystem-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 300;
+  width: 304px;
+  max-width: calc(100vw - 1.5rem);
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  padding: 10px;
+}
+
+.aur-ecosystem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.aur-ecosystem-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+  padding: 12px 8px 10px;
+  border-radius: 12px;
+  text-decoration: none;
+}
+.aur-ecosystem-tile:hover {
+  background: #f3f4f6;
+}
+
+.aur-ecosystem-tile-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover; /* img variant: crop square logos into the circle */
+  display: inline-flex; /* span variant: center the fallback glyph */
+  align-items: center;
+  justify-content: center;
+}
+.aur-ecosystem-tile-art--cyan {
+  background: #cffafe;
+  color: #0e7490;
+}
+.aur-ecosystem-tile-art--violet {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.aur-ecosystem-tile-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.aur-ecosystem-tile-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #6b7280;
+}
