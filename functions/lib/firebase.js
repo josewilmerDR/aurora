@@ -29,7 +29,29 @@ admin.initializeApp();
 // Runbook de respaldos/restore: docs/firestore-backups.md
 const db = getFirestore(admin.app(), process.env.FIRESTORE_DATABASE_ID || 'auroradatabase');
 const STORAGE_BUCKET = 'aurora-7dc9b.appspot.com';
-const APP_URL = 'https://aurora-7dc9b.web.app';
+
+// APP_URL: base de los deep-links en mensajes salientes (WhatsApp, push).
+// Se interpola cruda en cuerpos de mensaje, así que NUNCA es un passthrough
+// del env: se exige https, sin credenciales, sin query ni fragmento, y se
+// normaliza el slash final. Un valor inválido cae al default con warning en
+// vez de contaminar cada mensaje enviado. Origen del valor: functions/.env
+// (versionado). Mudanza de dominio = editar esa variable.
+const DEFAULT_APP_URL = 'https://aurora-7dc9b.web.app';
+const resolveAppUrl = (raw) => {
+  if (raw == null || String(raw).trim() === '') return DEFAULT_APP_URL;
+  let url = null;
+  try { url = new URL(String(raw).trim()); } catch { /* inválida → default */ }
+  const ok = url
+    && url.protocol === 'https:'
+    && !url.username && !url.password
+    && !url.search && !url.hash;
+  if (!ok) {
+    console.warn(`[config] APP_URL inválida ("${raw}"); usando ${DEFAULT_APP_URL}`);
+    return DEFAULT_APP_URL;
+  }
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+};
+const APP_URL = resolveAppUrl(process.env.APP_URL);
 
 module.exports = {
   functions,
@@ -40,6 +62,8 @@ module.exports = {
   FieldPath,
   STORAGE_BUCKET,
   APP_URL,
+  resolveAppUrl, // exportada para tests
+
   // Secrets
   twilioAccountSid,
   twilioAuthToken,

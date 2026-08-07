@@ -23,6 +23,13 @@ scripts/service-account.json
 .env.development.local
 .env.test.local
 .env.production.local
+# functions/.env SÍ se versiona: es runtime config de deploy (flags de
+# seguridad de la API: APP_CHECK_MODE, FEATURES_ADVANCED, APP_URL), no un
+# store de secretos — los secretos van por defineSecret() en lib/firebase.js.
+# ATENCIÓN: esta negación solo funciona porque va DESPUÉS de la línea `.env`
+# de arriba; si se reordena el archivo, functions/.env desaparece de git
+# sin que nadie se entere.
+!functions/.env
 
 # Node dependencies
 node_modules/
