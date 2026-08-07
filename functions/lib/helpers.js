@@ -1,7 +1,7 @@
-const webpush = require('web-push');
 const { db, Timestamp, FieldPath } = require('./firebase');
 const { ERROR_CODES } = require('./errors');
 const { signTaskLink } = require('./taskLinkToken');
+const { fetchLiveSubs, sendPushToSubs } = require('./pushDelivery');
 
 // --- SECURITY HELPERS ---
 const pick = (obj, fields) => fields.reduce((acc, f) => {
@@ -155,7 +155,12 @@ async function writeFeedEvent({ fincaId, uid, userEmail, eventType, activityType
   }
 }
 
-// --- PUSH NOTIFICATION HELPER ---
+// --- PUSH NOTIFICATION HELPERS ---
+// Wrappers finos sobre lib/pushDelivery.js — la entrega, el filtro de
+// suscripciones vivas (status !== 'gone', en memoria) y la marca de las
+// muertas (410/404 → status 'gone', nunca delete) viven SOLO ahí.
+// Los llamadores que no hacen await siguen sin hacerlo: fire-and-forget
+// deliberado para no bloquear la respuesta HTTP.
 async function sendPushToFincaRoles(fincaId, roles, { title, body, url }) {
   try {
     const usersSnap = await db.collection('users')
@@ -166,31 +171,13 @@ async function sendPushToFincaRoles(fincaId, roles, { title, body, url }) {
       .map(d => d.id);
     if (!targetUids.length) return;
 
-    const VAPID_SUBJECT = 'mailto:aurora@finca.com';
-    webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
-
-    const payload = JSON.stringify({
-      title: title || 'Aurora — Piloto Automático',
-      body: body || '',
-      icon: '/aurora-logo.png',
-      badge: '/aurora-logo.png',
-      data: { url: url || '/autopilot' },
-    });
-
     for (const uid of targetUids) {
-      const subSnap = await db.collection('push_subscriptions')
-        .where('uid', '==', uid)
-        .where('fincaId', '==', fincaId)
-        .get();
-      for (const subDoc of subSnap.docs) {
-        try {
-          await webpush.sendNotification(subDoc.data().subscription, payload);
-        } catch (err) {
-          if (err.statusCode === 410 || err.statusCode === 404) {
-            await subDoc.ref.delete();
-          }
-        }
-      }
+      const subs = await fetchLiveSubs(fincaId, uid);
+      await sendPushToSubs(subs, {
+        title: title || 'Aurora — Piloto Automático',
+        body,
+        url: url || '/autopilot',
+      });
     }
   } catch (err) {
     console.error('[PUSH] Error sending push to roles:', err.message);
@@ -199,38 +186,9 @@ async function sendPushToFincaRoles(fincaId, roles, { title, body, url }) {
 
 // Push a un usuario puntual (users doc id — mismo id que usa
 // push_subscriptions.uid). Devuelve cuántas notificaciones se entregaron.
-// Poda suscripciones muertas (410/404) igual que sendPushToFincaRoles.
-// Nota: el canal WhatsApp (Twilio) se eliminó; push es el único canal de
-// notificación saliente del backend.
 async function sendPushToUser(fincaId, userId, { title, body, url }) {
-  const subSnap = await db.collection('push_subscriptions')
-    .where('uid', '==', userId)
-    .where('fincaId', '==', fincaId)
-    .get();
-  if (subSnap.empty) return 0;
-
-  const VAPID_SUBJECT = 'mailto:aurora@finca.com';
-  webpush.setVapidDetails(VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
-  const payload = JSON.stringify({
-    title: title || 'Aurora',
-    body: body || '',
-    icon: '/aurora-logo.png',
-    badge: '/aurora-logo.png',
-    data: { url: url || '/' },
-  });
-
-  let delivered = 0;
-  for (const subDoc of subSnap.docs) {
-    try {
-      await webpush.sendNotification(subDoc.data().subscription, payload);
-      delivered += 1;
-    } catch (err) {
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        await subDoc.ref.delete();
-      }
-    }
-  }
-  return delivered;
+  const subs = await fetchLiveSubs(fincaId, userId);
+  return sendPushToSubs(subs, { title, body, url });
 }
 
 // NOTE: executeAutopilotAction and AutopilotPausedError live in
