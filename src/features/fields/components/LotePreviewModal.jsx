@@ -2,6 +2,8 @@ import { useMemo, useRef, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiShare2, FiPrinter } from 'react-icons/fi';
 import { formatDateLong } from '../lib/lotes-helpers';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 // Chrome del modal + estilos del documento imprimible. Compartido con
 // GrupoPreviewModal. Importado acá para que la dependencia viaje con el
 // componente, no con la página que lo monta — antes este modal heredaba
@@ -44,6 +46,8 @@ export default function LotePreviewModal({
   onShareError,
 }) {
   const docRef = useRef(null);
+  // Cascada de identidad + saneo de logo unificados (src/lib/empresa.js).
+  const empresa = useEmpresaIdentity(empresaConfig);
 
   // Mismo cómputo que tenía LoteManagement, ahora memoizado solo cuando el
   // modal está montado. Agrupa por grupo, ordena por código alfanumérico
@@ -125,25 +129,10 @@ export default function LotePreviewModal({
       </div>
 
       <div className="gp-doc-wrap">
+        <IdentityNotice show={empresa.missingIdentity} />
         <div className="gp-document" ref={docRef}>
           <div className="gp-doc-header">
-            <div className="gp-doc-brand">
-              {empresaConfig.logoUrl
-                ? <img
-                    src={empresaConfig.logoUrl}
-                    alt="Logo"
-                    className="gp-doc-logo-img"
-                    referrerPolicy="no-referrer"
-                  />
-                : <div className="gp-doc-logo">AU</div>}
-              <div className="gp-doc-brand-info">
-                <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
-                {empresaConfig.identificacion && <div className="gp-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
-                {empresaConfig.whatsapp       && <div className="gp-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
-                {empresaConfig.correo         && <div className="gp-doc-brand-sub">{empresaConfig.correo}</div>}
-                {empresaConfig.direccion      && <div className="gp-doc-brand-sub">{empresaConfig.direccion}</div>}
-              </div>
-            </div>
+            <DocBrand classPrefix="gp-doc" empresa={empresa} />
             <div className="gp-doc-date">
               Fecha: <strong>{formatDateLong(new Date())}</strong>
             </div>

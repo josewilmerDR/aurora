@@ -1,0 +1,26 @@
+/* Aviso de identidad incompleta en documentos imprimibles. Visible solo en
+   pantalla: @media print lo oculta y data-html2canvas-ignore lo excluye de
+   los exports por captura. Colores fijos (ámbar) a propósito — aparece sobre
+   el papel blanco del documento, no sobre el tema de la app. */
+.doc-identity-notice {
+  margin: 0 auto 12px;
+  max-width: 800px;
+  padding: 10px 14px;
+  border: 1px solid #e0b64c;
+  border-left: 4px solid #e0b64c;
+  border-radius: 6px;
+  background: #fdf6e3;
+  color: #7a5c00;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.doc-identity-notice a {
+  color: #7a5c00;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+@media print {
+  .doc-identity-notice { display: none !important; }
+}

@@ -6,6 +6,8 @@ import {
 } from 'react-icons/fi';
 import '../styles/oc-desde-solicitud.css';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaConfig } from '../../../hooks/useEmpresaConfig';
 
 const generatePoNumber = () => {
   const now = new Date();
@@ -119,6 +121,8 @@ const PurchaseOrder = () => {
   const searchRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
+  // Identidad del inquilino para el documento (antes hardcodeada acá).
+  const { empresa } = useEmpresaConfig();
   const [catalogo, setCatalogo] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [solicitudId, setSolicitudId] = useState(null);
@@ -462,16 +466,11 @@ const PurchaseOrder = () => {
 
         {/* ══ DOCUMENT (Apple-quality printable, brand-specific — sin tocar) ══ */}
         <div className="po-doc-wrap">
+          <IdentityNotice show={empresa.missingIdentity} />
           <div className="po-document">
 
             <div className="po-doc-header">
-              <div className="po-doc-brand">
-                <div className="po-doc-logo">AU</div>
-                <div>
-                  <div className="po-doc-brand-name">FINCA AURORA</div>
-                  <div className="po-doc-brand-sub">San José, Costa Rica</div>
-                </div>
-              </div>
+              <DocBrand classPrefix="po-doc" empresa={empresa} />
               <div className="po-doc-title-block">
                 <div className="po-doc-title">ORDEN DE COMPRA</div>
                 <table className="po-doc-meta-table">
@@ -498,8 +497,8 @@ const PurchaseOrder = () => {
               </div>
               <div className="po-doc-party">
                 <div className="po-doc-party-label">COMPRADOR</div>
-                <div className="po-doc-party-value">Finca Aurora</div>
-                <div className="po-doc-party-contact">San José, Costa Rica</div>
+                <div className="po-doc-party-value">{empresa.nombre || '___________________________'}</div>
+                {empresa.direccion && <div className="po-doc-party-contact">{empresa.direccion}</div>}
               </div>
             </div>
 

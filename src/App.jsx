@@ -341,12 +341,13 @@ function App() {
             <Route path="/nueva-organizacion" element={<NewOrganization />} />
             <Route path="/logout" element={<LogoutRoute />} />
             <Route path="/task/:taskId" element={<TaskAction />} />
-            <Route path="/orden-compra/:taskId" element={<OCDesdeSolicitud />} />
           </Route>
 
           {/* Protected routes WITHOUT sidebar (full-bleed documents). Auth-gated
               like the rest of the app; the report renders salarios + cédulas, so
-              it must not live in the public block. */}
+              it must not live in the public block. /orden-compra necesita auth
+              porque su encabezado sale de /api/config vía useEmpresaConfig —
+              en el bloque público quedaba vacío en producción y verde en dev. */}
           <Route
             element={
               <ProtectedRoute>
@@ -355,6 +356,7 @@ function App() {
             }
           >
             <Route path="/hr/planilla/fijo/reporte" element={<RoleRoute path="/hr/planilla/fijo/reporte"><FixedPayrollReport /></RoleRoute>} />
+            <Route path="/orden-compra/:taskId" element={<OCDesdeSolicitud />} />
           </Route>
 
           {/* Protected routes with sidebar */}

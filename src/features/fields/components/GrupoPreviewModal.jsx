@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { FiArrowLeft, FiShare2, FiPrinter } from 'react-icons/fi';
 import { formatDateLong, tsToDate } from '../lib/lotes-helpers';
 import { consolidateSiembrasByBloque, calcFechaCosecha, getKgPorPlanta } from '../lib/grupo-bloques-helpers';
+import { DocBrand, IdentityNotice } from '../../../components/docs/DocBrand';
+import { useEmpresaIdentity } from '../../../hooks/useEmpresaConfig';
 // Chrome del modal + estilos del documento imprimible. Compartido con
 // LotePreviewModal. Importado acá para que la dependencia viaje con el
 // componente, no con la página que lo monta.
@@ -54,15 +56,9 @@ export default function GrupoPreviewModal({
   const configLoaded  = !!empresaConfig?.id;
   const fechaCosecha  = configLoaded ? calcFechaCosecha(grupo, empresaConfig) : null;
 
-  // Defensa en profundidad en el sink: logoUrl se genera server-side desde
-  // Firebase Storage (siempre https://; el backend descarta cualquier logoUrl
-  // del body — ver config/schemas.js, no está en el whitelist). Aun así, ante
-  // un doc legacy con un valor inesperado solo cargamos http(s) en el <img>
-  // que viaja al PDF compartido/impreso — bloquea javascript:/data:/otros
-  // esquemas usados como tracking pixel o exfil al imprimir.
-  const safeLogoUrl = /^https?:\/\//i.test(empresaConfig?.logoUrl || '')
-    ? empresaConfig.logoUrl
-    : null;
+  // Identidad + saneo de logo unificados en src/lib/empresa.js (la defensa
+  // default-deny del sink vive ahí; DocBrand renderiza el <img> saneado).
+  const empresa = useEmpresaIdentity(empresaConfig);
 
   const totalHa      = bloques.reduce((s, b) => s + (parseFloat(b.areaCalculada) || 0), 0);
   const totalPlantas = bloques.reduce((s, b) => s + (b.plantas || 0), 0);
@@ -126,21 +122,11 @@ export default function GrupoPreviewModal({
       </div>
 
       <div className="gp-doc-wrap">
+        <IdentityNotice show={empresa.missingIdentity} />
         <div className="gp-document" ref={docRef}>
 
           <div className="gp-doc-header">
-            <div className="gp-doc-brand">
-              {safeLogoUrl
-                ? <img src={safeLogoUrl} alt="Logo" className="gp-doc-logo-img" referrerPolicy="no-referrer" />
-                : <div className="gp-doc-logo">AU</div>}
-              <div className="gp-doc-brand-info">
-                <div className="gp-doc-brand-name">{empresaConfig.nombreEmpresa || 'Finca Aurora'}</div>
-                {empresaConfig.identificacion && <div className="gp-doc-brand-sub">Cédula: {empresaConfig.identificacion}</div>}
-                {empresaConfig.whatsapp       && <div className="gp-doc-brand-sub">Tel: {empresaConfig.whatsapp}</div>}
-                {empresaConfig.correo         && <div className="gp-doc-brand-sub">{empresaConfig.correo}</div>}
-                {empresaConfig.direccion      && <div className="gp-doc-brand-sub">{empresaConfig.direccion}</div>}
-              </div>
-            </div>
+            <DocBrand classPrefix="gp-doc" empresa={empresa} />
             <div className="gp-doc-date">
               Fecha: <strong>{formatDateLong(new Date())}</strong>
             </div>
