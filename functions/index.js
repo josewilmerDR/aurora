@@ -53,28 +53,33 @@ app.use(require('./routes/units'));
 app.use(require('./routes/labor-records'));
 app.use(require('./routes/webpush'));
 app.use(require('./routes/calibrations'));
-app.use(require('./routes/autopilot-control'));
-app.use(require('./routes/autopilot'));
 app.use(require('./routes/harvest'));
 app.use(require('./routes/costs'));
 app.use(require('./routes/budgets'));
 app.use(require('./routes/roi'));
-app.use(require('./routes/autopilot-finance'));
 app.use(require('./routes/buyers'));
 app.use(require('./routes/income'));
 app.use(require('./routes/treasury'));
 app.use(require('./routes/suppliers'));
 app.use(require('./routes/procurement'));
-app.use(require('./routes/autopilot-procurement'));
-app.use(require('./routes/autopilot-hr'));
 app.use(require('./routes/rfqs'));
 app.use(require('./routes/analytics'));
 app.use(require('./routes/audit'));
 app.use(require('./routes/weather'));
 
-// Advanced surface (Fases 4–6): mounted only when FEATURES_ADVANCED=true.
+// Advanced surface (Fases 2–6): mounted only when FEATURES_ADVANCED=true.
 // Mirrors the UX gate in src/App.jsx so deep-link calls 404 in v1 builds.
+// Autopilot va acá TAMBIÉN: sin este gate, /api/autopilot/directives y
+// /api/autopilot/feedback eran los únicos endpoints de autopilot sin gate
+// de rol — cualquier trabajador escribía en copilot_directives. El test
+// tests/unit/autopilot.featureGate.test.js recorre los routers autopilot*
+// y falla si uno nuevo queda montado fuera de este bloque.
 if (isAdvanced()) {
+  app.use(require('./routes/autopilot-control'));
+  app.use(require('./routes/autopilot'));
+  app.use(require('./routes/autopilot-finance'));
+  app.use(require('./routes/autopilot-procurement'));
+  app.use(require('./routes/autopilot-hr'));
   app.use(require('./routes/strategy'));
   app.use(require('./routes/signals'));
   app.use(require('./routes/scenarios'));
@@ -91,12 +96,14 @@ exports.api = functions.https.onRequest(
 );
 
 exports.sendDuePushReminders = require('./scheduled/reminders-cron');
-exports.autopilotMonitor = require('./scheduled/autopilot-monitor');
 exports.hrMonthlyScoring = require('./scheduled/hrMonthlyScoring');
 
-// Advanced crons (Fases 4–6): exported only when FEATURES_ADVANCED=true so a
+// Advanced crons (Fases 2–6): exported only when FEATURES_ADVANCED=true so a
 // v1 deploy does not provision schedulers for features hidden in the UI.
+// OJO: quitar un export NO borra la Cloud Function ni el job de Cloud
+// Scheduler ya desplegados — verificar en GCP tras el deploy (ver PR).
 if (isAdvanced()) {
+  exports.autopilotMonitor = require('./scheduled/autopilot-monitor');
   exports.signalsIngestCron = require('./scheduled/signals-cron');
   exports.annualPlanActivator = require('./scheduled/annualPlanActivator');
   exports.metaKpiSweep = require('./scheduled/metaKpiSweep');
