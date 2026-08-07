@@ -20,8 +20,11 @@ const MODE = (process.env.APP_CHECK_MODE || 'enforce').toLowerCase();
 
 // Paths that should never require App Check (health probes, public webhooks).
 // Add here if/when we introduce legitimate third-party webhook endpoints.
+// Consecuencia deliberada: un /api/_health verde NO prueba que la app
+// funcione — un dominio sin registrar en reCAPTCHA da health verde y
+// aplicación muerta. Ver docs/health-endpoint.md.
 const PUBLIC_PATHS = new Set([
-  // e.g. '/api/_health'
+  '/api/_health',
 ]);
 
 function shouldSkip(req) {
@@ -37,7 +40,9 @@ async function verifyAppCheck(req, res, next) {
   const token = req.header('X-Firebase-AppCheck');
   if (!token) {
     if (MODE === 'warn') {
-      console.warn('[AppCheck] missing token', req.method, req.originalUrl);
+      // req.path, no originalUrl: el query puede llevar tokens (p.ej. ?t= del
+      // deep link de tarea) y esto va a Cloud Logging.
+      console.warn('[AppCheck] missing token', req.method, req.path);
       return next();
     }
     return sendApiError(res, ERROR_CODES.UNAUTHORIZED, 'App Check token required.', 401);
@@ -48,7 +53,7 @@ async function verifyAppCheck(req, res, next) {
     return next();
   } catch (err) {
     if (MODE === 'warn') {
-      console.warn('[AppCheck] invalid token', req.method, req.originalUrl, '-', err.message);
+      console.warn('[AppCheck] invalid token', req.method, req.path, '-', err.message);
       return next();
     }
     return sendApiError(res, ERROR_CODES.UNAUTHORIZED, 'Invalid App Check token.', 401);
