@@ -54,6 +54,15 @@ router.post('/api/autopilot/command', authenticate, assertAutopilotActive, rateL
     if (!text) return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Command cannot be empty.', 400);
     if (text.length > 2000) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Command exceeds 2000 characters.', 400);
 
+    // Mismo corte que /analyze: con el modo en 'off' un comando no debe
+    // disparar el pipeline de Claude ni escrituras de sesión. El kill-switch
+    // (assertAutopilotActive) cubre "pausado", no "deshabilitado".
+    const cfgDoc = await db.collection('autopilot_config').doc(req.fincaId).get();
+    const cfgMode = cfgDoc.exists ? cfgDoc.data().mode : 'off';
+    if (cfgMode === 'off' || cfgMode === undefined) {
+      return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, 'Autopilot is disabled. Enable it in Settings.', 400);
+    }
+
     // Multi-turn: optional sessionId for follow-up messages
     const followUpSessionId = req.body?.sessionId || null;
     let conversationLog = [];

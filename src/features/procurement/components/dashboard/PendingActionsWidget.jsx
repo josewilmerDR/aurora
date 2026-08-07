@@ -25,7 +25,14 @@ function PendingActionsWidget() {
   const load = useCallback(() => {
     setLoading(true);
     apiFetch('/api/autopilot/actions?categoria=procurement&status=proposed')
-      .then(r => r.json())
+      .then(r => {
+        // 404 = feature gate de autopilot apagado (v1): sin backend no hay
+        // acciones — widget vacío, no error. El 404 de Express es HTML, así
+        // que sin este check r.json() reventaba con error rojo.
+        if (r.status === 404) return [];
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => setActions(Array.isArray(data) ? data : []))
       .catch(() => setError('No se pudieron cargar las acciones.'))
       .finally(() => setLoading(false));
