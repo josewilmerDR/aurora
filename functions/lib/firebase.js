@@ -20,7 +20,14 @@ const taskLinkSecret = defineSecret("TASK_LINK_SECRET");
 
 // --- UNIVERSAL CLIENT INITIALIZATION ---
 admin.initializeApp();
-const db = getFirestore(admin.app(), 'auroradatabase');
+// FIRESTORE_DATABASE_ID permite repuntar el backend a otra base (la que crea
+// un restore de respaldo — Firestore nunca restaura encima de una existente)
+// sin tocar código. El literal queda SIEMPRE como respaldo del ||:
+// getFirestore(app, undefined) no lanza — devuelve un handle a '(default)',
+// que existe y está vacía, y el backend arrancaría "sano" respondiendo 200
+// con listas vacías y escribiendo ahí. Indistinguible de datos borrados.
+// Runbook de respaldos/restore: docs/firestore-backups.md
+const db = getFirestore(admin.app(), process.env.FIRESTORE_DATABASE_ID || 'auroradatabase');
 const STORAGE_BUCKET = 'aurora-7dc9b.appspot.com';
 const APP_URL = 'https://aurora-7dc9b.web.app';
 
