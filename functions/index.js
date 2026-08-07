@@ -1,6 +1,7 @@
 // --- AURORA BACKEND — ENTRY POINT ---
 const { functions, allSecrets } = require('./lib/firebase');
 const { verifyAppCheck } = require('./lib/appcheck');
+const { requestLog } = require('./lib/requestLog');
 const { isAdvanced } = require('./lib/features');
 const express = require('express');
 
@@ -10,10 +11,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '15mb' }));
 
 // --- LOGGING MIDDLEWARE ---
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-  next();
-});
+// Path + claves del query, nunca valores: el deep link /task pasa su token
+// HMAC como ?t=... y con originalUrl quedaba en Cloud Logging.
+app.use(requestLog);
 
 // --- APP CHECK (bot / unauthorized-client gate, runs before auth) ---
 // Controlled by APP_CHECK_MODE env var: 'enforce' | 'warn' | 'off'.
@@ -21,6 +21,9 @@ app.use((req, res, next) => {
 app.use(verifyAppCheck);
 
 // --- MOUNT ROUTERS ---
+// health primero: probe de uptime, que no pague el costo de recorrer los
+// matchers de los ~45 routers de abajo.
+app.use(require('./routes/health'));
 app.use(require('./routes/auth'));
 app.use(require('./routes/feed'));
 app.use(require('./routes/tasks'));
