@@ -61,7 +61,7 @@ describe('<EcosystemMenu />', () => {
     render(<EcosystemMenu />);
     openMenu();
     const current = ECOSYSTEM_PRODUCTS.find(p => p.id === CURRENT_APP_ID);
-    const tile = screen.getByRole('link', { name: new RegExp(current.name) });
+    const tile = screen.getByRole('link', { name: (name) => name.includes(current.name) });
     expect(tile).toHaveAttribute('href', '/');
     expect(tile).toHaveAttribute('aria-current', 'page');
   });
@@ -70,7 +70,7 @@ describe('<EcosystemMenu />', () => {
     render(<EcosystemMenu />);
     openMenu();
     ECOSYSTEM_PRODUCTS.filter(p => p.id !== CURRENT_APP_ID).forEach((product) => {
-      const tile = screen.getByRole('link', { name: new RegExp(product.name) });
+      const tile = screen.getByRole('link', { name: (name) => name.includes(product.name) });
       expect(tile).toHaveAttribute('href', getEcosystemHref(product));
       expect(tile).not.toHaveAttribute('aria-current');
     });
