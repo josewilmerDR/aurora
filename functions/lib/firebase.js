@@ -30,13 +30,15 @@ admin.initializeApp();
 const db = getFirestore(admin.app(), process.env.FIRESTORE_DATABASE_ID || 'auroradatabase');
 const STORAGE_BUCKET = 'aurora-7dc9b.appspot.com';
 
-// APP_URL: base de los deep-links en mensajes salientes (WhatsApp, push).
+// APP_URL: base de los deep-links en notificaciones push salientes.
 // Se interpola cruda en cuerpos de mensaje, así que NUNCA es un passthrough
 // del env: se exige https, sin credenciales, sin query ni fragmento, y se
 // normaliza el slash final. Un valor inválido cae al default con warning en
 // vez de contaminar cada mensaje enviado. Origen del valor: functions/.env
 // (versionado). Mudanza de dominio = editar esa variable.
-const DEFAULT_APP_URL = 'https://aurora-7dc9b.web.app';
+// El default NO es decorativo: es a dónde apuntan los links si el env se
+// pierde en un deploy, así que sigue al dominio de producción vigente.
+const DEFAULT_APP_URL = 'https://aurora.comunplace.com';
 const resolveAppUrl = (raw) => {
   if (raw == null || String(raw).trim() === '') return DEFAULT_APP_URL;
   let url = null;
