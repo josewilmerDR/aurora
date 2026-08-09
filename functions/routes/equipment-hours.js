@@ -13,6 +13,7 @@ const { pick, verifyOwnership } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
+const { INJECTION_GUARD_PREAMBLE } = require('../lib/aiGuards');
 
 const router = Router();
 
@@ -278,6 +279,12 @@ Reglas:
     const response = await anthropicClient.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
+      // La boleta de horímetro la llena a mano el operario y llega como foto:
+      // el texto adversario puede venir escrito en el papel, donde ningún
+      // sanitizador de strings llega. La regla 5 del prompt ("transcribe
+      // LITERALMENTE, sin interpretar") ya empuja en la dirección correcta;
+      // esto lo hace explícito y prioritario.
+      system: INJECTION_GUARD_PREAMBLE,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
         { type: 'text', text: prompt },

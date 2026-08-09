@@ -9,6 +9,7 @@ const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
+const { INJECTION_GUARD_PREAMBLE } = require('../../lib/aiGuards');
 
 const router = Router();
 
@@ -108,6 +109,14 @@ Reglas:
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
+      // El preámbulo va en `system`, no en el turno de usuario: es la única
+      // parte del contexto que no proviene de nadie de afuera. Acá importa más
+      // que en los endpoints de texto, porque la superficie hostil es la
+      // IMAGEN — un formulario de siembra fotografiado puede traer escrito a
+      // mano "ignora las instrucciones anteriores", y eso vive en píxeles que
+      // ningún sanitizador puede tocar. sanitizeForPrompt (arriba) cubre los
+      // nombres del catálogo; esto cubre lo que entra por la cámara.
+      system: INJECTION_GUARD_PREAMBLE,
       messages: [{
         role: 'user',
         content: [
