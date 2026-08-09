@@ -5,6 +5,7 @@ import Toast from '../../../components/Toast';
 import AuroraConfirmModal from '../../../components/AuroraConfirmModal';
 import AuroraDataTable from '../../../components/AuroraDataTable';
 import { useApiFetch } from '../../../hooks/useApiFetch';
+import { useUser, hasMinRole } from '../../../contexts/UserContext';
 import '../styles/machinery.css';
 
 const COLUMNS = [
@@ -84,6 +85,7 @@ function getColVal(r, key) {
 export default function HistorialHorimetros() {
   const apiFetch = useApiFetch();
   const navigate = useNavigate();
+  const { currentUser } = useUser();
 
   const [records,    setRecords]    = useState([]);
   const [maquinaria, setMaquinaria] = useState([]);
@@ -208,19 +210,30 @@ export default function HistorialHorimetros() {
 
   const fmtCRC = (n) => `₡${n.toLocaleString('es-CR', { maximumFractionDigits: 0 })}`;
 
+  // La página es de rol trabajador (registrar el uso de la máquina es su
+  // tarea), pero PUT y DELETE de /api/horimetro exigen encargado: esas horas
+  // alimentan costos, y un trabajador no debe corregir ni borrar el registro
+  // de otro. Sin este gate los botones seguirían visibles y devolverían 403.
+  // Esto es UX; el control real está en el backend (lib/guards.js).
+  const puedeEditar = hasMinRole(currentUser?.rol, 'encargado');
+
   const trailingCell = (rec) => (
     <td className="machinery-td-actions">
-      <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={() => handleEdit(rec)} title="Editar">
-        <FiEdit size={13} />
-      </button>
-      <button
-        type="button"
-        className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
-        onClick={() => setConfirmDelete({ id: rec.id, fecha: rec.fecha, tractor: rec.tractorNombre })}
-        title="Eliminar"
-      >
-        <FiTrash2 size={13} />
-      </button>
+      {puedeEditar ? (
+        <>
+          <button type="button" className="aur-icon-btn aur-icon-btn--sm" onClick={() => handleEdit(rec)} title="Editar">
+            <FiEdit size={13} />
+          </button>
+          <button
+            type="button"
+            className="aur-icon-btn aur-icon-btn--sm aur-icon-btn--danger"
+            onClick={() => setConfirmDelete({ id: rec.id, fecha: rec.fecha, tractor: rec.tractorNombre })}
+            title="Eliminar"
+          >
+            <FiTrash2 size={13} />
+          </button>
+        </>
+      ) : null}
     </td>
   );
 

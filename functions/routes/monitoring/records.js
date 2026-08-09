@@ -18,6 +18,11 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+// Registros de muestreo: la UI los expone en /monitoreo/muestreos y
+// /monitoreo/historial, ambos gateados a encargado. Antes de esto, un
+// trabajador borraba cualquier muestreo de la finca — el aislamiento por
+// finca estaba (verifyOwnership) pero no el escalón de rol.
+const { requireEncargado } = require('../../lib/guards');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const {
@@ -70,7 +75,7 @@ router.get('/api/muestreos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/muestreos', authenticate, async (req, res) => {
+router.post('/api/muestreos', authenticate, requireEncargado, async (req, res) => {
   try {
     const body = req.body || {};
     const loteId = typeof body.loteId === 'string' ? body.loteId.trim() : '';
@@ -129,7 +134,7 @@ router.get('/api/muestreos/:id', authenticate, async (req, res) => {
 
 // Elimina un registro individual del array formularioData.registros.
 // If it was the only one, deletes the entire document.
-router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, async (req, res) => {
+router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, requireEncargado, async (req, res) => {
   try {
     const { id, regIdx } = req.params;
     const idx = Number.parseInt(regIdx, 10);
@@ -156,7 +161,7 @@ router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, async (req, 
   }
 });
 
-router.delete('/api/muestreos/:id', authenticate, async (req, res) => {
+router.delete('/api/muestreos/:id', authenticate, requireEncargado, async (req, res) => {
   try {
     const ownership = await verifyOwnership('monitoreos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
