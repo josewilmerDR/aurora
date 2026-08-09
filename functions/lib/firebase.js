@@ -28,7 +28,16 @@ admin.initializeApp();
 // con listas vacías y escribiendo ahí. Indistinguible de datos borrados.
 // Runbook de respaldos/restore: docs/firestore-backups.md
 const db = getFirestore(admin.app(), process.env.FIRESTORE_DATABASE_ID || 'auroradatabase');
-const STORAGE_BUCKET = 'aurora-7dc9b.appspot.com';
+// Bucket real del proyecto. Era 'aurora-7dc9b.appspot.com', que NO EXISTE:
+// `gcloud storage buckets list --project=aurora-7dc9b` devuelve
+// 'aurora-7dc9b.firebasestorage.app' y ningún .appspot.com. Los proyectos
+// creados después del cambio de default de Firebase Storage ya no reciben el
+// bucket .appspot.com, así que el valor viejo nunca resolvió y la subida de
+// escaneos de muestreo (único consumidor, routes/monitoring/sampling.js)
+// fallaba en producción. El .env del frontend ya tenía el valor correcto.
+// Al afirmarlo en un test, compararlo contra el LITERAL — nunca contra esta
+// constante, o el test se vuelve una tautología que certifica cualquier valor.
+const STORAGE_BUCKET = 'aurora-7dc9b.firebasestorage.app';
 
 // APP_URL: base de los deep-links en notificaciones push salientes.
 // Se interpola cruda en cuerpos de mensaje, así que NUNCA es un passthrough

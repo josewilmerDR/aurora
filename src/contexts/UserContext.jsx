@@ -8,6 +8,7 @@ import {
 import { auth, googleProvider } from '../firebase';
 import { apiFetch } from '../lib/apiFetch';
 import { clearAllDrafts } from '../hooks/useDraft';
+import { purgeApiCache } from '../lib/apiCache';
 
 export const ROLE_LEVELS = {
   trabajador: 1,
@@ -179,11 +180,19 @@ export function UserProvider({ children }) {
     await signOut(auth);
     clearAllDrafts();
     localStorage.removeItem(ACTIVE_FINCA_KEY);
+    // La caché de /api/* del service worker sobrevive al signOut: sin esto, la
+    // próxima persona que inicie sesión en el mismo dispositivo puede recibir
+    // datos de esta sesión servidos desde caché. Ver src/lib/apiCache.js.
+    await purgeApiCache();
   }, []);
 
   const selectFinca = useCallback((fincaId) => {
     setActiveFincaId(fincaId);
     localStorage.setItem(ACTIVE_FINCA_KEY, fincaId);
+    // Redundante con la clave de caché por finca del SW, a propósito: deja el
+    // dispositivo sin rastros del inquilino anterior. No se espera (`void`)
+    // para no demorar el cambio de organización.
+    void purgeApiCache();
   }, []);
 
   // Reloads the user's profile on the active finca (useful after editing the user themselves)

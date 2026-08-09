@@ -143,7 +143,14 @@ describe('PATCH /api/muestreos/ordenes/:id/complete — scan upload', () => {
     expect(mockStorage.calls).toHaveLength(1);
 
     const call = mockStorage.calls[0];
-    expect(call.bucketName).toBe(STORAGE_BUCKET);
+    // Afirmado contra el LITERAL, no contra STORAGE_BUCKET. Comparar el mock
+    // contra la misma constante que produce el valor es una tautología: pasaba
+    // en verde mientras la constante apuntaba a 'aurora-7dc9b.appspot.com', un
+    // bucket que no existe en el proyecto, y la subida fallaba en producción.
+    // Este literal es el bucket real (`gcloud storage buckets list`); si el
+    // proyecto cambia de bucket, este test DEBE fallar y obligar a mirarlo.
+    expect(call.bucketName).toBe('aurora-7dc9b.firebasestorage.app');
+    expect(STORAGE_BUCKET).toBe('aurora-7dc9b.firebasestorage.app');
     expect(call.path).toMatch(new RegExp(`^muestreos/${finca}/${orden.id}/scan_\\d+\\.jpg$`));
     expect(call.buffer.equals(Buffer.from(SCAN_BASE64, 'base64'))).toBe(true);
     expect(call.options.contentType).toBe('image/png');

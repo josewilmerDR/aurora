@@ -15,12 +15,19 @@ router.get('/api/push/vapid-public-key', authenticate, (req, res) => {
 });
 
 // POST /api/push/subscribe — save the user's push subscription
-router.post('/api/push/subscribe', authenticate, async (req, res) => {
+router.post('/api/push/subscribe', authenticate, rateLimit('push_subscribe', 'write'), async (req, res) => {
   try {
     const { subscription } = req.body;
     if (!subscription?.endpoint) {
       return sendApiError(res, ERROR_CODES.INVALID_INPUT, 'Invalid subscription.', 400);
     }
+    // Sobrescribir un doc con otro `uid` es CORRECTO acá, al revés que en el
+    // DELETE de abajo: el endpoint push identifica una instalación de
+    // navegador, no a una persona. En una tablet de campo compartida, cuando
+    // la segunda persona se suscribe el endpoint es el mismo, y la
+    // suscripción debe pasar a ser suya — quien está logueado ahora es quien
+    // debe recibir las notificaciones de ese dispositivo. Rechazar por dueño
+    // distinto rompería los dispositivos compartidos, que son el caso normal.
     // Upsert: use the endpoint as the doc ID (base64-encoded to avoid invalid chars)
     const docId = Buffer.from(subscription.endpoint).toString('base64').slice(0, 500);
     await db.collection('push_subscriptions').doc(docId).set({
@@ -80,14 +87,29 @@ router.get('/api/push/subscriptions/stats', authenticate, rateLimit('push_stats'
 });
 
 // DELETE /api/push/subscribe — remove the user's push subscription
-router.delete('/api/push/subscribe', authenticate, async (req, res) => {
+router.delete('/api/push/subscribe', authenticate, rateLimit('push_subscribe', 'write'), async (req, res) => {
   try {
     const { endpoint } = req.body;
     if (!endpoint) {
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'Endpoint is required.', 400);
     }
     const docId = Buffer.from(endpoint).toString('base64').slice(0, 500);
-    await db.collection('push_subscriptions').doc(docId).delete();
+    // El doc id deriva del endpoint push, no del inquilino: quien conozca el
+    // endpoint de otra persona podía borrarle la suscripción y dejarla sin
+    // notificaciones, en silencio y desde otra finca. Verificamos dueño antes
+    // de borrar. Respondemos ok:true igual cuando el doc no existe o no es
+    // suyo — DELETE es idempotente y así no hay señal de enumeración que
+    // permita confirmar qué endpoints están registrados.
+    const ref = db.collection('push_subscriptions').doc(docId);
+    const snap = await ref.get();
+    if (snap.exists) {
+      const sub = snap.data();
+      if (sub.uid === req.uid && sub.fincaId === req.fincaId) {
+        await ref.delete();
+      } else {
+        console.warn('[push] delete rechazado: la suscripción no pertenece al solicitante');
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error('Error deleting push subscription:', err);
