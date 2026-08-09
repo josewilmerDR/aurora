@@ -17,7 +17,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
-const { hasMinRoleBE } = require('../../lib/helpers');
+const { hasMinRoleBE, verifyOwnership } = require('../../lib/helpers');
 const { rateLimit } = require('../../lib/rateLimit');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
@@ -150,11 +150,20 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
       createdAt: Timestamp.now(),
     });
     if (solicitudId) {
-      await db.collection('scheduled_tasks').doc(solicitudId).update({
-        status: 'completed_by_user',
-        completedAt: Timestamp.now(),
-        ordenCompraId: docRef.id,
-      });
+      // Ownership-check antes de mutar: `solicitudId` llega crudo del body, así
+      // que sin esto un miembro de la finca A cerraba una tarea de la finca B
+      // (escritura cross-tenant silenciosa, sin rastro para la víctima). Mismo
+      // criterio que el bloque `rfqId` de abajo: si el id no es de esta finca,
+      // se omite el back-link en vez de fallar — la OC ya se creó y abortar acá
+      // dejaría estado parcial.
+      const solicitudOwn = await verifyOwnership('scheduled_tasks', solicitudId, req.fincaId);
+      if (solicitudOwn.ok) {
+        await solicitudOwn.doc.ref.update({
+          status: 'completed_by_user',
+          completedAt: Timestamp.now(),
+          ordenCompraId: docRef.id,
+        });
+      }
     }
     if (rfqId) {
       // Back-link the RFQ to this OC so the cotización UI can show "OC ya creada".
