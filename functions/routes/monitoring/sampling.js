@@ -20,6 +20,7 @@ const { authenticate } = require('../../lib/middleware');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { INJECTION_GUARD_PREAMBLE } = require('../../lib/aiGuards');
 const {
   MEDIA_TYPES_IMG, MAX_OBSERVACIONES, MAX_REGISTROS_ROWS,
   MAX_REGISTRO_VALUE, MAX_SCAN_IMAGE_BASE64, DATE_ISO_RE,
@@ -357,6 +358,11 @@ Ejemplo de respuesta con 2 filas: [${exampleRow}, ${exampleRow}]`;
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
+      // La sanitización de más arriba cubre los nombres de campo del catálogo;
+      // esto cubre la imagen, que es la superficie que ningún sanitizador
+      // alcanza — el formulario lo rellena a mano un técnico y puede traer
+      // texto adversario escrito en el papel.
+      system: INJECTION_GUARD_PREAMBLE,
       messages: [
         {
           role: 'user',
