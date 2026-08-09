@@ -1,6 +1,14 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+// Horímetro: GET/POST y el escaneo quedan en `authenticate` a propósito — la
+// UI expone /operaciones/horimetro/{registro,historial} a trabajador, y
+// registrar el uso de la máquina es justamente su tarea. Editar o borrar un
+// registro ajeno no lo es: esas horas alimentan costos, así que PUT y DELETE
+// suben a encargado. Nota: el doc de horimetro no guarda el uid de quien lo
+// creó, así que "un trabajador borra LO SUYO" no es implementable sin agregar
+// ese campo; queda pendiente y por eso el escalón es encargado y no autoría.
+const { requireEncargado } = require('../lib/guards');
 const { pick, verifyOwnership } = require('../lib/helpers');
 const { getAnthropicClient } = require('../lib/clients');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
@@ -102,7 +110,7 @@ router.post('/api/horimetro', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/horimetro/:id', authenticate, async (req, res) => {
+router.put('/api/horimetro/:id', authenticate, requireEncargado, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('horimetro', id, req.fincaId);
@@ -174,7 +182,7 @@ router.put('/api/horimetro/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/horimetro/:id', authenticate, async (req, res) => {
+router.delete('/api/horimetro/:id', authenticate, requireEncargado, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('horimetro', id, req.fincaId);

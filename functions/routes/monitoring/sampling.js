@@ -17,6 +17,10 @@ const { Router } = require('express');
 const { db, admin, Timestamp, FieldValue, FieldPath, STORAGE_BUCKET } = require('../../lib/firebase');
 const { getAnthropicClient } = require('../../lib/clients');
 const { authenticate } = require('../../lib/middleware');
+// Órdenes de muestreo: la UI las expone en /monitoreo/muestreos, gateado a
+// encargado. El escaneo de formulario NO lleva guard a propósito — es la
+// captura en campo, y quien la hace puede ser un trabajador.
+const { requireEncargado } = require('../../lib/guards');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
@@ -102,7 +106,7 @@ router.get('/api/muestreos/ordenes', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/muestreos/ordenes/:id', authenticate, async (req, res) => {
+router.delete('/api/muestreos/ordenes/:id', authenticate, requireEncargado, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
@@ -119,7 +123,7 @@ router.delete('/api/muestreos/ordenes/:id', authenticate, async (req, res) => {
   }
 });
 
-router.patch('/api/muestreos/ordenes/:id/complete', authenticate, async (req, res) => {
+router.patch('/api/muestreos/ordenes/:id/complete', authenticate, requireEncargado, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
