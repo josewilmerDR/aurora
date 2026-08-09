@@ -18,6 +18,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { rateLimit } = require('../../lib/rateLimit');
 // Registros de muestreo: la UI los expone en /monitoreo/muestreos y
 // /monitoreo/historial, ambos gateados a encargado. Antes de esto, un
 // trabajador borraba cualquier muestreo de la finca — el aislamiento por
@@ -31,7 +32,7 @@ const {
 
 const router = Router();
 
-router.get('/api/muestreos', authenticate, async (req, res) => {
+router.get('/api/muestreos', authenticate, rateLimit('muestreos_read', 'costly_read'), async (req, res) => {
   try {
     const { loteId, desde, hasta, tipoId } = req.query;
     if (desde !== undefined && desde !== '' && !DATE_ISO_RE.test(desde)) {
@@ -75,7 +76,7 @@ router.get('/api/muestreos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/muestreos', authenticate, requireEncargado, async (req, res) => {
+router.post('/api/muestreos', authenticate, requireEncargado, rateLimit('muestreos_write', 'write'), async (req, res) => {
   try {
     const body = req.body || {};
     const loteId = typeof body.loteId === 'string' ? body.loteId.trim() : '';
@@ -134,7 +135,7 @@ router.get('/api/muestreos/:id', authenticate, async (req, res) => {
 
 // Elimina un registro individual del array formularioData.registros.
 // If it was the only one, deletes the entire document.
-router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, requireEncargado, async (req, res) => {
+router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, requireEncargado, rateLimit('muestreos_write', 'write'), async (req, res) => {
   try {
     const { id, regIdx } = req.params;
     const idx = Number.parseInt(regIdx, 10);
@@ -161,7 +162,7 @@ router.delete('/api/muestreos/:id/registros/:regIdx', authenticate, requireEncar
   }
 });
 
-router.delete('/api/muestreos/:id', authenticate, requireEncargado, async (req, res) => {
+router.delete('/api/muestreos/:id', authenticate, requireEncargado, rateLimit('muestreos_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('monitoreos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

@@ -124,7 +124,7 @@ router.get('/api/hr/planilla-fijo', authenticate, rateLimit('hr_planilla_read', 
   }
 });
 
-router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (req, res) => {
+router.post('/api/hr/planilla-fijo', authenticate, rateLimit('hr_planilla_fijo_write', 'write'), planillaRateLimit(), async (req, res) => {
   try {
     if (!canEditarFijo(req))
       return sendApiError(res, ERROR_CODES.INSUFFICIENT_ROLE, 'Insufficient role to create planillas.', 403);
@@ -216,7 +216,7 @@ router.post('/api/hr/planilla-fijo', authenticate, planillaRateLimit(), async (r
   }
 });
 
-router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async (req, res) => {
+router.put('/api/hr/planilla-fijo/:id', authenticate, rateLimit('hr_planilla_fijo_write', 'write'), planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_fijo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -383,7 +383,7 @@ router.put('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async
   }
 });
 
-router.delete('/api/hr/planilla-fijo/:id', authenticate, planillaRateLimit(), async (req, res) => {
+router.delete('/api/hr/planilla-fijo/:id', authenticate, rateLimit('hr_planilla_fijo_write', 'write'), planillaRateLimit(), async (req, res) => {
   try {
     const ownership = await verifyOwnership('hr_planilla_fijo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

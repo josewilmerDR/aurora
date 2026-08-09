@@ -79,7 +79,7 @@ router.get('/api/ordenes-compra', authenticate, rateLimit('ordenes_read', 'publi
   }
 });
 
-router.post('/api/ordenes-compra', authenticate, async (req, res) => {
+router.post('/api/ordenes-compra', authenticate, rateLimit('ordenes_compra_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can create purchase orders.', 403);
@@ -202,7 +202,7 @@ router.post('/api/ordenes-compra', authenticate, async (req, res) => {
   }
 });
 
-router.patch('/api/ordenes-compra/:id', authenticate, async (req, res) => {
+router.patch('/api/ordenes-compra/:id', authenticate, rateLimit('ordenes_compra_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update purchase orders.', 403);

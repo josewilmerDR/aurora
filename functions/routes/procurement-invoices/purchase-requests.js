@@ -182,7 +182,7 @@ router.post('/api/solicitudes-compra', authenticate, rateLimit('solicitudes_writ
   }
 });
 
-router.put('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
+router.put('/api/solicitudes-compra/:id', authenticate, rateLimit('solicitudes_compra_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can update solicitudes.', 403);
@@ -231,7 +231,7 @@ router.put('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/solicitudes-compra/:id', authenticate, async (req, res) => {
+router.delete('/api/solicitudes-compra/:id', authenticate, rateLimit('solicitudes_compra_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can delete solicitudes.', 403);

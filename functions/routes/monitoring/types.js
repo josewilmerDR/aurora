@@ -18,6 +18,7 @@
 const { Router } = require('express');
 const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { rateLimit } = require('../../lib/rateLimit');
 // Los tipos de muestreo son configuración de finca, no un registro operativo:
 // la UI los expone en /monitoreo/config, gateado a supervisor. Las lecturas
 // quedan en `authenticate` porque quien llena un muestreo (encargado) necesita
@@ -44,7 +45,7 @@ router.get('/api/muestreos/tipos', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/muestreos/tipos', authenticate, requireSupervisor, async (req, res) => {
+router.post('/api/muestreos/tipos', authenticate, requireSupervisor, rateLimit('muestreos_tipos_write', 'write'), async (req, res) => {
   try {
     const nombreRes = sanitizeNombre(req.body?.nombre);
     if (!nombreRes.ok) return sendApiError(res, ERROR_CODES.VALIDATION_FAILED, nombreRes.message, 400);
@@ -72,7 +73,7 @@ router.get('/api/muestreos/tipos/:id', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/muestreos/tipos/:id', authenticate, requireSupervisor, async (req, res) => {
+router.put('/api/muestreos/tipos/:id', authenticate, requireSupervisor, rateLimit('muestreos_tipos_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -101,7 +102,7 @@ router.put('/api/muestreos/tipos/:id', authenticate, requireSupervisor, async (r
   }
 });
 
-router.delete('/api/muestreos/tipos/:id', authenticate, requireSupervisor, async (req, res) => {
+router.delete('/api/muestreos/tipos/:id', authenticate, requireSupervisor, rateLimit('muestreos_tipos_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('tipos_monitoreo', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

@@ -16,6 +16,7 @@
 const { Router } = require('express');
 const { db } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
+const { rateLimit } = require('../../lib/rateLimit');
 const { verifyOwnership, hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { sanitizePaquete } = require('./helpers');
@@ -52,7 +53,7 @@ router.get('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/muestreos/paquetes', authenticate, async (req, res) => {
+router.post('/api/muestreos/paquetes', authenticate, rateLimit('muestreos_paquetes_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can manage monitoring packages.', 403);
@@ -67,7 +68,7 @@ router.post('/api/muestreos/paquetes', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
+router.put('/api/muestreos/paquetes/:id', authenticate, rateLimit('muestreos_paquetes_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can manage monitoring packages.', 403);
@@ -84,7 +85,7 @@ router.put('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/muestreos/paquetes/:id', authenticate, async (req, res) => {
+router.delete('/api/muestreos/paquetes/:id', authenticate, rateLimit('muestreos_paquetes_write', 'write'), async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'supervisor')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only supervisor or above can manage monitoring packages.', 403);

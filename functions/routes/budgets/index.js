@@ -36,8 +36,8 @@ function requireRole(min) {
 router.get('/api/budgets/execution', authenticate, requireRole('encargado'), rateLimit('budgets_execution', 'costly_read'), getExecution);
 
 router.get('/api/budgets', authenticate, requireRole('encargado'), listBudgets);
-router.post('/api/budgets', authenticate, requireRole('encargado'), createBudget);
-router.put('/api/budgets/:id', authenticate, requireRole('encargado'), updateBudget);
-router.delete('/api/budgets/:id', authenticate, requireRole('encargado'), deleteBudget);
+router.post('/api/budgets', authenticate, rateLimit('budgets_write', 'write'), requireRole('encargado'), createBudget);
+router.put('/api/budgets/:id', authenticate, rateLimit('budgets_write', 'write'), requireRole('encargado'), updateBudget);
+router.delete('/api/budgets/:id', authenticate, rateLimit('budgets_write', 'write'), requireRole('encargado'), deleteBudget);
 
 module.exports = router;

@@ -170,7 +170,7 @@ router.post('/api/hr/asistencia/batch', authenticate, rateLimit('hr_asistencia_w
   }
 });
 
-router.delete('/api/hr/asistencia/:id', authenticate, async (req, res) => {
+router.delete('/api/hr/asistencia/:id', authenticate, rateLimit('hr_asistencia_write', 'write'), async (req, res) => {
   try {
     // Los doc id son deterministas (`${trabajadorId}_${fecha}`) → adivinables.
     // Sin verifyOwnership cualquier autenticado borraría registros de OTRA

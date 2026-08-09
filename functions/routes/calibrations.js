@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { rateLimit } = require('../lib/rateLimit');
 // Calibraciones: la UI las expone en /admin/calibraciones, gateado a
 // supervisor. Las escrituras se alinean a ese rol; la lectura queda en
 // `authenticate` porque los cálculos de aplicación la consumen desde módulos
@@ -27,7 +28,7 @@ router.get('/api/calibraciones', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/calibraciones', authenticate, requireSupervisor, async (req, res) => {
+router.post('/api/calibraciones', authenticate, requireSupervisor, rateLimit('calibraciones_write', 'write'), async (req, res) => {
   try {
     const data = pick(req.body, [
       'nombre', 'fecha', 'tractorId', 'tractorNombre',
@@ -47,7 +48,7 @@ router.post('/api/calibraciones', authenticate, requireSupervisor, async (req, r
   }
 });
 
-router.put('/api/calibraciones/:id', authenticate, requireSupervisor, async (req, res) => {
+router.put('/api/calibraciones/:id', authenticate, requireSupervisor, rateLimit('calibraciones_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('calibraciones', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -65,7 +66,7 @@ router.put('/api/calibraciones/:id', authenticate, requireSupervisor, async (req
   }
 });
 
-router.delete('/api/calibraciones/:id', authenticate, requireSupervisor, async (req, res) => {
+router.delete('/api/calibraciones/:id', authenticate, requireSupervisor, rateLimit('calibraciones_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('calibraciones', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

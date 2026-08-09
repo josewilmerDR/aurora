@@ -14,6 +14,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { rateLimit } = require('../lib/rateLimit');
 const { pick, verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 const { inferSeasons } = require('../lib/strategy/seasonInference');
@@ -100,7 +101,7 @@ router.get('/api/analytics/temporadas', authenticate, async (req, res) => {
 
 // ─── Temporadas: detectar (no persiste) ────────────────────────────────────
 
-router.post('/api/analytics/temporadas/detect', authenticate, async (req, res) => {
+router.post('/api/analytics/temporadas/detect', authenticate, rateLimit('analytics_write', 'write'), async (req, res) => {
   try {
     if (!requireSupervisor(req, res)) return;
     const options = {};
@@ -149,7 +150,7 @@ router.post('/api/analytics/temporadas/detect', authenticate, async (req, res) =
 
 // ─── Temporadas: crear ─────────────────────────────────────────────────────
 
-router.post('/api/analytics/temporadas', authenticate, async (req, res) => {
+router.post('/api/analytics/temporadas', authenticate, rateLimit('analytics_write', 'write'), async (req, res) => {
   try {
     if (!requireSupervisor(req, res)) return;
     const allowed = ['nombre', 'fechaInicio', 'fechaFin', 'autoDetected', 'notas'];
@@ -200,7 +201,7 @@ router.post('/api/analytics/temporadas', authenticate, async (req, res) => {
 
 // ─── Temporadas: actualizar ────────────────────────────────────────────────
 
-router.put('/api/analytics/temporadas/:id', authenticate, async (req, res) => {
+router.put('/api/analytics/temporadas/:id', authenticate, rateLimit('analytics_write', 'write'), async (req, res) => {
   try {
     if (!requireSupervisor(req, res)) return;
     const { id } = req.params;
@@ -260,7 +261,7 @@ router.put('/api/analytics/temporadas/:id', authenticate, async (req, res) => {
 // puede re-detectar en cualquier momento). Las creadas manualmente se
 // archivan para preservar el historial de decisiones que las referenciaron.
 
-router.delete('/api/analytics/temporadas/:id', authenticate, async (req, res) => {
+router.delete('/api/analytics/temporadas/:id', authenticate, rateLimit('analytics_write', 'write'), async (req, res) => {
   try {
     if (!requireSupervisor(req, res)) return;
     const { id } = req.params;
@@ -287,7 +288,7 @@ router.delete('/api/analytics/temporadas/:id', authenticate, async (req, res) =>
 
 // ─── Yield: agregador histórico ────────────────────────────────────────────
 
-router.get('/api/analytics/yield', authenticate, async (req, res) => {
+router.get('/api/analytics/yield', authenticate, rateLimit('analytics_read', 'costly_read'), async (req, res) => {
   try {
     if (!requireSupervisor(req, res)) return;
     const { desde, hasta, groupBy } = req.query;

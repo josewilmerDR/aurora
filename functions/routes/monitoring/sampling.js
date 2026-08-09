@@ -32,7 +32,7 @@ const {
 
 const router = Router();
 
-router.get('/api/muestreos/ordenes', authenticate, async (req, res) => {
+router.get('/api/muestreos/ordenes', authenticate, rateLimit('muestreos_ordenes_read', 'costly_read'), async (req, res) => {
   try {
     const snap = await db.collection('scheduled_tasks')
       .where('fincaId', '==', req.fincaId)
@@ -107,7 +107,7 @@ router.get('/api/muestreos/ordenes', authenticate, async (req, res) => {
   }
 });
 
-router.delete('/api/muestreos/ordenes/:id', authenticate, requireEncargado, async (req, res) => {
+router.delete('/api/muestreos/ordenes/:id', authenticate, requireEncargado, rateLimit('muestreos_ordenes_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
@@ -124,7 +124,7 @@ router.delete('/api/muestreos/ordenes/:id', authenticate, requireEncargado, asyn
   }
 });
 
-router.patch('/api/muestreos/ordenes/:id/complete', authenticate, requireEncargado, async (req, res) => {
+router.patch('/api/muestreos/ordenes/:id/complete', authenticate, requireEncargado, rateLimit('muestreos_ordenes_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);

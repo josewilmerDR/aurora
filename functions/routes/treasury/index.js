@@ -30,8 +30,8 @@ function requireRole(min) {
 }
 
 // Saldos de caja (cash_balance).
-router.get('/api/treasury/balance/current', authenticate, requireRole('encargado'), getCurrentBalance);
-router.get('/api/treasury/balance', authenticate, requireRole('encargado'), listBalances);
+router.get('/api/treasury/balance/current', authenticate, rateLimit('treasury_read', 'costly_read'), requireRole('encargado'), getCurrentBalance);
+router.get('/api/treasury/balance', authenticate, rateLimit('treasury_read', 'costly_read'), requireRole('encargado'), listBalances);
 // Escrituras: rate-limit 'write' para que un token autenticado no pueda spamear
 // creación/borrado de saldos (escrituras Firestore ilimitadas + contaminación
 // de la serie cash_balance).
