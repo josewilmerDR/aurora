@@ -24,6 +24,10 @@ import Profile from './features/account/pages/Profile';
 // Cada lazy() genera un chunk independiente; el initial bundle de la app
 // arranca con ~50% menos código. El fallback de <Suspense> es el mismo
 // .app-loading que usa ProtectedRoute mientras resuelve auth.
+// La landing pública sólo la ve un visitante sin sesión (y quien entre a
+// /bienvenido): lazy para no cargar su hoja de estilos y su copy en cada
+// arranque de la app autenticada.
+const Landing = lazy(() => import('./features/landing/pages/Landing'));
 const UserManagement = lazy(() => import('./features/admin/pages/UserManagement'));
 const PackageManagement = lazy(() => import('./features/applications/pages/PackageManagement'));
 const ProductosCatalogo = lazy(() => import('./features/inventory/pages/ProductosCatalogo'));
@@ -128,7 +132,14 @@ const ProtectedRoute = ({ children }) => {
   if (needsEmailVerification) return <Navigate to="/verificar-correo" replace />;
   // Finca selected but profile still loading: show spinner instead of redirecting to /login
   if (firebaseUser && activeFincaId && !currentUser) return <div className="app-loading" />;
-  if (!isLoggedIn && !needsOrgSelection) return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
+  // Raíz sin sesión: la landing pública, no el formulario de login. "/" es la
+  // puerta de entrada del dominio, así que un visitante nuevo tiene que caer en
+  // la explicación del producto; los deep links a rutas internas sí van a
+  // /login con `from` para volver al destino tras autenticar.
+  if (!isLoggedIn && !needsOrgSelection) {
+    if (location.pathname === '/') return <Landing />;
+    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
+  }
   if (needsOrgSelection) return <OrganizationSelector />;
   return children;
 };
@@ -332,6 +343,11 @@ function App() {
           <Suspense fallback={<div className="app-loading" />}>
           <Routes>
           {/* Public routes */}
+          {/* Landing: URL estable para enlazar desde comunplace aunque el
+              visitante ya tenga sesión. Fuera de SimpleLayout porque la página
+              aporta su propio <main> y fija su propio título. */}
+          <Route path="/bienvenido" element={<Landing />} />
+
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />
             <Route path="/login/contrasena" element={<LoginPassword />} />

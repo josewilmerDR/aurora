@@ -1,0 +1,751 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LANDING (.lp-*) — página pública de Aurora.
+
+   Se monta en "/" para visitantes anónimos y en "/bienvenido" siempre. Es la
+   única superficie de marketing de la app, así que tiene una escala tipográfica
+   propia (más grande que la de producto) y un ritmo vertical de secciones que
+   no existe en el resto del sistema. Todo lo demás —pills, iconos, lanzador de
+   ecosistema— reusa las primitivas .aur-*.
+
+   Dos decisiones que conviene no deshacer:
+
+   1. ISLA OSCURA. Los tokens --aur-* voltean con html[data-theme="light"], y
+      esta página está diseñada sobre navy. En vez de duplicar toda la hoja
+      para el tema claro, .lp-root vuelve a declarar los tokens que consume con
+      sus valores oscuros: la landing se ve igual con cualquier tema guardado
+      en localStorage. Mismo espíritu que los tokens --aur-doc-* de cédulas.
+
+   2. SCROLL PROPIO EN MÓVIL. index.css pone html/body/#root en overflow:hidden
+      a ≤768px (en la app el scroll ocurre dentro del content-area). La landing
+      no vive dentro de ese layout, así que a ≤768px se convierte ella misma en
+      el contenedor scrolleable; sin esto la página queda cortada en el primer
+      viewport.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.lp-root {
+  /* ── Isla oscura: valores fijos, no dependen del tema activo ───────────── */
+  --aur-text:          rgba(255, 255, 255, 0.95);
+  --aur-text-2:        rgba(255, 255, 255, 0.60);
+  --aur-text-3:        rgba(255, 255, 255, 0.40);
+  --aur-divider:       rgba(255, 255, 255, 0.06);
+  --aur-divider-2:     rgba(255, 255, 255, 0.10);
+  --aur-divider-3:     rgba(255, 255, 255, 0.14);
+  --aur-bg:            rgba(255, 255, 255, 0.025);
+  --aur-bg-hover:      rgba(255, 255, 255, 0.06);
+  --aur-accent:        #33ff99;
+  --aur-accent-tint:   rgba(51, 255, 153, 0.12);
+  --aur-accent-tint-2: rgba(51, 255, 153, 0.20);
+  --aur-accent-tint-3: rgba(51, 255, 153, 0.30);
+  --aur-accent-button:       #2a4a6a;
+  --aur-accent-button-hover: #3a6a8a;
+  --aur-badge-gray-bg:     rgba(255, 255, 255, 0.08);
+  --aur-shadow-pill:       0 4px 14px rgba(51, 255, 153, 0.25),
+                           0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  --aur-shadow-pill-hover: 0 6px 22px rgba(51, 255, 153, 0.38),
+                           0 1px 0 rgba(255, 255, 255, 0.20) inset;
+  --aur-ring:          0 0 0 3px rgba(51, 255, 153, 0.22);
+  color-scheme: dark;
+
+  /* ── Escala propia de la landing ───────────────────────────────────────── */
+  --lp-max:        1120px;
+  --lp-gutter:     clamp(20px, 5vw, 32px);
+  --lp-section-y:  clamp(64px, 9vw, 108px);
+  --lp-fs-display: clamp(34px, 5.2vw, 56px);
+  --lp-fs-title:   clamp(25px, 3.2vw, 34px);
+  --lp-fs-lead:    clamp(16px, 1.5vw, 18px);
+  --lp-header-h:   64px;
+
+  min-height: 100vh;
+  background: var(--aurora-dark-blue);
+  color: var(--aur-text);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Las anclas del header no deben quedar debajo de la barra fija. */
+.lp-root [id] {
+  scroll-margin-top: calc(var(--lp-header-h) + 16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-root {
+    scroll-behavior: auto;
+  }
+  .lp-root *,
+  .lp-root *::before,
+  .lp-root *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.lp-container {
+  width: 100%;
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  padding-inline: var(--lp-gutter);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.lp-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(13, 26, 38, 0.72);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid var(--aur-divider);
+}
+
+.lp-header-inner {
+  height: var(--lp-header-h);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.lp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--aur-text);
+  flex-shrink: 0;
+}
+
+.lp-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.lp-brand-name {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.lp-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.lp-header-nav-link {
+  padding: 8px 12px;
+  border-radius: var(--aur-r-pill);
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  color: var(--aur-text-2);
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.lp-header-nav-link:hover {
+  color: var(--aur-text);
+  background: var(--aur-bg-hover);
+}
+
+/* Con el nav visible este bloque ya quedó empujado a la derecha; en móvil,
+   con el nav oculto, es el propio bloque el que toma el margen automático
+   (ver media query de 768px). */
+.lp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── CTA primario: pill verde ────────────────────────────────────────────────
+   El pill de producto es tonal (superficie navy, glifo verde) porque convive
+   con datos. En la landing el llamado a la acción debe ganar la página, así
+   que toma el acento de marca como superficie. Modifier sobre .aur-btn-pill:
+   solo cambia color y tamaño, conserva hover/active/focus del primitive. */
+.lp-cta {
+  background: var(--aur-accent);
+  color: var(--aurora-dark-blue);
+  border-color: rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+  padding: 12px 24px;
+}
+
+.lp-cta:hover:not(:disabled) {
+  background: #5cffad;
+  box-shadow: var(--aur-shadow-pill-hover);
+}
+
+.lp-cta--sm {
+  padding: 8px 16px;
+  font-size: var(--aur-fs-footnote);
+}
+
+.lp-cta-secondary {
+  padding-inline: 16px;
+}
+
+.lp-root a:focus-visible,
+.lp-root button:focus-visible {
+  outline: none;
+  box-shadow: var(--aur-ring);
+  border-radius: var(--aur-r-pill);
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.lp-hero {
+  position: relative;
+  isolation: isolate;
+  padding-block: clamp(48px, 7vw, 88px) var(--lp-section-y);
+  overflow: hidden;
+}
+
+/* La aurora: dos luces muy tenues cayendo desde arriba, verde y magenta —los
+   dos acentos de la marca— sobre el navy. Es todo el adorno que lleva la
+   página; el resto es tipografía y hairlines. */
+.lp-hero::before {
+  content: '';
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 620px;
+  background:
+    radial-gradient(50% 60% at 50% 0%, rgba(51, 255, 153, 0.13), transparent 70%),
+    radial-gradient(38% 55% at 82% 6%, rgba(204, 51, 255, 0.10), transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.lp-hero-inner {
+  display: grid;
+  gap: clamp(40px, 6vw, 64px);
+  align-items: center;
+}
+
+.lp-eyebrow {
+  font-size: var(--aur-fs-caption);
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--aur-accent);
+  margin: 0 0 16px 0;
+}
+
+.lp-hero-title {
+  font-size: var(--lp-fs-display);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  margin: 0 0 20px 0;
+  text-wrap: balance;
+}
+
+.lp-hero-title-accent {
+  color: var(--aur-text-2);
+}
+
+.lp-hero-body {
+  font-size: var(--lp-fs-lead);
+  line-height: 1.6;
+  color: var(--aur-text-2);
+  max-width: 46ch;
+  margin: 0 0 32px 0;
+}
+
+.lp-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Nota de precio bajo el CTA. Sube un escalón sobre el gris de letra chica
+   (--aur-text-3): "gratis" es un argumento de venta, no una aclaración legal. */
+.lp-hero-note {
+  margin: 20px 0 0 0;
+  font-size: var(--aur-fs-body);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--aur-text-2);
+  max-width: 44ch;
+}
+
+/* ── Maqueta del hero ────────────────────────────────────────────────────── */
+.lp-hero-art {
+  min-width: 0;
+}
+
+.lp-preview {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--aur-divider-2);
+  border-radius: var(--aur-r-sheet);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.lp-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--aur-divider);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.lp-preview-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.lp-preview-bar-title {
+  margin-left: 10px;
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+  letter-spacing: 0.02em;
+}
+
+.lp-preview-body {
+  display: flex;
+  gap: 16px;
+  padding: 18px;
+}
+
+.lp-preview-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  flex-shrink: 0;
+}
+
+.lp-preview-rail-item {
+  display: block;
+  width: 34px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lp-preview-rail-item.is-active {
+  background: var(--aur-accent);
+  opacity: 0.55;
+  width: 44px;
+}
+
+.lp-preview-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lp-preview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.lp-preview-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--aur-divider);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.lp-preview-stat-value {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.lp-preview-stat-label {
+  font-size: 10px;
+  color: var(--aur-text-3);
+  letter-spacing: 0.02em;
+}
+
+.lp-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lp-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.lp-preview-tick {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.lp-preview-tick--hoy {
+  background: var(--aur-accent);
+}
+
+.lp-preview-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.lp-preview-row-title {
+  font-size: var(--aur-fs-footnote);
+  font-weight: 500;
+  color: var(--aur-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-preview-row-meta {
+  font-size: 10px;
+  color: var(--aur-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-preview-chip {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: var(--aur-r-pill);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--aur-badge-gray-bg);
+  color: var(--aur-text-3);
+}
+
+.lp-preview-chip--hoy {
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+}
+
+/* ── Secciones ───────────────────────────────────────────────────────────── */
+.lp-section {
+  padding-block: var(--lp-section-y);
+  border-top: 1px solid var(--aur-divider);
+}
+
+/* Alterna un escalón de luz para separar bloques sin dibujar cajas. */
+.lp-section--alt {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.lp-section-head {
+  max-width: 62ch;
+  margin-bottom: clamp(32px, 4vw, 52px);
+}
+
+.lp-section-title {
+  font-size: var(--lp-fs-title);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.lp-section-body {
+  margin: 14px 0 0 0;
+  font-size: var(--lp-fs-lead);
+  line-height: 1.6;
+  color: var(--aur-text-2);
+}
+
+/* ── Pasos ───────────────────────────────────────────────────────────────── */
+.lp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(24px, 3vw, 32px);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.lp-step {
+  padding-top: 20px;
+  border-top: 1px solid var(--aur-divider-2);
+}
+
+.lp-step-num {
+  display: block;
+  font-size: var(--aur-fs-footnote);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--aur-accent);
+  margin-bottom: 10px;
+}
+
+.lp-step-title {
+  font-size: var(--aur-fs-callout);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px 0;
+}
+
+.lp-step-body {
+  margin: 0;
+  font-size: var(--aur-fs-body);
+  line-height: 1.6;
+  color: var(--aur-text-2);
+}
+
+/* ── Grid de módulos ─────────────────────────────────────────────────────── */
+.lp-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+}
+
+.lp-card {
+  padding: 24px;
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+  background: var(--aur-bg);
+  transition: border-color 0.2s var(--aur-ease), transform 0.2s var(--aur-ease), background 0.2s ease;
+}
+
+.lp-card:hover {
+  border-color: var(--aur-divider-3);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+}
+
+.lp-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--aur-accent-tint);
+  color: var(--aur-accent);
+  margin-bottom: 16px;
+}
+
+.lp-card-title {
+  font-size: var(--aur-fs-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px 0;
+}
+
+.lp-card-body {
+  margin: 0;
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.6;
+  color: var(--aur-text-2);
+}
+
+/* ── Razones ─────────────────────────────────────────────────────────────── */
+.lp-reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(24px, 3vw, 36px) 48px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.lp-reason {
+  display: flex;
+  gap: 16px;
+}
+
+.lp-reason-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--aur-divider-2);
+  color: var(--aur-accent);
+}
+
+.lp-reason-title {
+  font-size: var(--aur-fs-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 6px 0 6px 0;
+}
+
+.lp-reason-body {
+  margin: 0;
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.65;
+  color: var(--aur-text-2);
+}
+
+/* ── Cierre ──────────────────────────────────────────────────────────────── */
+.lp-cta-section {
+  position: relative;
+  isolation: isolate;
+  padding-block: clamp(72px, 10vw, 120px);
+  border-top: 1px solid var(--aur-divider);
+  overflow: hidden;
+}
+
+.lp-cta-section::before {
+  content: '';
+  position: absolute;
+  inset: auto -10% -60% -10%;
+  height: 460px;
+  background: radial-gradient(48% 70% at 50% 100%, rgba(51, 255, 153, 0.12), transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.lp-cta-inner {
+  text-align: center;
+}
+
+.lp-cta-title {
+  font-size: var(--lp-fs-title);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  margin: 0 0 14px 0;
+  text-wrap: balance;
+}
+
+.lp-cta-body {
+  max-width: 56ch;
+  margin: 0 auto 28px auto;
+  font-size: var(--lp-fs-lead);
+  line-height: 1.6;
+  color: var(--aur-text-2);
+}
+
+.lp-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.lp-footer {
+  border-top: 1px solid var(--aur-divider);
+  padding-block: 32px;
+}
+
+.lp-footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+
+.lp-footer-brand .lp-brand-mark {
+  width: 24px;
+  height: 24px;
+}
+
+.lp-footer-brand .lp-brand-name {
+  font-size: var(--aur-fs-body);
+}
+
+.lp-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-left: auto;
+}
+
+.lp-footer-links a {
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.lp-footer-links a:hover {
+  color: var(--aur-text);
+}
+
+.lp-footer-legal {
+  width: 100%;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--aur-divider);
+  font-size: var(--aur-fs-caption);
+  color: var(--aur-text-3);
+}
+
+/* ── Desktop: hero en dos columnas ───────────────────────────────────────── */
+@media (min-width: 980px) {
+  .lp-hero-inner {
+    grid-template-columns: 1.05fr 1fr;
+  }
+}
+
+/* ── Móvil ───────────────────────────────────────────────────────────────── */
+@media (max-width: 979px) {
+  /* La maqueta es apoyo visual, no información: en pantallas donde competiría
+     con el texto por el primer viewport, se va. */
+  .lp-hero-art {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Ver nota 2 de la cabecera: acá la landing es el contenedor scrolleable.
+     min-height vuelve a 100% a propósito: con 100vh el bloque puede quedar
+     más alto que #root (barras dinámicas del navegador móvil) y el final de
+     la página se corta en vez de poder scrollearse. */
+  .lp-root {
+    height: 100%;
+    min-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lp-header-nav {
+    display: none;
+  }
+
+  .lp-header-actions {
+    margin-left: auto;
+  }
+
+  /* Con el nav oculto el header queda apretado: el enlace de texto se
+     compacta para dejarle aire al pill de crear cuenta. */
+  .lp-header-login {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .lp-header-login {
+    display: none;
+  }
+
+  .lp-hero-actions .lp-cta,
+  .lp-cta-actions .lp-cta {
+    width: 100%;
+  }
+}
