@@ -33,7 +33,7 @@ router.get('/api/horimetro', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/horimetro', authenticate, async (req, res) => {
+router.post('/api/horimetro', authenticate, rateLimit('horimetro_write', 'write'), async (req, res) => {
   try {
     const allowed = [
       'fecha', 'tractorId', 'tractorNombre', 'implementoId', 'implemento',
@@ -111,7 +111,7 @@ router.post('/api/horimetro', authenticate, async (req, res) => {
   }
 });
 
-router.put('/api/horimetro/:id', authenticate, requireEncargado, async (req, res) => {
+router.put('/api/horimetro/:id', authenticate, requireEncargado, rateLimit('horimetro_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('horimetro', id, req.fincaId);
@@ -183,7 +183,7 @@ router.put('/api/horimetro/:id', authenticate, requireEncargado, async (req, res
   }
 });
 
-router.delete('/api/horimetro/:id', authenticate, requireEncargado, async (req, res) => {
+router.delete('/api/horimetro/:id', authenticate, requireEncargado, rateLimit('horimetro_write', 'write'), async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('horimetro', id, req.fincaId);

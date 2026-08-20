@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { rateLimit } = require('../lib/rateLimit');
 const { verifyOwnership, hasMinRoleBE } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
@@ -65,7 +66,7 @@ router.get('/api/task-templates', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/task-templates', authenticate, requireEncargado, async (req, res) => {
+router.post('/api/task-templates', authenticate, requireEncargado, rateLimit('templates_write', 'write'), async (req, res) => {
   try {
     const validationError = validateTaskTemplatePayload(req.body);
     if (validationError) {
@@ -97,7 +98,7 @@ router.post('/api/task-templates', authenticate, requireEncargado, async (req, r
 // rol); pero crear/eliminar el catálogo es encargado+. Sin este gate un
 // trabajador podía borrar plantillas de su finca que no puede crear.
 // verifyOwnership debajo mantiene el aislamiento por finca.
-router.delete('/api/task-templates/:id', authenticate, requireEncargado, async (req, res) => {
+router.delete('/api/task-templates/:id', authenticate, requireEncargado, rateLimit('templates_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('task_templates', req.params.id, req.fincaId);
     if (!ownership.ok) {
@@ -175,7 +176,7 @@ router.get('/api/cedula-templates', authenticate, requireEncargado, async (req, 
   }
 });
 
-router.post('/api/cedula-templates', authenticate, requireEncargado, async (req, res) => {
+router.post('/api/cedula-templates', authenticate, requireEncargado, rateLimit('templates_write', 'write'), async (req, res) => {
   try {
     const validationError = validateCedulaTemplatePayload(req.body);
     if (validationError) {
@@ -205,7 +206,7 @@ router.post('/api/cedula-templates', authenticate, requireEncargado, async (req,
   }
 });
 
-router.delete('/api/cedula-templates/:id', authenticate, requireEncargado, async (req, res) => {
+router.delete('/api/cedula-templates/:id', authenticate, requireEncargado, rateLimit('templates_write', 'write'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('cedula_templates', req.params.id, req.fincaId);
     if (!ownership.ok) {

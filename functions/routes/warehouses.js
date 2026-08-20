@@ -96,7 +96,7 @@ router.post('/api/bodegas/:id/items', authenticate, requireRole('encargado'), ra
   }
 });
 
-router.put('/api/bodegas/:id/items/:itemId', authenticate, requireRole('encargado'), async (req, res) => {
+router.put('/api/bodegas/:id/items/:itemId', authenticate, rateLimit('bodegas_write', 'write'), requireRole('encargado'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -133,7 +133,7 @@ router.put('/api/bodegas/:id/items/:itemId', authenticate, requireRole('encargad
   }
 });
 
-router.delete('/api/bodegas/:id/items/:itemId', authenticate, requireRole('supervisor'), async (req, res) => {
+router.delete('/api/bodegas/:id/items/:itemId', authenticate, rateLimit('bodegas_write', 'write'), requireRole('supervisor'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -172,7 +172,7 @@ router.delete('/api/bodegas/:id/items/:itemId', authenticate, requireRole('super
 
 // --- API ENDPOINTS: BODEGA MOVIMIENTOS ---
 
-router.get('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado'), async (req, res) => {
+router.get('/api/bodegas/:id/movimientos', authenticate, rateLimit('bodegas_read', 'costly_read'), requireRole('encargado'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);
@@ -198,7 +198,7 @@ router.get('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado'
 // role + finca + bodega ownership on every access, so a leaked link cannot
 // outlive the short expiry and authz is enforced per-request (unlike the old
 // permanent download-token URL embedded in the doc).
-router.get('/api/bodegas/:id/movimientos/:movId/factura', authenticate, requireRole('encargado'), async (req, res) => {
+router.get('/api/bodegas/:id/movimientos/:movId/factura', authenticate, rateLimit('bodegas_read', 'costly_read'), requireRole('encargado'), async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);

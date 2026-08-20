@@ -40,7 +40,7 @@ function requireRole(min) {
 router.get('/api/costos/live', authenticate, requireRole('encargado'), rateLimit('costos_live', 'costly_read'), getLiveCosts);
 
 // CRUD costos_indirectos
-router.get('/api/costos/indirectos', authenticate, requireRole('encargado'), async (req, res) => {
+router.get('/api/costos/indirectos', authenticate, rateLimit('costos_read', 'costly_read'), requireRole('encargado'), async (req, res) => {
   try {
     const snap = await db.collection('costos_indirectos')
       .where('fincaId', '==', req.fincaId)
@@ -88,7 +88,7 @@ router.put('/api/costos/indirectos/:id', authenticate, requireRole('encargado'),
   }
 });
 
-router.delete('/api/costos/indirectos/:id', authenticate, requireRole('encargado'), async (req, res) => {
+router.delete('/api/costos/indirectos/:id', authenticate, rateLimit('costos_write', 'write'), requireRole('encargado'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('costos_indirectos', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);
@@ -112,7 +112,7 @@ router.delete('/api/costos/indirectos/:id', authenticate, requireRole('encargado
 });
 
 // CRUD costos_snapshots
-router.get('/api/costos/snapshots', authenticate, requireRole('encargado'), async (req, res) => {
+router.get('/api/costos/snapshots', authenticate, rateLimit('costos_read', 'costly_read'), requireRole('encargado'), async (req, res) => {
   try {
     const snap = await db.collection('costos_snapshots')
       .where('fincaId', '==', req.fincaId)
@@ -184,7 +184,7 @@ router.post('/api/costos/snapshots', authenticate, requireRole('encargado'), rat
   }
 });
 
-router.delete('/api/costos/snapshots/:id', authenticate, requireRole('encargado'), async (req, res) => {
+router.delete('/api/costos/snapshots/:id', authenticate, rateLimit('costos_write', 'write'), requireRole('encargado'), async (req, res) => {
   try {
     const ownership = await verifyOwnership('costos_snapshots', req.params.id, req.fincaId);
     if (!ownership.ok) return sendApiError(res, ownership.code, ownership.message, ownership.status);

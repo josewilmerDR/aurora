@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { db, Timestamp } = require('../lib/firebase');
 const { authenticate } = require('../lib/middleware');
+const { rateLimit } = require('../lib/rateLimit');
 const { verifyOwnership } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../lib/errors');
 
@@ -29,7 +30,7 @@ router.get('/api/cierres-combustible', authenticate, async (req, res) => {
 // body: { periodo: "2026-03", bodegaId, preview?: true }
 // preview=true  → returns the calculation without saving
 // preview=false → saves the closing and updates the affected horimeter records
-router.post('/api/cierres-combustible', authenticate, async (req, res) => {
+router.post('/api/cierres-combustible', authenticate, rateLimit('combustible_write', 'write'), async (req, res) => {
   try {
     const { periodo, bodegaId, preview = false } = req.body;
     if (!periodo || !/^\d{4}-\d{2}$/.test(periodo))
