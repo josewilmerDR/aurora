@@ -41,6 +41,7 @@ const ERROR_CODES = {
   // error de validación de input: el payload es válido, pero la cuota está
   // agotada → 409 Conflict).
   MAX_FINCAS_REACHED: 'MAX_FINCAS_REACHED',
+  TERMS_NOT_ACCEPTED: 'TERMS_NOT_ACCEPTED',
   // Salida de bodega que excede el stock disponible del ítem. Se detecta dentro
   // de la transacción atómica (stock al momento del commit), no en validación
   // de input, así que es un conflicto de estado (409) y no un 400.

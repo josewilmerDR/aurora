@@ -40,12 +40,12 @@ export default function NewOrganization() {
     return () => clearTimeout(t);
   }, [submitted, isLoggedIn, navigate]);
 
-  const handleCreate = async ({ fincaNombre, nombreAdmin }) => {
+  const handleCreate = async ({ fincaNombre, nombreAdmin, aceptaTerminos, legalVersion }) => {
     setSubmitting(true);
     setError('');
     const result = await apiFetchJson('/api/auth/register-finca', {
       method: 'POST',
-      body: JSON.stringify({ fincaNombre, nombreAdmin }),
+      body: JSON.stringify({ fincaNombre, nombreAdmin, aceptaTerminos, legalVersion }),
     });
     if (!result.ok) {
       setError(result.error); // ya traducido al español por translateApiError

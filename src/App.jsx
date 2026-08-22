@@ -28,6 +28,8 @@ import Profile from './features/account/pages/Profile';
 // /bienvenido): lazy para no cargar su hoja de estilos y su copy en cada
 // arranque de la app autenticada.
 const Landing = lazy(() => import('./features/landing/pages/Landing'));
+const Terminos = lazy(() => import('./features/legal/pages/Terminos'));
+const Privacidad = lazy(() => import('./features/legal/pages/Privacidad'));
 const UserManagement = lazy(() => import('./features/admin/pages/UserManagement'));
 const PackageManagement = lazy(() => import('./features/applications/pages/PackageManagement'));
 const ProductosCatalogo = lazy(() => import('./features/inventory/pages/ProductosCatalogo'));
@@ -347,6 +349,10 @@ function App() {
               visitante ya tenga sesión. Fuera de SimpleLayout porque la página
               aporta su propio <main> y fija su propio título. */}
           <Route path="/bienvenido" element={<Landing />} />
+          {/* Páginas legales: públicas y con su propio chrome (mismo motivo
+              que la landing). Enlazadas desde el registro y el pie. */}
+          <Route path="/terminos" element={<Terminos />} />
+          <Route path="/privacidad" element={<Privacidad />} />
 
           <Route element={<SimpleLayout />}>
             <Route path="/login" element={<Login />} />

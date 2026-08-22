@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { useBlurValidation } from '../../../hooks/useBlurValidation';
+import LegalConsent from '../../legal/components/LegalConsent';
+import { LEGAL_VERSION } from '../../legal/lib/legal';
 
 // Validación a nivel de campo, single source of truth para los dos formularios
 // que crean una organización: el step-2 de Register y la página
@@ -9,6 +11,9 @@ export function validateFincaStep(form) {
   const errs = {};
   if (!(form.fincaNombre || '').trim()) errs.fincaNombre = 'Ingresa el nombre de tu organización.';
   if (!(form.nombreAdmin || '').trim()) errs.nombreAdmin = 'Ingresa tu nombre.';
+  // Consentimiento explícito: crear la org es donde nace el contrato de
+  // encargo finca ↔ Aurora. El backend lo exige también (TERMS_NOT_ACCEPTED).
+  if (form.aceptaTerminos !== true) errs.aceptaTerminos = 'Debes aceptar los términos y la política de privacidad para continuar.';
   return errs;
 }
 
@@ -32,6 +37,7 @@ export default function FincaForm({
 }) {
   const [fincaNombre, setFincaNombre] = useState('');
   const [nombreAdmin, setNombreAdmin] = useState('');
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const { fieldErrors, blurField, clearField, validateAll, inputClass } = useBlurValidation(validateFincaStep);
   // Lock síncrono anti doble-submit. El prop `submitting` no se actualiza entre
   // dos clics en el mismo tick, así que dos disparos rápidos podían pasar ambos
@@ -40,12 +46,17 @@ export default function FincaForm({
   // request redundante en origen.
   const inFlightRef = useRef(false);
 
-  const form = { fincaNombre, nombreAdmin };
+  const form = { fincaNombre, nombreAdmin, aceptaTerminos };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (submitting || inFlightRef.current) return;
-    const trimmed = { fincaNombre: fincaNombre.trim(), nombreAdmin: nombreAdmin.trim() };
+    const trimmed = {
+      fincaNombre: fincaNombre.trim(),
+      nombreAdmin: nombreAdmin.trim(),
+      aceptaTerminos,
+      legalVersion: LEGAL_VERSION,
+    };
     if (!validateAll(trimmed)) return;
     inFlightRef.current = true;
     try {
@@ -108,11 +119,17 @@ export default function FincaForm({
           <span id="nombre-admin-error" className="aur-field-error">{fieldErrors.nombreAdmin}</span>
         )}
       </div>
+      <LegalConsent
+        checked={aceptaTerminos}
+        disabled={submitting}
+        error={fieldErrors.aceptaTerminos}
+        onChange={(v) => { setAceptaTerminos(v); clearField('aceptaTerminos'); onDirty?.(); }}
+      />
       {error && <p className="auth-error" role="alert">{error}</p>}
       <button
         type="submit"
         className="aur-btn-pill auth-btn-submit"
-        disabled={submitting || !fincaNombre.trim() || !nombreAdmin.trim()}
+        disabled={submitting || !fincaNombre.trim() || !nombreAdmin.trim() || !aceptaTerminos}
       >
         {submitting ? submittingLabel : submitLabel}
       </button>

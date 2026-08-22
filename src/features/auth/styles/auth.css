@@ -497,6 +497,45 @@
   min-height: 44px;
 }
 
+/* ── Consentimiento legal (crear organización) y aviso pasivo (crear cuenta) ── */
+.auth-consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.45;
+  color: var(--aur-text-2);
+}
+
+.auth-consent-input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0 0;
+  accent-color: var(--aur-accent);
+}
+
+.auth-consent-text a,
+.auth-legal-note a {
+  color: var(--aur-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-consent-text a:hover,
+.auth-legal-note a:hover {
+  text-decoration: underline;
+}
+
+.auth-legal-note {
+  margin: 0;
+  font-size: var(--aur-fs-caption);
+  line-height: 1.45;
+  text-align: center;
+  color: var(--aur-text-3);
+}
+
 /* ── Responsive: en pantallas chicas el padding de 48/40px ahoga el card ───── */
 @media (max-width: 420px) {
   .auth-card {
