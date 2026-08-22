@@ -1,0 +1,143 @@
+/* Páginas legales públicas (/terminos, /privacidad).
+   Hereda tokens de aurora.css y el chrome (header/footer) de landing.css;
+   aquí solo vive la tipografía del artículo. */
+
+.legal-main {
+  padding-block: clamp(32px, 5vw, 64px);
+}
+
+.legal-article {
+  max-width: 76ch;
+  font-size: var(--aur-fs-body);
+  line-height: 1.65;
+  color: var(--aur-text);
+}
+
+.legal-head {
+  margin-bottom: clamp(24px, 4vw, 40px);
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--aur-divider);
+}
+
+.legal-title {
+  font-size: var(--lp-fs-title);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  margin: 0 0 10px 0;
+  text-wrap: balance;
+}
+
+.legal-meta {
+  margin: 0;
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-3);
+}
+
+.legal-review-notice {
+  margin: 14px 0 0 0;
+  padding: 10px 14px;
+  border-radius: var(--aur-r-card);
+  border: 1px solid var(--aur-divider);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: var(--aur-fs-footnote);
+  color: var(--aur-text-2);
+}
+
+.legal-summary {
+  margin: 0 0 28px 0;
+  padding: 16px 18px;
+  border-left: 3px solid var(--aur-accent);
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 0 var(--aur-r-card) var(--aur-r-card) 0;
+  color: var(--aur-text-2);
+}
+
+.legal-summary p { margin: 0; }
+.legal-summary p + p { margin-top: 8px; }
+
+.legal-article section + section {
+  margin-top: clamp(24px, 3vw, 36px);
+}
+
+.legal-article h2 {
+  font-size: var(--aur-fs-title3, 1.2rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px 0;
+}
+
+.legal-article p,
+.legal-article li {
+  margin: 0 0 10px 0;
+  color: var(--aur-text-2);
+}
+
+.legal-article ul,
+.legal-article ol {
+  padding-left: 1.3em;
+  margin: 0 0 10px 0;
+}
+
+.legal-article strong {
+  color: var(--aur-text);
+  font-weight: 600;
+}
+
+.legal-article a {
+  color: var(--aur-accent);
+  text-decoration: none;
+}
+
+.legal-article a:hover {
+  text-decoration: underline;
+}
+
+/* Tabla de subencargados: scroll horizontal propio, nunca del body. */
+.legal-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 12px 0;
+  border: 1px solid var(--aur-divider);
+  border-radius: var(--aur-r-card);
+}
+
+.legal-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: var(--aur-fs-footnote);
+}
+
+.legal-table th,
+.legal-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--aur-divider);
+  color: var(--aur-text-2);
+}
+
+.legal-table th {
+  color: var(--aur-text);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.legal-table tr:last-child td {
+  border-bottom: none;
+}
+
+.legal-dl {
+  margin: 0 0 10px 0;
+}
+
+.legal-dl dt {
+  font-weight: 600;
+  color: var(--aur-text);
+  margin-top: 10px;
+}
+
+.legal-dl dd {
+  margin: 2px 0 0 0;
+  color: var(--aur-text-2);
+}

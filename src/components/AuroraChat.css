@@ -57,6 +57,27 @@
   letter-spacing: 0.01em;
 }
 
+/* ── Aviso de IA ────────────────────────────────────────────────────────────── */
+.aurora-chat-ai-notice {
+  margin: 0;
+  padding: 6px 14px;
+  flex-shrink: 0;
+  font-size: var(--aur-fs-caption);
+  line-height: 1.4;
+  color: var(--aur-text-3);
+  border-bottom: 1px solid var(--aur-divider);
+  background: var(--aur-bg-modal);
+}
+
+.aurora-chat-ai-notice a {
+  color: var(--aur-accent);
+  text-decoration: none;
+}
+
+.aurora-chat-ai-notice a:hover {
+  text-decoration: underline;
+}
+
 /* ── Messages ───────────────────────────────────────────────────────────────── */
 .aurora-chat-messages {
   flex: 1;

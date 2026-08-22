@@ -152,7 +152,7 @@ export default function Register() {
   // already authenticated + email-verified); the email/password path creates
   // its account in step 1 and finishes org creation after verification, so the
   // user is always authenticated here. <FincaForm> ya validó y trimeó los valores.
-  const handleFincaStep = async ({ fincaNombre, nombreAdmin }) => {
+  const handleFincaStep = async ({ fincaNombre, nombreAdmin, aceptaTerminos, legalVersion }) => {
     setSubmitting(true);
     setError('');
     try {
@@ -170,7 +170,7 @@ export default function Register() {
       // No invitations → create the requested organization
       const result = await apiFetchJson('/api/auth/register-finca', {
         method: 'POST',
-        body: JSON.stringify({ fincaNombre, nombreAdmin }),
+        body: JSON.stringify({ fincaNombre, nombreAdmin, aceptaTerminos, legalVersion }),
       });
       if (!result.ok) {
         // Marcamos el error como ya-traducido para que el catch lo muestre tal
@@ -331,6 +331,13 @@ export default function Register() {
             >
               {submitting ? 'Creando cuenta…' : 'Continuar'}
             </button>
+
+            {/* Aviso pasivo: la aceptación EXPLÍCITA (checkbox) vive en el paso
+                de crear la organización, que es donde nace el contrato. */}
+            <p className="auth-legal-note">
+              Al continuar aceptás los <Link to="/terminos" target="_blank" rel="noopener">Términos</Link> y la{' '}
+              <Link to="/privacidad" target="_blank" rel="noopener">Política de privacidad</Link>.
+            </p>
           </form>
         </>
       )}
