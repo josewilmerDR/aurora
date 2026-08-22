@@ -19,6 +19,7 @@ const { authenticate } = require('../../lib/middleware');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { reconcileReceive, computeEstado } = require('../../lib/inventory/ocReconcile');
 const { MAX_RECEIVE_QTY } = require('../../lib/inventory/quantities');
@@ -30,7 +31,7 @@ const router = Router();
 // el ledger de movimientos y cierra OCs (transición irreversible). Es un write
 // privilegiado: mismo piso que POST /api/productos (encargado+) y rate-limited
 // como escritura masiva con upload a Storage.
-router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar', 'write'), async (req, res) => {
+router.post('/api/ingreso/confirmar', authenticate, rateLimit('ingreso_confirmar', 'write'), largeJsonBody, async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register intake.', 403);

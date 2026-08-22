@@ -360,3 +360,33 @@ perderíamos las plantillas/throttling nativos de Firebase). Acción:
       de contraseña, en modo *Enforce* tras rollout (4.2).
 - [ ] *Authorized domains* contiene solo dominios de producción (4.3).
 - [ ] *Data Access audit logs* de Identity Toolkit activos en Cloud Logging (4.4).
+
+## 5. Request body limits
+
+**What the code does** ([functions/lib/bodyLimits.js](../functions/lib/bodyLimits.js)):
+
+- Body parsing runs **after App Check** in `functions/index.js`, so a client
+  rejected by App Check never gets a body parsed.
+- The app-level JSON parser is capped at **1 MB**. It deliberately skips the
+  routes listed in `LARGE_BODY_ROUTES`.
+- Those routes (base64 image uploads: chat with attachment, the four
+  `escanear` endpoints, invoice/intake/receipt confirmations, warehouse
+  movements with a photo, sampling-order completion, organization logo) mount
+  `largeJsonBody` (**15 MB**) inside their own middleware chain, **after
+  `authenticate`** and the role / rate-limit middlewares.
+
+**Why.** Before, a single `express.json({ limit: '15mb' })` ran before App
+Check and before any auth. Anyone could push 15 MB per request and have it
+fully parsed before being rejected. With 512 MiB per instance and
+concurrency 80, that is an out-of-memory lever for anonymous traffic — it
+does not inflate the bill (`maxInstances` caps that) but it takes instances
+down.
+
+**Adding a new large-body endpoint.** Two steps, both required:
+1. Add its Express-style path to `LARGE_BODY_ROUTES`.
+2. Mount `largeJsonBody` in the route after `authenticate`.
+
+`tests/unit/bodyLimits.test.js` scans `functions/routes/` and fails if a
+route mounts `largeJsonBody` without being listed (it would get a 413 from
+the 1 MB parser first), if a listed route does not mount it (its body would
+never be parsed), or if it is mounted before `authenticate`.

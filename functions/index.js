@@ -3,12 +3,10 @@ const { functions, allSecrets } = require('./lib/firebase');
 const { verifyAppCheck } = require('./lib/appcheck');
 const { requestLog } = require('./lib/requestLog');
 const { isAdvanced } = require('./lib/features');
+const { jsonBody } = require('./lib/bodyLimits');
 const express = require('express');
 
 const app = express();
-
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json({ limit: '15mb' }));
 
 // --- LOGGING MIDDLEWARE ---
 // Path + claves del query, nunca valores: el deep link /task pasa su token
@@ -19,6 +17,15 @@ app.use(requestLog);
 // Controlled by APP_CHECK_MODE env var: 'enforce' | 'warn' | 'off'.
 // Always bypassed in the Functions emulator.
 app.use(verifyAppCheck);
+
+// --- BODY PARSING (after App Check, so rejected clients never get a body
+// parsed). 1mb by default; the few base64-image endpoints listed in
+// lib/bodyLimits.js are skipped here and mount their own 15mb parser AFTER
+// authenticate + rateLimit. Before this, a single 15mb parser ran before
+// App Check — with 512MiB and concurrency 80 that was an OOM lever for
+// anonymous traffic.
+app.use(express.urlencoded({ extended: false }));
+app.use(jsonBody);
 
 // --- MOUNT ROUTERS ---
 // health primero: probe de uptime, que no pague el costo de recorrer los
@@ -102,8 +109,9 @@ if (isAdvanced()) {
 //   rewrites a los 60s pase lo que pase (504 del proxy). Lo que logra es
 //   que la función termine su trabajo en vez de morir a mitad de una
 //   escritura (deducción de stock, sesión de autopilot).
-// - memory 512MiB: express.json admite payloads de 15mb (escaneos base64)
-//   y los endpoints de IA arman prompts grandes; 256MiB quedaba justo.
+// - memory 512MiB: the scan endpoints accept 15mb base64 payloads (behind
+//   auth, see lib/bodyLimits.js) and the AI endpoints build large prompts;
+//   256MiB was tight.
 // - maxInstances 10 es techo de gasto Y de disponibilidad: al saturar,
 //   Cloud Run responde 429. Revisarlo ANTES de abrir registro self-serve.
 exports.api = functions.https.onRequest(

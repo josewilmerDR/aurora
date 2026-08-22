@@ -27,6 +27,7 @@ const {
   allowedCollections,
 } = require('../../lib/moduleClassifier');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 
 const { loadChatCatalogs } = require('./catalogs');
 const { buildSystemPrompt } = require('./prompt');
@@ -78,7 +79,7 @@ function buildMessageHistory(history) {
   return messages;
 }
 
-router.post('/api/chat', authenticate, rateLimit('chat', 'ai_heavy'), async (req, res) => {
+router.post('/api/chat', authenticate, rateLimit('chat', 'ai_heavy'), largeJsonBody, async (req, res) => {
   try {
     const {
       message, imageBase64, mediaType, userId, userName, history,

@@ -3,6 +3,7 @@ const { admin, db, Timestamp } = require('../../lib/firebase');
 const { authenticate } = require('../../lib/middleware');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { buildConfigUpdate } = require('./schemas');
@@ -38,7 +39,7 @@ router.get('/api/config', authenticate, rateLimit('config_read', 'costly_read'),
 // Validación: schemas.js (Zod) acota tipos, longitudes, rangos numéricos y el
 // logo (tipo MIME + tamaño). Rate limit 'write' frena spam de escrituras /
 // subidas de logo a Storage. Cada PUT exitoso queda en audit_events.
-router.put('/api/config', authenticate, rateLimit('config', 'write'), async (req, res) => {
+router.put('/api/config', authenticate, rateLimit('config', 'write'), largeJsonBody, async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'administrador')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only administrador can update finca config.', 403);

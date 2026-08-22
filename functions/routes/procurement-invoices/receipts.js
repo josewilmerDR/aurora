@@ -19,6 +19,7 @@ const { authenticate } = require('../../lib/middleware');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { reconcileReceive, reconcileRevert, computeEstado } = require('../../lib/inventory/ocReconcile');
 const { MAX_RECEIVE_QTY } = require('../../lib/inventory/quantities');
@@ -128,7 +129,7 @@ router.get('/api/recepciones/:id/factura', authenticate, rateLimit('recepciones_
   }
 });
 
-router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'write'), async (req, res) => {
+router.post('/api/recepciones', authenticate, rateLimit('recepciones_write', 'write'), largeJsonBody, async (req, res) => {
   try {
     if (!hasMinRoleBE(req.userRole, 'encargado')) {
       return sendApiError(res, ERROR_CODES.FORBIDDEN, 'Only encargado or above can register a reception.', 403);
