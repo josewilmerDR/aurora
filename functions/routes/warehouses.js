@@ -4,6 +4,7 @@ const { authenticate } = require('../lib/middleware');
 const { verifyOwnership, hasMinRoleBE, writeFeedEvent } = require('../lib/helpers');
 const { sendApiError, ERROR_CODES, ApiError, handleApiError } = require('../lib/errors');
 const { rateLimit } = require('../lib/rateLimit');
+const { largeJsonBody } = require('../lib/bodyLimits');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../lib/auditLog');
 const { buildItemCreate, buildItemUpdate, buildMovementCreate } = require('./warehouses.schemas');
 
@@ -249,7 +250,7 @@ async function resolveRefName(collection, id, fincaId, buildName) {
   return (buildName(doc.data()) || '').slice(0, 200);
 }
 
-router.post('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado'), rateLimit('bodega-mov', 'write'), async (req, res) => {
+router.post('/api/bodegas/:id/movimientos', authenticate, requireRole('encargado'), rateLimit('bodega-mov', 'write'), largeJsonBody, async (req, res) => {
   try {
     const check = await verifyOwnership('bodegas', req.params.id, req.fincaId);
     if (!check.ok) return sendApiError(res, check.code, check.message, check.status);

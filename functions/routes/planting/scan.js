@@ -7,6 +7,7 @@ const { getAnthropicClient } = require('../../lib/clients');
 const { authenticate } = require('../../lib/middleware');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { writeAuditEvent, ACTIONS, SEVERITY } = require('../../lib/auditLog');
 const { INJECTION_GUARD_PREAMBLE } = require('../../lib/aiGuards');
@@ -26,7 +27,7 @@ const MEDIA_TYPES_IMG = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 // puntuación común, truncado a 40 chars. Espejo de sampling.js.
 const sanitizeForPrompt = (s) => String(s ?? '').replace(/[^\p{L}\p{N} _\-./%()]/gu, '').slice(0, 40);
 
-router.post('/api/siembras/escanear', authenticate, rateLimit('siembras_scan', 'ai_medium'), async (req, res) => {
+router.post('/api/siembras/escanear', authenticate, rateLimit('siembras_scan', 'ai_medium'), largeJsonBody, async (req, res) => {
   try {
     // H2: el único consumidor legítimo es el form de Siembra (gated a
     // encargado+). Sin este gate, un trabajador autenticado podía invocar el

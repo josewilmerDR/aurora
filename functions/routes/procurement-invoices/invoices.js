@@ -18,6 +18,7 @@ const { authenticate } = require('../../lib/middleware');
 const { hasMinRoleBE } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 const {
   wrapUntrusted,
   INJECTION_GUARD_PREAMBLE,
@@ -65,7 +66,7 @@ router.get('/api/compras', authenticate, async (req, res) => {
   }
 });
 
-router.post('/api/compras/escanear', authenticate, rateLimit('compras_scan', 'ai_medium'), async (req, res) => {
+router.post('/api/compras/escanear', authenticate, rateLimit('compras_scan', 'ai_medium'), largeJsonBody, async (req, res) => {
   try {
     // Quema tokens de Claude Vision y lee el catálogo completo: encargado+,
     // igual que el resto de escrituras/lecturas caras del dominio.
@@ -261,7 +262,7 @@ Reglas:
   }
 });
 
-router.post('/api/compras/confirmar', authenticate, rateLimit('compras_confirmar', 'write'), async (req, res) => {
+router.post('/api/compras/confirmar', authenticate, rateLimit('compras_confirmar', 'write'), largeJsonBody, async (req, res) => {
   try {
     // Crea productos, incrementa stock y escribe el ledger: write privilegiado,
     // mismo piso que /api/ingreso/confirmar (encargado+).

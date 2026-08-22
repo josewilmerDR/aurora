@@ -24,6 +24,7 @@ const { requireEncargado } = require('../../lib/guards');
 const { verifyOwnership } = require('../../lib/helpers');
 const { sendApiError, ERROR_CODES } = require('../../lib/errors');
 const { rateLimit } = require('../../lib/rateLimit');
+const { largeJsonBody } = require('../../lib/bodyLimits');
 const { INJECTION_GUARD_PREAMBLE } = require('../../lib/aiGuards');
 const {
   MEDIA_TYPES_IMG, MAX_OBSERVACIONES, MAX_REGISTROS_ROWS,
@@ -124,7 +125,7 @@ router.delete('/api/muestreos/ordenes/:id', authenticate, requireEncargado, rate
   }
 });
 
-router.patch('/api/muestreos/ordenes/:id/complete', authenticate, requireEncargado, rateLimit('muestreos_ordenes_write', 'write'), async (req, res) => {
+router.patch('/api/muestreos/ordenes/:id/complete', authenticate, requireEncargado, rateLimit('muestreos_ordenes_write', 'write'), largeJsonBody, async (req, res) => {
   try {
     const { id } = req.params;
     const ownership = await verifyOwnership('scheduled_tasks', id, req.fincaId);
@@ -311,7 +312,7 @@ router.patch('/api/muestreos/ordenes/:id/complete', authenticate, requireEncarga
   }
 });
 
-router.post('/api/muestreos/escanear-formulario', authenticate, rateLimit('monitoreo_scan', 'ai_medium'), async (req, res) => {
+router.post('/api/muestreos/escanear-formulario', authenticate, rateLimit('monitoreo_scan', 'ai_medium'), largeJsonBody, async (req, res) => {
   try {
     const { imageBase64, mediaType, campos } = req.body || {};
     if (!imageBase64 || !mediaType) {
