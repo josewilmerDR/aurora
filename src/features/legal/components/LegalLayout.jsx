@@ -5,18 +5,18 @@ import { LEGAL_VERSION, LEGAL_REVIEW_PENDING, LEGAL_ROUTES } from '../lib/legal'
 import '../../landing/styles/landing.css';
 import '../styles/legal.css';
 
-// Fecha legible en español a partir de la versión ISO (YYYY-MM-DD). Sin
-// `new Date()` para no depender de la zona horaria del visitante.
+// Human-readable Spanish date from the ISO version (YYYY-MM-DD). No
+// `new Date()` so the output does not depend on the visitor's time zone.
 function formatVersion(iso) {
   const [y, m, d] = iso.split('-').map(Number);
-  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  return `${d} de ${meses[m - 1]} de ${y}`;
+  const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  return `${d} de ${months[m - 1]} de ${y}`;
 }
 
 /**
- * Marco compartido de las páginas legales públicas (/terminos, /privacidad).
- * Reusa el header/footer visual de la landing pero sin sus anclas internas,
- * que en estas rutas apuntarían a secciones inexistentes.
+ * Shared frame for the public legal pages (/terms, /privacy). Reuses the
+ * landing header/footer look without its in-page anchors, which would point
+ * to sections that do not exist on these routes.
  */
 export default function LegalLayout({ title, children }) {
   usePageTitle(title);
@@ -32,8 +32,8 @@ export default function LegalLayout({ title, children }) {
             <span className="lp-brand-name">aurora</span>
           </Link>
           <nav className="lp-header-nav" aria-label="Documentos legales">
-            <Link className="lp-header-nav-link" to={LEGAL_ROUTES.terminos}>Términos</Link>
-            <Link className="lp-header-nav-link" to={LEGAL_ROUTES.privacidad}>Privacidad</Link>
+            <Link className="lp-header-nav-link" to={LEGAL_ROUTES.terms}>Términos</Link>
+            <Link className="lp-header-nav-link" to={LEGAL_ROUTES.privacy}>Privacidad</Link>
           </nav>
           <div className="lp-header-actions">
             <Link className="aur-btn-text lp-header-login" to="/login">Iniciar sesión</Link>

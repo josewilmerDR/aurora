@@ -80,6 +80,11 @@
   background: #ede9fe;
   color: #6d28d9;
 }
+/* Generic art for manifest products this build has no asset for yet. */
+.aur-ecosystem-tile-art--neutral {
+  background: #f3f4f6;
+  color: #374151;
+}
 
 .aur-ecosystem-tile-name {
   font-size: 14px;

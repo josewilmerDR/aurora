@@ -497,7 +497,7 @@
   min-height: 44px;
 }
 
-/* ── Consentimiento legal (crear organización) y aviso pasivo (crear cuenta) ── */
+/* ── Legal consent (create organization) and passive notice (create account) ── */
 .auth-consent-label {
   display: flex;
   align-items: flex-start;

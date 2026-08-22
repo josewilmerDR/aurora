@@ -1,92 +1,96 @@
-# Términos, privacidad y consentimiento
+# Terms, privacy and consent
 
-Estado: **borrador técnico listo para revisión legal**. El código está completo;
-el texto lo tiene que aprobar un abogado en Costa Rica antes de cobrarle a un
-tercero. Hasta entonces `LEGAL_REVIEW_PENDING = true` muestra un aviso de
-"versión preliminar" en las páginas.
+Status: **technical draft ready for legal review**. The code is complete; the
+text must be approved by a lawyer in Costa Rica before charging any third
+party. Until then `LEGAL_REVIEW_PENDING = true` shows a "preliminary version"
+notice on the pages.
 
-## 1. Qué hay
+## 1. What exists
 
-| Pieza | Dónde |
+| Piece | Where |
 |---|---|
-| Textos y constantes (versión, operador, subencargados, categorías de datos) | [src/features/legal/lib/legal.js](../src/features/legal/lib/legal.js) |
-| Página pública `/terminos` | [src/features/legal/pages/Terminos.jsx](../src/features/legal/pages/Terminos.jsx) |
-| Página pública `/privacidad` | [src/features/legal/pages/Privacidad.jsx](../src/features/legal/pages/Privacidad.jsx) |
-| Checkbox de consentimiento (crear organización) | [src/features/legal/components/LegalConsent.jsx](../src/features/legal/components/LegalConsent.jsx), usado por `FincaForm` |
-| Aviso pasivo al crear cuenta (paso 1 de `/register`) | [src/features/auth/pages/Register.jsx](../src/features/auth/pages/Register.jsx) |
-| Persistencia de la aceptación | `POST /api/auth/register-finca` → `fincas/{id}.aceptacionLegal = { version, aceptadoPorUid, email, fecha }` |
-| Aviso de IA en el asistente | [src/components/AuroraChat.jsx](../src/components/AuroraChat.jsx) |
-| Enlaces en el pie de la landing | [src/features/landing/components/LandingFooter.jsx](../src/features/landing/components/LandingFooter.jsx) |
+| Texts and constants (version, operator, sub-processors, data categories) | [src/features/legal/lib/legal.js](../src/features/legal/lib/legal.js) |
+| Public page `/terms` | [src/features/legal/pages/Terms.jsx](../src/features/legal/pages/Terms.jsx) |
+| Public page `/privacy` | [src/features/legal/pages/Privacy.jsx](../src/features/legal/pages/Privacy.jsx) |
+| Consent checkbox (create organization) | [src/features/legal/components/LegalConsent.jsx](../src/features/legal/components/LegalConsent.jsx), used by `FincaForm` |
+| Passive notice on account creation (`/register` step 1) | [src/features/auth/pages/Register.jsx](../src/features/auth/pages/Register.jsx) |
+| Acceptance persistence | `POST /api/auth/register-finca` → `fincas/{id}.legalAcceptance = { version, acceptedByUid, email, acceptedAt }` |
+| AI notice in the assistant | [src/components/AuroraChat.jsx](../src/components/AuroraChat.jsx) |
+| Links in the landing footer | [src/features/landing/components/LandingFooter.jsx](../src/features/landing/components/LandingFooter.jsx) |
 
-El backend rechaza `register-finca` sin `aceptaTerminos: true` y
-`legalVersion: 'YYYY-MM-DD'` con `400 TERMS_NOT_ACCEPTED`. La aceptación se
-guarda en el doc de la finca (no en la membresía) porque el contrato de encargo
-es entre la **organización** y Aurora; el uid y el correo de quien aceptó
-quedan como evidencia de autoría. El evento de auditoría `FINCA_CREATE`
-también registra `legalVersion`.
+The backend rejects `register-finca` without `acceptsTerms: true` and
+`legalVersion: 'YYYY-MM-DD'` with `400 TERMS_NOT_ACCEPTED`. The acceptance is
+stored on the finca document (not the membership) because the processing
+mandate is between the **organization** and Aurora; the uid and email of the
+person who accepted remain as evidence of authorship. The `FINCA_CREATE` audit
+event also records `legalVersion`.
 
-## 2. Qué tiene que completar la empresa (no es código)
+User-facing text (page content, checkbox label, chat notice) stays in Spanish
+on purpose: the product serves Costa Rican farms. Code, comments, routes and
+this document are English per the repo convention.
 
-En `LEGAL_ENTITY` de `legal.js` hay cuatro campos en `null`. Mientras lo estén,
-las páginas los omiten en vez de inventarlos:
+## 2. What the company must fill in (not code)
 
-- `razonSocial` — razón social registrada del operador.
-- `cedulaJuridica` — cédula jurídica.
-- `domicilio` — domicilio legal.
-- `correoContacto` — buzón real para solicitudes de privacidad (derechos ARCO).
-  Hoy las páginas remiten a comunplace.com; una política sin correo de
-  contacto es una observación típica de PRODHAB.
+`LEGAL_ENTITY` in `legal.js` has four fields set to `null`. While they are,
+the pages omit them instead of inventing them:
 
-## 3. Qué debe revisar el abogado
+- `legalName` — registered legal name of the operator.
+- `taxId` — cédula jurídica.
+- `address` — legal address.
+- `contactEmail` — real mailbox for privacy requests (ARCO rights). Today the
+  pages fall back to comunplace.com; a policy without a contact email is a
+  typical PRODHAB observation.
 
-Marco: Ley N.º 8968 (Protección de la Persona frente al Tratamiento de sus
-Datos Personales) y su Reglamento (Decreto 37554-JP); autoridad: PRODHAB.
+## 3. What the lawyer must review
 
-1. **Roles.** El borrador declara a la finca como *responsable* de los datos de
-   su personal/proveedores y a Aurora como *encargado* (Términos §6,
-   Privacidad §1). La aceptación al crear la organización se presenta como el
-   contrato de encargo. Confirmar si basta o si se requiere un anexo separado.
-2. **Datos sensibles.** `hr_permisos.tipo === 'enfermedad'` lleva motivo en
-   texto libre. Privacidad §2 lo declara y pide mínimo detalle; decidir si
-   además se restringe en producto (p. ej. lista cerrada de motivos).
-3. **Transferencia internacional.** Google y Anthropic procesan en EE.UU.
-   (Privacidad §6). Confirmar la base (consentimiento del responsable vía
-   Términos) y si hace falta inscripción de base de datos ante PRODHAB.
-4. **Anthropic y entrenamiento.** El texto afirma que, conforme a los términos
-   comerciales vigentes de Anthropic, los datos de API no se usan para
-   entrenar. Verificar contra el contrato/terms vigentes al momento de publicar.
-5. **Decisiones automatizadas.** Privacidad §4 afirma que ninguna decisión
-   sobre personas es exclusivamente automatizada. Es cierto hoy (el agente de
-   RRHH solo propone; ver `project_hr_domain_security_audit`). Si se habilita
-   Nivel 3 en RRHH, este párrafo deja de ser verdad.
-6. **Limitación de responsabilidad y ley aplicable** (Términos §10, §12).
-7. **Plazo de aviso de cambios** (15 días en ambos documentos).
-8. **Retención en backups.** Los textos dicen "al vencer su período de
-   retención" sin cifra; poner la real de
-   [firestore-backups.md](firestore-backups.md) cuando esté fijada.
+Framework: Law No. 8968 (Protección de la Persona frente al Tratamiento de sus
+Datos Personales) and its Regulation (Decree 37554-JP); authority: PRODHAB.
 
-## 4. Cómo publicar una nueva versión
+1. **Roles.** The draft declares the finca as *controller* of its staff and
+   supplier data and Aurora as *processor* (Terms §6, Privacy §1). Acceptance
+   at organization creation is presented as the processing mandate. Confirm
+   whether that suffices or a separate annex is required.
+2. **Sensitive data.** `hr_permisos.tipo === 'enfermedad'` carries a free-text
+   reason. Privacy §2 discloses it and asks for minimum detail; decide whether
+   the product should also restrict it (e.g. a closed list of reasons).
+3. **International transfer.** Google and Anthropic process in the US
+   (Privacy §6). Confirm the legal basis (controller consent via Terms) and
+   whether a database registration with PRODHAB is needed.
+4. **Anthropic and training.** The text states that, under Anthropic's current
+   commercial terms, API data is not used for training. Verify against the
+   contract/terms in force at publication time.
+5. **Automated decisions.** Privacy §4 states no decision about people is
+   solely automated. True today (the HR agent only proposes; see
+   `project_hr_domain_security_audit`). If HR Level 3 is enabled, that
+   paragraph stops being true.
+6. **Limitation of liability and governing law** (Terms §10, §12).
+7. **Notice period for changes** (15 days in both documents).
+8. **Backup retention.** The texts say "when its retention period expires"
+   without a number; put the real one from
+   [firestore-backups.md](firestore-backups.md) once fixed.
 
-1. Editar el texto en la página correspondiente.
-2. Subir `LEGAL_VERSION` en `legal.js` a la fecha ISO del cambio.
-3. Si cambia la lista de proveedores que reciben datos personales, editar
-   `SUBPROCESSORS` — la política promete esa lista como exhaustiva y el test
-   `Legal.test.jsx` verifica que la página la renderice completa.
-4. Cuando el abogado apruebe: `LEGAL_REVIEW_PENDING = false`.
-5. Cambio relevante → aviso a administradores con ≥15 días (compromiso de
-   Términos §11 / Privacidad §11). No existe aún un mecanismo automático de
-   re-aceptación; ver §5.
+## 4. How to publish a new version
 
-## 5. Pendientes conocidos (fuera de este cambio)
+1. Edit the text on the relevant page.
+2. Bump `LEGAL_VERSION` in `legal.js` to the ISO date of the change.
+3. If the list of vendors receiving personal data changes, edit
+   `SUBPROCESSORS` — the policy promises that list as exhaustive and
+   `Legal.test.jsx` checks the page renders it in full.
+4. When the lawyer approves: `LEGAL_REVIEW_PENDING = false`.
+5. Material change → notify administrators ≥15 days ahead (commitment in
+   Terms §11 / Privacy §11). There is no automatic re-acceptance mechanism
+   yet; see §5.
 
-- **Fincas creadas antes de esta versión** no tienen `aceptacionLegal`. Hace
-  falta un flujo de re-aceptación para administradores (modal al entrar si
-  `aceptacionLegal.version < LEGAL_VERSION`). Hasta entonces, la aceptación de
-  clientes existentes debe recogerse por otro medio.
-- **Minimización hacia Anthropic.** El catálogo del chat
+## 5. Known follow-ups (outside this change)
+
+- **Fincas created before this version** have no `legalAcceptance`. A
+  re-acceptance flow for administrators is needed (modal on entry when
+  `legalAcceptance.version < LEGAL_VERSION`). Until then, acceptance from
+  existing customers must be collected by other means.
+- **Minimization toward Anthropic.** The chat catalog
   ([functions/routes/chat/catalogs.js](../functions/routes/chat/catalogs.js))
-  manda la lista de personal con nombre y rol en cada turno. Es lo que la
-  política declara; reducirlo (solo cuando la consulta lo requiera) es mejora
-  de producto, no requisito legal.
-- **Exportación de datos** (Términos §5 promete "copia en formato de uso
-  común"): hoy es manual vía backups; no hay botón de exportar.
+  sends the staff list with name and role on every turn. That is what the
+  policy discloses; reducing it (only when the query needs it) is a product
+  improvement, not a legal requirement.
+- **Data export** (Terms §5 promises "a copy in a common format"): today it is
+  manual via backups; there is no export button.

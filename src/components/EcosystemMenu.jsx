@@ -1,22 +1,27 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { FiGrid, FiShoppingBag, FiFileText } from 'react-icons/fi';
 import { useEscapeClose } from '../hooks/useEscapeClose';
-import { ECOSYSTEM_PRODUCTS, CURRENT_APP_ID, getEcosystemHref } from '../lib/ecosystem';
+import { useEcosystemProducts } from '../hooks/useEcosystemProducts';
 import './EcosystemMenu.css';
 
 // Maps the data-layer glyph keys to actual icon components so the catalog
-// module (lib/ecosystem.js) stays framework-free.
+// module (lib/ecosystem.js) stays framework-free. `grid` is the generic art
+// for products the manifest knows but this build doesn't.
 const GLYPH_ICONS = {
   'shopping-bag': FiShoppingBag,
   document: FiFileText,
+  grid: FiGrid,
 };
 
 const PANEL_ID = 'ecosystem-menu-panel';
 
 // Google-launcher-style waffle button + floating card listing the comunplace
-// ecosystem products. Pure static navigation — no requests to sibling apps.
+// ecosystem products. The list comes from the ecosystem manifest (cached,
+// with an embedded fallback — see lib/ecosystemManifest.js); the only request
+// to a sibling origin is that one public JSON.
 export default function EcosystemMenu() {
   const [open, setOpen] = useState(false);
+  const products = useEcosystemProducts();
   const wrapperRef = useRef(null);
   const close = useCallback(() => setOpen(false), []);
 
@@ -54,26 +59,25 @@ export default function EcosystemMenu() {
       {open && (
         <nav id={PANEL_ID} className="aur-ecosystem-panel" aria-label="Productos de la plataforma">
           <div className="aur-ecosystem-grid">
-            {ECOSYSTEM_PRODUCTS.map((product) => {
-              const isCurrent = product.id === CURRENT_APP_ID;
-              const GlyphIcon = GLYPH_ICONS[product.glyph];
+            {products.map((product) => {
+              const GlyphIcon = GLYPH_ICONS[product.art.glyph] || FiGrid;
               return (
                 <a
                   key={product.id}
                   className="aur-ecosystem-tile"
-                  href={getEcosystemHref(product)}
-                  aria-current={isCurrent ? 'page' : undefined}
+                  href={product.href}
+                  aria-current={product.current ? 'page' : undefined}
                   onClick={close}
                 >
-                  {product.logoSrc ? (
+                  {product.art.logoSrc ? (
                     // alt="" — decorative: the product name sits right below.
-                    <img className="aur-ecosystem-tile-art" src={product.logoSrc} alt="" />
+                    <img className="aur-ecosystem-tile-art" src={product.art.logoSrc} alt="" />
                   ) : (
                     <span
-                      className={`aur-ecosystem-tile-art aur-ecosystem-tile-art--${product.tone}`}
+                      className={`aur-ecosystem-tile-art aur-ecosystem-tile-art--${product.art.tone}`}
                       aria-hidden="true"
                     >
-                      {GlyphIcon && <GlyphIcon size={20} />}
+                      <GlyphIcon size={20} />
                     </span>
                   )}
                   <span className="aur-ecosystem-tile-name">{product.name}</span>

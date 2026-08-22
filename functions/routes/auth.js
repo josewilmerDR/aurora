@@ -55,19 +55,19 @@ const safeName = (max) =>
 // trim() runs before the length checks, so whitespace-only values are rejected
 // and over-long names error out instead of being silently truncated.
 //
-// aceptaTerminos/legalVersion: captura del consentimiento (Términos + Política
-// de privacidad + encargo de tratamiento). Crear la org es donde nace la
-// relación finca (responsable) ↔ Aurora (encargado), así que sin aceptación
-// explícita no se crea. La versión (fecha ISO) queda persistida en el doc de
-// la finca para poder demostrar qué texto aceptó cada cliente.
+// acceptsTerms/legalVersion: consent capture (Terms + Privacy Policy +
+// data-processing mandate). Creating the org is where the finca (controller)
+// ↔ Aurora (processor) relationship is born, so without explicit acceptance
+// nothing is created. The version (ISO date) is persisted on the finca doc so
+// we can prove which text each customer accepted.
 const LEGAL_VERSION_RE = /^\d{4}-\d{2}-\d{2}$/;
 const registerFincaSchema = z.object({
   fincaNombre: safeName(120),
   nombreAdmin: safeName(80),
-  aceptaTerminos: z.literal(true),
+  acceptsTerms: z.literal(true),
   legalVersion: z.string().trim().regex(LEGAL_VERSION_RE),
 });
-const LEGAL_FIELDS = new Set(['aceptaTerminos', 'legalVersion']);
+const LEGAL_FIELDS = new Set(['acceptsTerms', 'legalVersion']);
 
 // Normalized form used as the natural idempotency key for an owner's fincas:
 // case- and whitespace-insensitive. Two near-identical submits (double-click,
@@ -146,7 +146,7 @@ router.post('/api/auth/register-finca', authenticateOnly, rateLimit('auth_write'
     const parsed = registerFincaSchema.safeParse(req.body);
     if (!parsed.success) {
       if (parsed.error.issues.some((i) => LEGAL_FIELDS.has(i.path[0]))) {
-        return sendApiError(res, ERROR_CODES.TERMS_NOT_ACCEPTED, 'Terms must be accepted: aceptaTerminos=true and legalVersion=YYYY-MM-DD.', 400);
+        return sendApiError(res, ERROR_CODES.TERMS_NOT_ACCEPTED, 'Terms must be accepted: acceptsTerms=true and legalVersion=YYYY-MM-DD.', 400);
       }
       return sendApiError(res, ERROR_CODES.MISSING_REQUIRED_FIELDS, 'fincaNombre and nombreAdmin are required (non-empty strings).', 400);
     }
@@ -182,12 +182,12 @@ router.post('/api/auth/register-finca', authenticateOnly, rateLimit('auth_write'
         adminUid: req.uid,
         plan: 'basic',
         creadoEn: Timestamp.now(),
-        // Evidencia del consentimiento: qué versión, quién y cuándo.
-        aceptacionLegal: {
+        // Consent evidence: which version, who and when.
+        legalAcceptance: {
           version: legalVersion,
-          aceptadoPorUid: req.uid,
+          acceptedByUid: req.uid,
           email: req.userEmail || '',
-          fecha: Timestamp.now(),
+          acceptedAt: Timestamp.now(),
         },
       });
       const membershipRef = db.collection('memberships').doc(membershipDocId(req.uid, fincaRef.id));

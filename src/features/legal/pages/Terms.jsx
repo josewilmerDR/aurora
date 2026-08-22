@@ -3,26 +3,26 @@ import LegalLayout from '../components/LegalLayout';
 import { LEGAL_ENTITY, LEGAL_ROUTES } from '../lib/legal';
 
 /**
- * Términos del servicio de Aurora.
+ * Aurora Terms of Service.
  *
- * Borrador de trabajo para revisión por un abogado en Costa Rica — ver
- * docs/legal.md. El texto evita prometer lo que el producto no hace (no hay
- * SLA, no hay demo, la IA propone y el humano decide) y deja explícito el
- * reparto de responsabilidades sobre los datos del personal de la finca.
+ * Working draft for review by a lawyer in Costa Rica — see docs/legal.md.
+ * The text avoids promising what the product does not do (no SLA, no demo,
+ * AI proposes and a human decides) and spells out the split of
+ * responsibilities over the farm's staff data.
  */
-export default function Terminos() {
-  const operador = LEGAL_ENTITY.razonSocial || LEGAL_ENTITY.nombreComercial;
+export default function Terms() {
+  const operator = LEGAL_ENTITY.legalName || LEGAL_ENTITY.tradeName;
 
   return (
     <LegalLayout title="Términos del servicio">
       <div className="legal-summary">
-        <p><strong>En resumen:</strong> Aurora es un software de gestión para fincas que {operador} ofrece a organizaciones agrícolas. Al crear una organización aceptás estos términos en su nombre. Los datos que cargás son tuyos; nosotros los tratamos solo para prestarte el servicio. Las funciones de inteligencia artificial proponen, no deciden: la responsabilidad final de cada acción en tu finca sigue siendo tuya.</p>
+        <p><strong>En resumen:</strong> Aurora es un software de gestión para fincas que {operator} ofrece a organizaciones agrícolas. Al crear una organización aceptás estos términos en su nombre. Los datos que cargás son tuyos; nosotros los tratamos solo para prestarte el servicio. Las funciones de inteligencia artificial proponen, no deciden: la responsabilidad final de cada acción en tu finca sigue siendo tuya.</p>
       </div>
 
       <section id="definiciones">
         <h2>1. Quiénes somos y qué regulan estos términos</h2>
-        <p>Aurora («el Servicio») es operado por <strong>{operador}</strong>{LEGAL_ENTITY.cedulaJuridica ? `, cédula jurídica ${LEGAL_ENTITY.cedulaJuridica}` : ''}{LEGAL_ENTITY.domicilio ? `, con domicilio en ${LEGAL_ENTITY.domicilio}` : ''} («nosotros»). Estos términos regulan el acceso y uso del Servicio por parte de la organización que crea una cuenta («la Organización» o «vos») y de las personas que esa Organización autoriza a usarlo («Usuarios»).</p>
-        <p>El tratamiento de datos personales se describe en la <Link to={LEGAL_ROUTES.privacidad}>Política de privacidad</Link>, que forma parte integral de estos términos.</p>
+        <p>Aurora («el Servicio») es operado por <strong>{operator}</strong>{LEGAL_ENTITY.taxId ? `, cédula jurídica ${LEGAL_ENTITY.taxId}` : ''}{LEGAL_ENTITY.address ? `, con domicilio en ${LEGAL_ENTITY.address}` : ''} («nosotros»). Estos términos regulan el acceso y uso del Servicio por parte de la organización que crea una cuenta («la Organización» o «vos») y de las personas que esa Organización autoriza a usarlo («Usuarios»).</p>
+        <p>El tratamiento de datos personales se describe en la <Link to={LEGAL_ROUTES.privacy}>Política de privacidad</Link>, que forma parte integral de estos términos.</p>
       </section>
 
       <section id="cuenta">
@@ -113,9 +113,9 @@ export default function Terminos() {
       <section id="ley">
         <h2>12. Ley aplicable y contacto</h2>
         <p>Estos términos se rigen por las leyes de la República de Costa Rica. Cualquier controversia se someterá a los tribunales competentes de Costa Rica, sin perjuicio de los mecanismos de resolución alternativa que las partes acuerden.</p>
-        <p>Para consultas sobre estos términos: {LEGAL_ENTITY.correoContacto
-          ? <a href={`mailto:${LEGAL_ENTITY.correoContacto}`}>{LEGAL_ENTITY.correoContacto}</a>
-          : <a href={LEGAL_ENTITY.sitioWeb}>{LEGAL_ENTITY.sitioWeb.replace(/^https?:\/\//, '')}</a>}.</p>
+        <p>Para consultas sobre estos términos: {LEGAL_ENTITY.contactEmail
+          ? <a href={`mailto:${LEGAL_ENTITY.contactEmail}`}>{LEGAL_ENTITY.contactEmail}</a>
+          : <a href={LEGAL_ENTITY.website}>{LEGAL_ENTITY.website.replace(/^https?:\/\//, '')}</a>}.</p>
       </section>
     </LegalLayout>
   );

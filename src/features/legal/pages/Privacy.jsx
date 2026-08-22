@@ -9,18 +9,18 @@ import {
 } from '../lib/legal';
 
 /**
- * Política de privacidad de Aurora.
+ * Aurora Privacy Policy.
  *
- * Borrador de trabajo para revisión por un abogado en Costa Rica (Ley 8968 y
- * Reglamento, Decreto 37554-JP) — ver docs/legal.md. La lista de
- * subencargados y las categorías de datos salen de lib/legal.js para que la
- * página no se desincronice del sistema real.
+ * Working draft for review by a lawyer in Costa Rica (Law 8968 and its
+ * Regulation, Decree 37554-JP) — see docs/legal.md. The sub-processor list
+ * and data categories come from lib/legal.js so the page cannot drift from
+ * the real system.
  */
-export default function Privacidad() {
-  const operador = LEGAL_ENTITY.razonSocial || LEGAL_ENTITY.nombreComercial;
-  const contacto = LEGAL_ENTITY.correoContacto
-    ? <a href={`mailto:${LEGAL_ENTITY.correoContacto}`}>{LEGAL_ENTITY.correoContacto}</a>
-    : <a href={LEGAL_ENTITY.sitioWeb}>{LEGAL_ENTITY.sitioWeb.replace(/^https?:\/\//, '')}</a>;
+export default function Privacy() {
+  const operator = LEGAL_ENTITY.legalName || LEGAL_ENTITY.tradeName;
+  const contact = LEGAL_ENTITY.contactEmail
+    ? <a href={`mailto:${LEGAL_ENTITY.contactEmail}`}>{LEGAL_ENTITY.contactEmail}</a>
+    : <a href={LEGAL_ENTITY.website}>{LEGAL_ENTITY.website.replace(/^https?:\/\//, '')}</a>;
 
   return (
     <LegalLayout title="Política de privacidad">
@@ -30,7 +30,7 @@ export default function Privacidad() {
 
       <section id="quien">
         <h2>1. Quién trata tus datos</h2>
-        <p>El Servicio Aurora es operado por <strong>{operador}</strong>{LEGAL_ENTITY.cedulaJuridica ? `, cédula jurídica ${LEGAL_ENTITY.cedulaJuridica}` : ''}{LEGAL_ENTITY.domicilio ? `, con domicilio en ${LEGAL_ENTITY.domicilio}` : ''}. Contacto para asuntos de privacidad: {contacto}.</p>
+        <p>El Servicio Aurora es operado por <strong>{operator}</strong>{LEGAL_ENTITY.taxId ? `, cédula jurídica ${LEGAL_ENTITY.taxId}` : ''}{LEGAL_ENTITY.address ? `, con domicilio en ${LEGAL_ENTITY.address}` : ''}. Contacto para asuntos de privacidad: {contact}.</p>
         <p>Esta política aplica a todos los datos personales tratados a través del Servicio, en dos roles distintos:</p>
         <ul>
           <li><strong>Somos responsables</strong> de los datos de la cuenta de cada Usuario (correo, nombre, credenciales, registros de acceso), necesarios para operar el Servicio y protegerlo.</li>
@@ -42,9 +42,9 @@ export default function Privacidad() {
         <h2>2. Qué datos se tratan</h2>
         <dl className="legal-dl">
           {DATA_CATEGORIES.map((c) => (
-            <div key={c.titulo}>
-              <dt>{c.titulo}</dt>
-              <dd>{c.detalle}</dd>
+            <div key={c.title}>
+              <dt>{c.title}</dt>
+              <dd>{c.detail}</dd>
             </div>
           ))}
         </dl>
@@ -87,11 +87,11 @@ export default function Privacidad() {
             </thead>
             <tbody>
               {SUBPROCESSORS.map((s) => (
-                <tr key={s.nombre}>
-                  <td>{s.nombre}</td>
-                  <td>{s.pais}</td>
-                  <td>{s.proposito}</td>
-                  <td>{s.datos}</td>
+                <tr key={s.name}>
+                  <td>{s.name}</td>
+                  <td>{s.country}</td>
+                  <td>{s.purpose}</td>
+                  <td>{s.data}</td>
                 </tr>
               ))}
             </tbody>
@@ -100,7 +100,7 @@ export default function Privacidad() {
         <p>Además, el Servicio consulta proveedores que <strong>no reciben datos personales</strong>:</p>
         <ul>
           {NON_PERSONAL_THIRD_PARTIES.map((t) => (
-            <li key={t.nombre}><strong>{t.nombre}</strong>: {t.proposito}</li>
+            <li key={t.name}><strong>{t.name}</strong>: {t.purpose}</li>
           ))}
         </ul>
         <p>Si incorporamos un nuevo subencargado que trate datos personales, actualizaremos esta lista y, cuando el cambio sea relevante, avisaremos a los administradores de cada Organización con antelación.</p>
@@ -129,7 +129,7 @@ export default function Privacidad() {
         <h2>9. Tus derechos</h2>
         <p>Toda persona cuyos datos se traten a través del Servicio tiene derecho a acceder a ellos, rectificarlos, solicitar su supresión, oponerse a su tratamiento y revocar el consentimiento otorgado, conforme a la Ley 8968. Para ejercerlos:</p>
         <ul>
-          <li>Si sos Usuario del Servicio, podés gestionar los datos de tu cuenta desde tu perfil o escribirnos a {contacto}.</li>
+          <li>Si sos Usuario del Servicio, podés gestionar los datos de tu cuenta desde tu perfil o escribirnos a {contact}.</li>
           <li>Si sos empleado, proveedor o comprador de una Organización que usa Aurora, dirigí tu solicitud a esa Organización, que es la responsable de tus datos. Si nos la enviás a nosotros, la remitiremos a la Organización y la asistiremos para responder.</li>
         </ul>
         <p>Si considerás que tus derechos no fueron atendidos, podés acudir a la Agencia de Protección de Datos de los Habitantes (PRODHAB) de Costa Rica.</p>
@@ -143,7 +143,7 @@ export default function Privacidad() {
       <section id="cambios">
         <h2>11. Cambios a esta política</h2>
         <p>Cada versión de esta política lleva fecha y número de versión al inicio. Si el cambio es relevante —por ejemplo, un nuevo subencargado o una nueva finalidad— lo comunicaremos dentro del Servicio o por correo a los administradores con al menos 15 días de antelación.</p>
-        <p>Ver también los <Link to={LEGAL_ROUTES.terminos}>Términos del servicio</Link>.</p>
+        <p>Ver también los <Link to={LEGAL_ROUTES.terms}>Términos del servicio</Link>.</p>
       </section>
     </LegalLayout>
   );

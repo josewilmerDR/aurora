@@ -2,14 +2,14 @@ import { Link } from 'react-router-dom';
 import { LEGAL_ROUTES } from '../lib/legal';
 
 /**
- * Checkbox de aceptación de Términos + Política de privacidad + encargo de
- * tratamiento. Se usa al crear una organización (FincaForm), que es el punto
- * donde nace la relación finca (responsable) ↔ Aurora (encargado).
+ * Acceptance checkbox for Terms + Privacy Policy + data-processing mandate.
+ * Used when creating an organization (FincaForm), the point where the
+ * finca (controller) ↔ Aurora (processor) relationship is born.
  *
- * Controlado por el padre: `checked`/`onChange`. `error` pinta el mensaje de
- * validación con la misma semántica ARIA que el resto de campos de auth.
+ * Controlled by the parent: `checked`/`onChange`. `error` renders the
+ * validation message with the same ARIA semantics as the other auth fields.
  */
-export default function LegalConsent({ id = 'acepta-terminos', checked, onChange, disabled = false, error = '' }) {
+export default function LegalConsent({ id = 'accepts-terms', checked, onChange, disabled = false, error = '' }) {
   const errorId = `${id}-error`;
   return (
     <div className="aur-field auth-consent">
@@ -27,9 +27,9 @@ export default function LegalConsent({ id = 'acepta-terminos', checked, onChange
         />
         <span className="auth-consent-text">
           Acepto los{' '}
-          <Link to={LEGAL_ROUTES.terminos} target="_blank" rel="noopener">Términos del servicio</Link>
+          <Link to={LEGAL_ROUTES.terms} target="_blank" rel="noopener">Términos del servicio</Link>
           {' '}y la{' '}
-          <Link to={LEGAL_ROUTES.privacidad} target="_blank" rel="noopener">Política de privacidad</Link>,
+          <Link to={LEGAL_ROUTES.privacy} target="_blank" rel="noopener">Política de privacidad</Link>,
           y confirmo que tengo autoridad para aceptarlos en nombre de esta organización,
           incluido el encargo a Aurora del tratamiento de los datos de su personal.
         </span>

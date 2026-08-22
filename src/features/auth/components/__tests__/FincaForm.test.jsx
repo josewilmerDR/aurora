@@ -4,10 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import FincaForm, { validateFincaStep } from '../FincaForm';
 import { LEGAL_VERSION } from '../../../legal/lib/legal';
 
-// El checkbox de consentimiento es la captura del contrato de encargo entre la
-// finca y Aurora. Lo que se protege: que sin marcarlo no se emita el submit, y
-// que al marcarlo el padre reciba aceptaTerminos + la versión legal vigente
-// (el backend la persiste en el doc de la finca).
+// The consent checkbox captures the processing mandate between the finca and
+// Aurora. Protected here: no submit is emitted without it, and when checked
+// the parent receives acceptsTerms + the current legal version (the backend
+// persists it on the finca document).
 const renderForm = (props = {}) =>
   render(
     <MemoryRouter>
@@ -21,21 +21,21 @@ const fill = () => {
 };
 
 describe('validateFincaStep', () => {
-  test('exige aceptación explícita de términos', () => {
+  test('requires explicit acceptance of the terms', () => {
     const errs = validateFincaStep({ fincaNombre: 'X', nombreAdmin: 'Y' });
-    expect(errs.aceptaTerminos).toBeTruthy();
-    expect(validateFincaStep({ fincaNombre: 'X', nombreAdmin: 'Y', aceptaTerminos: true })).toEqual({});
+    expect(errs.acceptsTerms).toBeTruthy();
+    expect(validateFincaStep({ fincaNombre: 'X', nombreAdmin: 'Y', acceptsTerms: true })).toEqual({});
   });
 });
 
-describe('<FincaForm /> consentimiento', () => {
-  test('enlaza a términos y privacidad', () => {
+describe('<FincaForm /> consent', () => {
+  test('links to terms and privacy', () => {
     renderForm();
-    expect(screen.getByRole('link', { name: /Términos del servicio/ })).toHaveAttribute('href', '/terminos');
-    expect(screen.getByRole('link', { name: /Política de privacidad/ })).toHaveAttribute('href', '/privacidad');
+    expect(screen.getByRole('link', { name: /Términos del servicio/ })).toHaveAttribute('href', '/terms');
+    expect(screen.getByRole('link', { name: /Política de privacidad/ })).toHaveAttribute('href', '/privacy');
   });
 
-  test('el botón queda deshabilitado hasta marcar el checkbox', () => {
+  test('submit button stays disabled until the checkbox is checked', () => {
     renderForm();
     fill();
     const btn = screen.getByRole('button', { name: /Crear organización/ });
@@ -44,7 +44,7 @@ describe('<FincaForm /> consentimiento', () => {
     expect(btn).toBeEnabled();
   });
 
-  test('sin consentimiento el submit no llega al padre', () => {
+  test('without consent the submit never reaches the parent', () => {
     const onSubmit = vi.fn();
     const { container } = renderForm({ onSubmit });
     fill();
@@ -53,7 +53,7 @@ describe('<FincaForm /> consentimiento', () => {
     expect(screen.getByText(/Debes aceptar/)).toBeInTheDocument();
   });
 
-  test('con consentimiento el padre recibe aceptaTerminos y la versión legal', () => {
+  test('with consent the parent receives acceptsTerms and the legal version', () => {
     const onSubmit = vi.fn();
     const { container } = renderForm({ onSubmit });
     fill();
@@ -62,7 +62,7 @@ describe('<FincaForm /> consentimiento', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       fincaNombre: 'Finca Test',
       nombreAdmin: 'Ana Mora',
-      aceptaTerminos: true,
+      acceptsTerms: true,
       legalVersion: LEGAL_VERSION,
     });
   });

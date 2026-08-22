@@ -462,11 +462,11 @@ export default function AuroraChat({ open = false, onClose, onRequestOpen, onBad
           </button>
         </div>
 
-        {/* Aviso de tratamiento por IA: cada turno viaja a Anthropic con el
-            contexto de la finca. Una línea, siempre visible, no descartable. */}
+        {/* AI processing notice: every turn goes to Anthropic with the finca
+            context. One line, always visible, not dismissible. */}
         <p className="aurora-chat-ai-notice">
           Respuestas generadas con IA (Anthropic) a partir de tu mensaje y los datos de la finca. Verificá antes de actuar.{' '}
-          <a href="/privacidad" target="_blank" rel="noopener">Privacidad</a>
+          <a href="/privacy" target="_blank" rel="noopener">Privacidad</a>
         </p>
 
         <div className="aurora-chat-messages">

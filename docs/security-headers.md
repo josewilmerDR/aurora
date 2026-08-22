@@ -29,7 +29,11 @@ La política actual permite lo que la app necesita de verdad:
 - `script-src` incluye `gstatic.com`, `google.com` y `apis.google.com` — de ahí
   salen el SDK de reCAPTCHA Enterprise y el de Google Sign-In.
 - `connect-src` incluye los hosts de Identity Toolkit, Secure Token, Firebase
-  Installations y App Check; sin ellos no hay sesión.
+  Installations y App Check; sin ellos no hay sesión. También
+  `https://comunplace.com`, de donde el launcher lee el manifiesto del
+  ecosistema (`/.well-known/ecosystem.json`, ver
+  [src/lib/ecosystemManifest.js](../src/lib/ecosystemManifest.js)); si se
+  bloquea, el launcher cae al catálogo embebido sin romper nada.
 - `img-src` incluye `blob:` y `data:` porque los escaneos se previsualizan
   desde memoria antes de subirse.
 

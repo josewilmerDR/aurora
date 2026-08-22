@@ -14,8 +14,8 @@ export default function LandingFooter() {
           <Link to="/login">Iniciar sesión</Link>
           <Link to="/register">Crear cuenta</Link>
           <a href={DIRECTORY_URL}>comunplace</a>
-          <Link to="/terminos">Términos</Link>
-          <Link to="/privacidad">Privacidad</Link>
+          <Link to="/terms">Términos</Link>
+          <Link to="/privacy">Privacidad</Link>
         </nav>
 
         <p className="lp-footer-legal">aurora · un producto de comunplace</p>

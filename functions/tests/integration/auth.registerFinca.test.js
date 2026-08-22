@@ -1,12 +1,12 @@
 /**
- * Integration: captura de consentimiento legal en `POST /api/auth/register-finca`.
+ * Integration: legal consent capture in `POST /api/auth/register-finca`.
  *
- * Crear una organización es el momento en que nace la relación finca
- * (responsable) ↔ Aurora (encargado). El backend exige aceptación explícita
- * (aceptaTerminos === true + versión legal) y la persiste en el doc de la
- * finca, para poder demostrar después QUÉ versión aceptó cada cliente.
+ * Creating an organization is the moment the finca (controller) ↔ Aurora
+ * (processor) relationship is born. The backend requires explicit acceptance
+ * (acceptsTerms === true + legal version) and persists it on the finca doc,
+ * so we can later prove WHICH version each customer accepted.
  *
- * Auth real mockeada: authenticateOnly deriva uid/email de headers.
+ * Real auth mocked: authenticateOnly derives uid/email from headers.
  */
 
 jest.mock('../../lib/clients', () => ({
@@ -42,8 +42,8 @@ beforeAll((done) => {
 
 afterAll(() => new Promise((resolve) => server.close(() => resolve())));
 
-// uid único por test: el endpoint dedupea por (adminUid, nombre) y tiene cap
-// por dueño, así que reutilizar uid entre corridas contaminaría los casos.
+// Unique uid per test: the endpoint dedupes by (adminUid, name) and caps
+// orgs per owner, so reusing a uid across runs would contaminate the cases.
 let seq = 0;
 const freshUid = () => `legal-${Date.now()}-${seq++}`;
 
@@ -55,8 +55,8 @@ function post(body, uid) {
   });
 }
 
-describe('POST /api/auth/register-finca — consentimiento legal', () => {
-  test('sin aceptaTerminos → 400 TERMS_NOT_ACCEPTED y no crea la finca', async () => {
+describe('POST /api/auth/register-finca — legal consent', () => {
+  test('without acceptsTerms → 400 TERMS_NOT_ACCEPTED and no finca created', async () => {
     const uid = freshUid();
     const res = await post({ fincaNombre: 'Finca Sin Consentimiento', nombreAdmin: 'Ana' }, uid);
     expect(res.status).toBe(400);
@@ -66,39 +66,39 @@ describe('POST /api/auth/register-finca — consentimiento legal', () => {
     expect(owned.empty).toBe(true);
   });
 
-  test('aceptaTerminos=false también se rechaza', async () => {
+  test('acceptsTerms=false is rejected too', async () => {
     const res = await post(
-      { fincaNombre: 'Finca False', nombreAdmin: 'Ana', aceptaTerminos: false, legalVersion: '2026-08-21' },
+      { fincaNombre: 'Finca False', nombreAdmin: 'Ana', acceptsTerms: false, legalVersion: '2026-08-21' },
       freshUid(),
     );
     expect(res.status).toBe(400);
     expect(JSON.stringify(await res.json())).toContain('TERMS_NOT_ACCEPTED');
   });
 
-  test('versión legal malformada se rechaza', async () => {
+  test('malformed legal version is rejected', async () => {
     const res = await post(
-      { fincaNombre: 'Finca Version', nombreAdmin: 'Ana', aceptaTerminos: true, legalVersion: 'v1' },
+      { fincaNombre: 'Finca Version', nombreAdmin: 'Ana', acceptsTerms: true, legalVersion: 'v1' },
       freshUid(),
     );
     expect(res.status).toBe(400);
     expect(JSON.stringify(await res.json())).toContain('TERMS_NOT_ACCEPTED');
   });
 
-  test('con consentimiento → 201 y la finca guarda aceptacionLegal', async () => {
+  test('with consent → 201 and the finca stores legalAcceptance', async () => {
     const uid = freshUid();
     const res = await post(
-      { fincaNombre: 'Finca Consentida', nombreAdmin: 'Ana', aceptaTerminos: true, legalVersion: '2026-08-21' },
+      { fincaNombre: 'Finca Consentida', nombreAdmin: 'Ana', acceptsTerms: true, legalVersion: '2026-08-21' },
       uid,
     );
     expect(res.status).toBe(201);
     const { fincaId } = await res.json();
 
     const finca = (await db.collection('fincas').doc(fincaId).get()).data();
-    expect(finca.aceptacionLegal).toMatchObject({
+    expect(finca.legalAcceptance).toMatchObject({
       version: '2026-08-21',
-      aceptadoPorUid: uid,
+      acceptedByUid: uid,
       email: `${uid}@example.com`,
     });
-    expect(finca.aceptacionLegal.fecha).toBeTruthy();
+    expect(finca.legalAcceptance.acceptedAt).toBeTruthy();
   });
 });

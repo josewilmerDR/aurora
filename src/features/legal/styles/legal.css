@@ -1,6 +1,6 @@
-/* Páginas legales públicas (/terminos, /privacidad).
-   Hereda tokens de aurora.css y el chrome (header/footer) de landing.css;
-   aquí solo vive la tipografía del artículo. */
+/* Public legal pages (/terms, /privacy).
+   Inherits tokens from aurora.css and the chrome (header/footer) from
+   landing.css; only the article typography lives here. */
 
 .legal-main {
   padding-block: clamp(32px, 5vw, 64px);
@@ -93,7 +93,7 @@
   text-decoration: underline;
 }
 
-/* Tabla de subencargados: scroll horizontal propio, nunca del body. */
+/* Sub-processor table: scrolls horizontally on its own, never the body. */
 .legal-table-wrap {
   overflow-x: auto;
   margin: 0 0 12px 0;
