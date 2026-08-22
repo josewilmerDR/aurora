@@ -118,6 +118,10 @@ exports.api = functions.https.onRequest(
 
 exports.sendDuePushReminders = require('./scheduled/reminders-cron');
 exports.hrMonthlyScoring = require('./scheduled/hrMonthlyScoring');
+// Daily Firebase Auth export to the private backups bucket — pairs with the
+// managed Firestore backups so a restore can be followed by an auth:import
+// (docs/firestore-backups.md §2.4). Not advanced: v1 needs it too.
+exports.authDailyExport = require('./scheduled/auth-export-cron');
 
 // Advanced crons (Fases 2–6): exported only when FEATURES_ADVANCED=true so a
 // v1 deploy does not provision schedulers for features hidden in the UI.
