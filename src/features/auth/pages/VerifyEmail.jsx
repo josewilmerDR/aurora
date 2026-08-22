@@ -6,6 +6,7 @@ import { auth } from '../../../firebase';
 import { useUser } from '../../../contexts/UserContext';
 import { authErrorMessage } from '../lib/authErrors';
 import AuthCard from '../components/AuthCard';
+import { AUTH_EMAIL_SENDER } from '../../../lib/support';
 import '../styles/auth.css';
 
 // Polling cadence while we wait for the user to click the verification link.
@@ -127,11 +128,12 @@ export default function VerifyEmail() {
           </button>
         </p>
       }
+      supportContext="no recibo el correo de verificación"
+      supportEmail={email}
     >
       <div className="auth-form" aria-live="polite">
         <p className="auth-subtitle">
           Una vez que hagas clic en el enlace, esta pantalla continuará automáticamente.
-          También puedes revisar la carpeta de spam.
         </p>
 
         {error && <p className="auth-error" role="alert">{error}</p>}
@@ -154,6 +156,20 @@ export default function VerifyEmail() {
         >
           {cooldown > 0 ? `Reenviar correo (${cooldown}s)` : 'Reenviar correo'}
         </button>
+
+        {/* Way out when the email never arrives: the verified-email gate is a
+            hard block on the API, so this screen must never be a dead end.
+            The sender address lets the user search spam; the support link
+            (AuthCard footer) carries their email for manual verification. */}
+        <details className="auth-help">
+          <summary>¿No te llega el correo?</summary>
+          <ol>
+            <li>Buscá un mensaje de <strong>{AUTH_EMAIL_SENDER}</strong> en Spam o Promociones y marcalo como «no es spam».</li>
+            <li>Puede tardar unos minutos. Si ya pasaron cinco, usá «Reenviar correo».</li>
+            <li>Si tu correo de trabajo filtra remitentes externos, probá con «Usar otro correo».</li>
+            <li>Si nada funciona, escribinos con el contacto de abajo: podemos verificar tu cuenta manualmente.</li>
+          </ol>
+        </details>
       </div>
     </AuthCard>
   );

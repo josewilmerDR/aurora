@@ -536,6 +536,54 @@
   color: var(--aur-text-3);
 }
 
+/* ── Support footnote (all auth screens) + "email not arriving" help ──────── */
+.auth-support {
+  margin: 16px 0 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--aur-divider);
+  font-size: var(--aur-fs-caption);
+  line-height: 1.45;
+  color: var(--aur-text-3);
+  text-align: center;
+}
+
+.auth-support a {
+  color: var(--aur-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-support a:hover {
+  text-decoration: underline;
+}
+
+.auth-help {
+  text-align: left;
+  font-size: var(--aur-fs-footnote);
+  line-height: 1.5;
+  color: var(--aur-text-2);
+}
+
+.auth-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--aur-text);
+}
+
+.auth-help ol {
+  margin: 8px 0 0 0;
+  padding-left: 1.2em;
+}
+
+.auth-help li + li {
+  margin-top: 4px;
+}
+
+.auth-help strong {
+  color: var(--aur-text);
+  word-break: break-all;
+}
+
 /* ── Responsive: en pantallas chicas el padding de 48/40px ahoga el card ───── */
 @media (max-width: 420px) {
   .auth-card {
