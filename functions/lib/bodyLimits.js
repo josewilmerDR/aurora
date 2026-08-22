@@ -41,16 +41,27 @@ const LARGE_BODY_ROUTES = [
   '/api/siembras/escanear',                 // planting scan
 ];
 
-// ":param" → one path segment. Anchored, exact match on req.path (no query).
-function toMatcher(route) {
-  const re = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/:[A-Za-z_]+/g, '[^/]+');
-  return new RegExp(`^${re}$`);
+// Segment-wise match: ":param" matches exactly one non-empty segment. No
+// RegExp involved — the routes are code constants, but building regexes from
+// strings trips static analysis (detect-non-literal-regexp) for no benefit.
+const LARGE_BODY_SEGMENTS = LARGE_BODY_ROUTES.map((route) => route.split('/'));
+
+function matchesRoute(segments, pathSegments) {
+  if (segments.length !== pathSegments.length) return false;
+  for (let i = 0; i < segments.length; i += 1) {
+    const seg = segments[i];
+    if (seg.startsWith(':')) {
+      if (pathSegments[i] === '') return false;
+    } else if (seg !== pathSegments[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
-const LARGE_BODY_MATCHERS = LARGE_BODY_ROUTES.map(toMatcher);
-
 function isLargeBodyPath(p) {
-  return LARGE_BODY_MATCHERS.some((re) => re.test(p));
+  const pathSegments = p.split('/');
+  return LARGE_BODY_SEGMENTS.some((segments) => matchesRoute(segments, pathSegments));
 }
 
 const smallJson = express.json({ limit: DEFAULT_LIMIT });
