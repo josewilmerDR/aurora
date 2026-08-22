@@ -20,9 +20,20 @@ Dos capas complementarias:
 | Capa | Qué cubre | Ventana |
 |---|---|---|
 | PITR (point-in-time recovery) | Borrado/corrupción reciente, con granularidad de 1 minuto | 7 días hacia atrás **desde que se activó** — no cubre hacia atrás los días que estuvo apagada |
-| Backups programados diarios | Desastre mayor, borrado detectado tarde | Retención 7 días |
+| Backups programados diarios | Desastre mayor, borrado detectado tarde | Retención 30 días (schedule creado 2026-04-23; verificado 2026-08-22) |
 
-Comandos (idempotentes — sirven para verificar o re-aplicar):
+Plus **delete protection** on the database (enabled 2026-08-22): a wrong
+`gcloud firestore databases delete` no longer wipes production.
+
+All three are applied by one idempotent script — use it on day zero, as a
+periodic check, and after promoting a restored database (§2.4 item 4):
+
+```bash
+scripts/firestore-protect-db.sh            # auroradatabase / aurora-7dc9b
+scripts/firestore-protect-db.sh <DB> <PROJECT>
+```
+
+Equivalent raw commands (idempotent — verify or re-apply):
 
 ```bash
 # 0. Locación de la base — BLOQUEANTE para elegir bucket de export:
@@ -32,12 +43,12 @@ gcloud firestore databases describe \
 
 # 1. PITR
 gcloud firestore databases update \
-  --database=auroradatabase --project=aurora-7dc9b --enable-pitr
+  --database=auroradatabase --project=aurora-7dc9b --enable-pitr --delete-protection
 
 # 2. Backup diario, retención 7 días
 gcloud firestore backups schedules create \
   --database=auroradatabase --project=aurora-7dc9b \
-  --recurrence=daily --retention=7d
+  --recurrence=daily --retention=30d
 
 # Verificación
 gcloud firestore backups schedules list \
@@ -45,16 +56,28 @@ gcloud firestore backups schedules list \
 gcloud firestore backups list --project=aurora-7dc9b
 ```
 
-### Bucket de export (si se usa `gcloud firestore export`)
+### Dedicated backups bucket — `gs://aurora-7dc9b-firestore-backups`
 
-**Nunca `gs://aurora-7dc9b.appspot.com`.** Ese bucket tiene los uploads de
-usuarios y assets servidos por capability URL; un volcado completo de la base
-ahí es la base entera dentro de un bucket con superficie pública. Usar un
-bucket dedicado, en la **misma locación que la base** (ver comando 0), con
-acceso restringido:
+Created 2026-08-22 in **us-central1** (same location as the database — a
+bucket in another region fails `gcloud firestore export` ~20 min later with
+an obscure error). Uniform bucket-level access, public-access prevention
+enforced, lifecycle rule deletes objects after **30 days**. It holds the
+daily Auth exports (§2.4 item 1) and is the only valid destination for an
+ad-hoc `gcloud firestore export`.
+
+**Never `gs://aurora-7dc9b.firebasestorage.app`.** That bucket holds user
+uploads and assets served by capability URL; a full database dump there is
+the whole database inside a bucket with public surface.
+
+IAM: the Cloud Functions service account
+(`103051938438-compute@developer.gserviceaccount.com`) has
+`roles/storage.objectCreator` on it — write-only, it cannot read or list the
+exports. Re-create if ever lost:
 
 ```bash
-gsutil mb -p aurora-7dc9b -l <LOCACION_DE_LA_BASE> -b on gs://aurora-7dc9b-firestore-backups
+gcloud storage buckets create gs://aurora-7dc9b-firestore-backups \
+  --project=aurora-7dc9b --location=us-central1 \
+  --uniform-bucket-level-access --public-access-prevention
 ```
 
 ## 2. Restaurar — cómo funciona de verdad
@@ -101,23 +124,51 @@ gcloud firestore databases clone \
 
 ### 2.4 Lo que un restore NO cubre — tres brechas
 
-1. **Firebase Auth.** Los usuarios viven en Identity Platform, no en Firestore.
-   Sin ellos, `memberships` apunta a UIDs que no existen y **nadie entra**.
-   Auth se respalda aparte:
+1. **Firebase Auth.** Users live in Identity Platform, not Firestore. Without
+   them `memberships` points at UIDs that do not exist and **nobody can log
+   in**. Covered since 2026-08-22 by the scheduled function
+   `authDailyExport` ([functions/scheduled/auth-export-cron.js](../functions/scheduled/auth-export-cron.js),
+   logic in [functions/lib/authExport.js](../functions/lib/authExport.js)):
+   every day at 04:00 America/Costa_Rica it writes
+   `gs://aurora-7dc9b-firestore-backups/auth/auth-users-YYYY-MM-DD.json` in
+   the `firebase auth:import` schema, password hashes included (the bucket
+   lifecycle keeps 30 days). First export taken manually the same day
+   (7 accounts). Manual equivalent, never into the repo:
    ```bash
-   firebase auth:export auth-backup.json --project aurora-7dc9b
+   firebase auth:export auth-users.json --project aurora-7dc9b --format json
+   gcloud storage cp auth-users.json gs://aurora-7dc9b-firestore-backups/auth/
    ```
-   (guardarlo en el bucket de backups, no en el repo — contiene hashes de
-   contraseñas). Un desastre que borre Firestore normalmente no toca Auth,
-   pero el runbook no puede asumirlo.
+   To restore users into a rebuilt project:
+   ```bash
+   gcloud storage cp gs://aurora-7dc9b-firestore-backups/auth/auth-users-<DATE>.json .
+   firebase auth:import auth-users-<DATE>.json --project <PROJECT> \
+     --hash-algo=SCRYPT --hash-key=<base64 signer key> \
+     --salt-separator=<base64> --rounds=8 --mem-cost=14
+   ```
+   The hash parameters come from Firebase console → Authentication → Users →
+   ⋮ → *Password hash parameters*. They are per project and are NOT in the
+   export: copy them into the company password manager now, not during an
+   incident. Without them the import still works but every password is
+   invalid and users must reset.
 2. **Políticas TTL.** Se recrean a mano en la base nueva (consola → Firestore →
    TTL; las políticas activas están documentadas en
    [security-hardening.md](security-hardening.md)).
 3. **Índices.** El estado canónico vive en
-   [firestore.indexes.json](../firestore.indexes.json); redesplegarlos contra
-   la base nueva (ver 2.3 punto 2) y esperar a que terminen de construirse
-   antes de abrir tráfico — consultas con índice faltante fallan con
-   `FAILED_PRECONDITION`.
+   [firestore.indexes.json](../firestore.indexes.json). Drill 2026-08-22: a
+   restore from a managed backup DID carry all 90 composite indexes to the new
+   database (verified with `gcloud firestore indexes composite list` on both),
+   so redeploying is a safety net, not a prerequisite. Still run
+   `deploy:indexes` against the new database (see 2.3 point 2) and wait for
+   any missing index to build before opening traffic — queries without their
+   index fail with `FAILED_PRECONDITION`.
+4. **PITR and delete protection are NOT inherited.** The restored database
+   comes up with `POINT_IN_TIME_RECOVERY_DISABLED` and
+   `DELETE_PROTECTION_DISABLED` (verified in the 2026-08-22 drill). The backup
+   schedule is per-database too. After promoting a restored database run the
+   protection script against it — it applies all three in one go:
+   ```bash
+   scripts/firestore-protect-db.sh <NEW_DB> aurora-7dc9b
+   ```
 
 ## 3. El ensayo (drill)
 
@@ -150,4 +201,4 @@ críticas, cambio de locación, migraciones masivas) o al menos 1 vez por año.
 
 | Fecha | Backup usado | RTO | Notas |
 |---|---|---|---|
-| _pendiente_ | | | Primer drill — ejecutar tras mergear este PR |
+| 2026-08-22 | `227a3c6f…` (snapshot 2026-08-22T08:54Z, daily schedule) | **10 min 02 s** to ACTIVE (t0 11:48:50Z → 11:58:52Z); 11 min 42 s end-to-end incl. verification and cleanup | Restored to `auroradatabase-drill` in us-central1. Verified via REST aggregation counts: 34/34 collections, 492/492 documents, zero per-collection differences; 90/90 composite indexes present. Gaps found and closed the same day: restored DB has PITR and delete protection OFF (→ `scripts/firestore-protect-db.sh`, §2.4 item 4); no Auth export and no dedicated bucket (→ bucket created + `authDailyExport` cron + first manual export of 7 accounts, §2.4 item 1); production had delete protection DISABLED (→ enabled). Still open: copy the password hash parameters to the password manager; deploy `authDailyExport` with the next functions deploy. Drill DB deleted at 12:00:32Z. |
